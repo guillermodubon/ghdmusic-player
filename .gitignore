@@ -1,0 +1,59 @@
+# Maven and build output
+**/target/
+**/build/
+**/dist/
+**/out/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/nbdist/
+/.nb-gradle/
+
+# Visual Studio Code
+.vscode/
+
+# Local agent and tooling metadata
+.agents/
+.codex/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.part
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+secrets/
+*.key
+*.pem
+*.p12
+
+# User-owned music library data
+src/main/java/**/repository/userData/*.db
+src/main/java/**/repository/userData/*.db-*
+src/main/java/**/repository/userData/manifest.json
+/manifest.json

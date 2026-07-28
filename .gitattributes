@@ -1,0 +1,26 @@
+# Normalize text files in the repository.
+* text=auto
+
+# Project source and resources
+*.java text eol=lf
+*.fxml text eol=lf
+*.css text eol=lf
+*.xml text eol=lf
+*.properties text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.svg text eol=lf
+
+# Windows build scripts
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.iss text eol=crlf
+
+# Binary assets and bundled executables
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.exe binary
+*.dll binary
