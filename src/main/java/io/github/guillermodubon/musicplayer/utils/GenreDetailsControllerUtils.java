@@ -105,6 +105,16 @@ public final class GenreDetailsControllerUtils {
         return List.copyOf(ids);
     }
 
+    /** Returns album/single owners only; track-only collaborators are excluded. */
+    public static List<String> extractAlbumArtistNamesFromResource(JsonObject obj) {
+        return AlbumArtistResolver.names(obj);
+    }
+
+    /** Returns the Deezer IDs of album/single owners only. */
+    public static List<Long> extractAlbumArtistIdsFromResource(JsonObject obj) {
+        return AlbumArtistResolver.ids(obj);
+    }
+
     public static long safeGetLong(JsonObject obj, String key, long fallback) {
         try {
             if (obj != null && obj.has(key) && !obj.get(key).isJsonNull()) {

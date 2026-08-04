@@ -175,8 +175,9 @@ public final class MusicCardHelper {
             } catch (Exception ignored) {}
         }
 
-        // 2) try by name (case-insensitive)
-        if (!safeName.isBlank()) {
+        // 2) A valid ID is authoritative. Never replace it with a same-name
+        // artist when the exact local record is not available.
+        if (maybeId <= 0 && !safeName.isBlank()) {
             try {
                 Optional<Artist> byName = snapshot(svc.getArtists()).stream()
                         .filter(a -> a != null && a.getName() != null && a.getName().equalsIgnoreCase(safeName))

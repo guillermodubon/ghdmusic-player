@@ -165,6 +165,16 @@ public final class DiscoverUtils {
         return ids;
     }
 
+    /** Returns album/single owners only; track-only collaborators are excluded. */
+    public static LinkedHashSet<String> extractAlbumArtistNamesFromResource(JsonObject obj) {
+        return new LinkedHashSet<>(AlbumArtistResolver.names(obj));
+    }
+
+    /** Returns the Deezer IDs of album/single owners only. */
+    public static LinkedHashSet<Long> extractAlbumArtistIdsFromResource(JsonObject obj) {
+        return new LinkedHashSet<>(AlbumArtistResolver.ids(obj));
+    }
+
     public static List<String> normalizeArtistNames(Collection<String> raw) {
         if (raw == null) return List.of();
         LinkedHashSet<String> out = new LinkedHashSet<>();

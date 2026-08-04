@@ -18,6 +18,8 @@ import java.util.function.Consumer;
 
 public final class SearchDropdownCardFactory {
 
+    private static final double SEARCH_IMAGE_SIZE = 160.0;
+
     private SearchDropdownCardFactory() {}
 
     public static Image defaultCover() {
@@ -49,7 +51,11 @@ public final class SearchDropdownCardFactory {
 
         Image cover = (coverUrl == null || coverUrl.isBlank())
                 ? defaultCover()
-                : MediaImageResolver.remoteImage(coverUrl, 96, 96);
+                : MediaImageResolver.remoteImage(
+                        coverUrl,
+                        SEARCH_IMAGE_SIZE,
+                        SEARCH_IMAGE_SIZE
+                );
         if (cover == null) cover = defaultCover();
 
         String normalizedType = type == null ? "" : type.trim().toLowerCase(Locale.ROOT);
