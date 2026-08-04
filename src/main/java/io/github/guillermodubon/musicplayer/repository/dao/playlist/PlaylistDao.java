@@ -16,4 +16,10 @@ public interface PlaylistDao extends Dao<Playlist, Long> {
     void upsertRemotePlaylistPreservingId(Playlist p, byte[] coverBytes, long remoteId) throws SQLException;
     void addSongToPlaylist(long playlistId, Song song) throws SQLException;
     void removeSongFromPlaylist(long playlistId, long songId) throws SQLException;
+    void reorderSongs(long playlistId, List<Long> orderedSongIds) throws SQLException;
+    void persistSongOrders(long playlistId,
+                           List<Long> orderedSongIds,
+                           List<Long> customOrderedSongIds) throws SQLException;
+    List<Long> findSongIdsByCustomOrder(long playlistId) throws SQLException;
+    List<Long> findSongIdsByRecentlyAdded(long playlistId) throws SQLException;
 }

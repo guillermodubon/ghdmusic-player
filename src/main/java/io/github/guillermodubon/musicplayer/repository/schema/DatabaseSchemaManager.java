@@ -125,6 +125,8 @@ public final class DatabaseSchemaManager {
                     CREATE TABLE IF NOT EXISTS SongsPlaylists(
                         SongID INTEGER NOT NULL,
                         PlaylistID INTEGER NOT NULL,
+                        Position INTEGER NOT NULL DEFAULT 0,
+                        CustomPosition INTEGER NOT NULL DEFAULT 0,
                         CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
                         PRIMARY KEY (SongID, PlaylistID),
                         FOREIGN KEY (SongID) REFERENCES Song(SongID),
@@ -155,9 +157,16 @@ public final class DatabaseSchemaManager {
     private static void ensureMigrations(Connection connection) throws SQLException {
         ensureColumn(connection, "Song", "FilePath", "TEXT NULL");
         ensureColumn(connection, "PlaybackHistory", "ItemType", "TEXT NOT NULL DEFAULT 'ALBUM'");
+        boolean positionAdded = ensureColumn(connection, "SongsPlaylists", "Position", "INTEGER NOT NULL DEFAULT 0");
+        if (positionAdded) {
+            backfillPlaylistPositions(connection);
+        }
+        if (ensureColumn(connection, "SongsPlaylists", "CustomPosition", "INTEGER NOT NULL DEFAULT 0")) {
+            backfillPlaylistCustomPositions(connection);
+        }
     }
 
-    private static void ensureColumn(
+    private static boolean ensureColumn(
             Connection connection,
             String tableName,
             String columnName,
@@ -167,7 +176,7 @@ public final class DatabaseSchemaManager {
              ResultSet resultSet = statement.executeQuery("PRAGMA table_info(" + tableName + ")")) {
             while (resultSet.next()) {
                 if (columnName.equalsIgnoreCase(resultSet.getString("name"))) {
-                    return;
+                    return false;
                 }
             }
         }
@@ -175,6 +184,71 @@ public final class DatabaseSchemaManager {
         try (PreparedStatement statement = connection.prepareStatement(
                 "ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + definition)) {
             statement.executeUpdate();
+        }
+        return true;
+    }
+
+    private static void backfillPlaylistPositions(Connection connection) throws SQLException {
+        String selectSql = """
+                SELECT PlaylistID, SongID
+                  FROM SongsPlaylists
+                 ORDER BY PlaylistID, CreatedAt, SongID
+                """;
+        String updateSql = """
+                UPDATE SongsPlaylists
+                   SET Position = ?
+                 WHERE PlaylistID = ? AND SongID = ?
+                """;
+
+        try (PreparedStatement select = connection.prepareStatement(selectSql);
+             ResultSet rows = select.executeQuery();
+             PreparedStatement update = connection.prepareStatement(updateSql)) {
+            long currentPlaylistId = Long.MIN_VALUE;
+            int position = 0;
+            while (rows.next()) {
+                long playlistId = rows.getLong("PlaylistID");
+                if (playlistId != currentPlaylistId) {
+                    currentPlaylistId = playlistId;
+                    position = 0;
+                }
+                update.setInt(1, position++);
+                update.setLong(2, playlistId);
+                update.setLong(3, rows.getLong("SongID"));
+                update.addBatch();
+            }
+            update.executeBatch();
+        }
+    }
+
+    private static void backfillPlaylistCustomPositions(Connection connection) throws SQLException {
+        String selectSql = """
+                SELECT PlaylistID, SongID, Position
+                  FROM SongsPlaylists
+                 ORDER BY PlaylistID, Position, CreatedAt, SongID
+                """;
+        String updateSql = """
+                UPDATE SongsPlaylists
+                   SET CustomPosition = ?
+                 WHERE PlaylistID = ? AND SongID = ?
+                """;
+
+        try (PreparedStatement select = connection.prepareStatement(selectSql);
+             ResultSet rows = select.executeQuery();
+             PreparedStatement update = connection.prepareStatement(updateSql)) {
+            long currentPlaylistId = Long.MIN_VALUE;
+            int position = 0;
+            while (rows.next()) {
+                long playlistId = rows.getLong("PlaylistID");
+                if (playlistId != currentPlaylistId) {
+                    currentPlaylistId = playlistId;
+                    position = 0;
+                }
+                update.setInt(1, position++);
+                update.setLong(2, playlistId);
+                update.setLong(3, rows.getLong("SongID"));
+                update.addBatch();
+            }
+            update.executeBatch();
         }
     }
 }

@@ -347,10 +347,10 @@ public class PlaylistDaoImpl extends JdbcDaoSupport implements PlaylistDao {
     public List<String> findSongTitlesInPlaylist(Connection c, long playlistId) throws SQLException {
         String sql = """
         SELECT s.Title
-          FROM Song s
+         FROM Song s
           JOIN SongsPlaylists sp ON s.SongID = sp.SongID
          WHERE sp.PlaylistID = ?
-      ORDER BY sp.CreatedAt
+      ORDER BY sp.Position, sp.CreatedAt, sp.SongID
     """;
         List<String> songs = new ArrayList<>();
         try (PreparedStatement ps = (c.prepareStatement(sql))) {
@@ -530,11 +530,14 @@ public class PlaylistDaoImpl extends JdbcDaoSupport implements PlaylistDao {
         }
 
         // Insert relationships (INSERT OR IGNORE protects against duplicates)
-        String sql = "INSERT OR IGNORE INTO SongsPlaylists (SongID, PlaylistID) VALUES (?, ?)";
+        String sql = "INSERT OR IGNORE INTO SongsPlaylists (SongID, PlaylistID, Position, CustomPosition) VALUES (?, ?, ?, ?)";
         try (PreparedStatement ps = c.prepareStatement(sql)) {
-            for (Long sid : songIds) {
+            for (int index = 0; index < songIds.size(); index++) {
+                Long sid = songIds.get(index);
                 ps.setLong(1, sid);
                 ps.setLong(2, p.getId());
+                ps.setInt(3, index);
+                ps.setInt(4, index);
                 ps.addBatch();
             }
             ps.executeBatch();
@@ -718,11 +721,18 @@ public class PlaylistDaoImpl extends JdbcDaoSupport implements PlaylistDao {
         long songId = ensureSongRow(c, s);
         if (songId <= 0) throw new SQLException("Could not ensure Song row for '" + s.getTitle() + "'");
 
-        // Insert relation (INSERT OR IGNORE to avoid duplicates)
-        String ins = "INSERT OR IGNORE INTO SongsPlaylists (SongID, PlaylistID) VALUES (?, ?)";
+        // Insert relation at the end of the current playlist order.
+        String ins = """
+                INSERT OR IGNORE INTO SongsPlaylists (SongID, PlaylistID, Position, CustomPosition)
+                VALUES (?, ?,
+                    COALESCE((SELECT MAX(Position) + 1 FROM SongsPlaylists WHERE PlaylistID = ?), 0),
+                    COALESCE((SELECT MAX(CustomPosition) + 1 FROM SongsPlaylists WHERE PlaylistID = ?), 0))
+                """;
         try (PreparedStatement ps = c.prepareStatement(ins)) {
             ps.setLong(1, songId);
             ps.setLong(2, playlistId);
+            ps.setLong(3, playlistId);
+            ps.setLong(4, playlistId);
             ps.executeUpdate();
         }
     }
@@ -782,6 +792,8 @@ public class PlaylistDaoImpl extends JdbcDaoSupport implements PlaylistDao {
 
         int inserted = 0;
         Set<String> processedSongs = new HashSet<>();
+        int nextPosition = nextPlaylistPosition(c, playlistId, "Position");
+        int nextCustomPosition = nextPlaylistPosition(c, playlistId, "CustomPosition");
         try (PreparedStatement songExists = prepareStatementWithRetry(
                 c,
                 "SELECT 1 FROM Song WHERE SongID = ?",
@@ -789,7 +801,7 @@ public class PlaylistDaoImpl extends JdbcDaoSupport implements PlaylistDao {
                 false
         );
              PreparedStatement relationInsert = c.prepareStatement(
-                     "INSERT OR IGNORE INTO SongsPlaylists (SongID, PlaylistID) VALUES (?, ?)"
+                     "INSERT OR IGNORE INTO SongsPlaylists (SongID, PlaylistID, Position, CustomPosition) VALUES (?, ?, ?, ?)"
              )) {
             for (Song song : songs) {
                 if (song == null) continue;
@@ -809,10 +821,176 @@ public class PlaylistDaoImpl extends JdbcDaoSupport implements PlaylistDao {
 
                 relationInsert.setLong(1, songId);
                 relationInsert.setLong(2, playlistId);
-                inserted += Math.max(0, relationInsert.executeUpdate());
+                relationInsert.setInt(3, nextPosition);
+                relationInsert.setInt(4, nextCustomPosition);
+                int affected = relationInsert.executeUpdate();
+                inserted += Math.max(0, affected);
+                if (affected > 0) {
+                    nextPosition++;
+                    nextCustomPosition++;
+                }
             }
         }
         return inserted;
+    }
+
+    private int nextPlaylistPosition(Connection c, long playlistId, String column) throws SQLException {
+        if (!"Position".equals(column) && !"CustomPosition".equals(column)) {
+            throw new IllegalArgumentException("Unsupported playlist position column");
+        }
+        String sql = "SELECT COALESCE(MAX(" + column + ") + 1, 0) FROM SongsPlaylists WHERE PlaylistID = ?";
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setLong(1, playlistId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Math.max(0, rs.getInt(1)) : 0;
+            }
+        }
+    }
+
+    @Override
+    public void reorderSongs(long playlistId, List<Long> orderedSongIds) throws SQLException {
+        persistSongOrders(playlistId, orderedSongIds, null);
+    }
+
+    @Override
+    public void persistSongOrders(long playlistId,
+                                  List<Long> orderedSongIds,
+                                  List<Long> customOrderedSongIds) throws SQLException {
+        if (playlistId <= 0
+                || ((orderedSongIds == null || orderedSongIds.isEmpty())
+                && (customOrderedSongIds == null || customOrderedSongIds.isEmpty()))) return;
+
+        List<Long> sanitizedCurrent = sanitizeOrder(orderedSongIds);
+        List<Long> sanitizedCustom = sanitizeOrder(customOrderedSongIds);
+        if (sanitizedCurrent.isEmpty() && sanitizedCustom.isEmpty()) return;
+
+        synchronized (DB_WRITE_LOCK) {
+            Connection c = openConn();
+            boolean closeConnection = closesConnection(c);
+            boolean previousAutoCommit = true;
+            try {
+                configureConnection(c);
+                previousAutoCommit = c.getAutoCommit();
+                if (previousAutoCommit) c.setAutoCommit(false);
+
+                if (!sanitizedCurrent.isEmpty() && !sanitizedCustom.isEmpty()) {
+                    try (PreparedStatement positionUpdate = prepareStatementWithRetry(
+                            c,
+                            "UPDATE SongsPlaylists SET Position = ? WHERE PlaylistID = ? AND SongID = ?",
+                            6,
+                            false
+                    ); PreparedStatement customUpdate = prepareStatementWithRetry(
+                            c,
+                            "UPDATE SongsPlaylists SET CustomPosition = ? WHERE PlaylistID = ? AND SongID = ?",
+                            6,
+                            false
+                    )) {
+                        addPositionBatch(positionUpdate, playlistId, sanitizedCurrent);
+                        addPositionBatch(customUpdate, playlistId, sanitizedCustom);
+                        positionUpdate.executeBatch();
+                        customUpdate.executeBatch();
+                    }
+                } else if (!sanitizedCurrent.isEmpty()) {
+                    try (PreparedStatement update = prepareStatementWithRetry(
+                            c,
+                            "UPDATE SongsPlaylists SET Position = ? WHERE PlaylistID = ? AND SongID = ?",
+                            6,
+                            false
+                    )) {
+                        for (int position = 0; position < sanitizedCurrent.size(); position++) {
+                            update.setInt(1, position);
+                            update.setLong(2, playlistId);
+                            update.setLong(3, sanitizedCurrent.get(position));
+                            update.addBatch();
+                        }
+                        update.executeBatch();
+                    }
+                } else {
+                    try (PreparedStatement update = prepareStatementWithRetry(
+                            c,
+                            "UPDATE SongsPlaylists SET CustomPosition = ? WHERE PlaylistID = ? AND SongID = ?",
+                            6,
+                            false
+                    )) {
+                        for (int position = 0; position < sanitizedCustom.size(); position++) {
+                            update.setInt(1, position);
+                            update.setLong(2, playlistId);
+                            update.setLong(3, sanitizedCustom.get(position));
+                            update.addBatch();
+                        }
+                        update.executeBatch();
+                    }
+                }
+
+                if (previousAutoCommit) c.commit();
+            } catch (SQLException exception) {
+                if (previousAutoCommit) {
+                    try { c.rollback(); } catch (SQLException ignored) { }
+                }
+                throw exception;
+            } finally {
+                if (previousAutoCommit) {
+                    try { c.setAutoCommit(true); } catch (SQLException ignored) { }
+                }
+                if (closeConnection) {
+                    try { c.close(); } catch (SQLException ignored) { }
+                }
+            }
+        }
+    }
+
+    private List<Long> sanitizeOrder(List<Long> orderedSongIds) {
+        if (orderedSongIds == null) return List.of();
+        return orderedSongIds.stream()
+                .filter(id -> id != null && id > 0)
+                .distinct()
+                .toList();
+    }
+
+    private void addPositionBatch(PreparedStatement update,
+                                   long playlistId,
+                                   List<Long> songIds) throws SQLException {
+        for (int position = 0; position < songIds.size(); position++) {
+            update.setInt(1, position);
+            update.setLong(2, playlistId);
+            update.setLong(3, songIds.get(position));
+            update.addBatch();
+        }
+    }
+
+    @Override
+    public List<Long> findSongIdsByCustomOrder(long playlistId) throws SQLException {
+        return findSongIds(playlistId, "sp.CustomPosition, sp.CreatedAt, sp.SongID");
+    }
+
+    @Override
+    public List<Long> findSongIdsByRecentlyAdded(long playlistId) throws SQLException {
+        return findSongIds(playlistId, "sp.CreatedAt, sp.SongID");
+    }
+
+    private List<Long> findSongIds(long playlistId, String orderBy) throws SQLException {
+        if (playlistId <= 0) return List.of();
+        String sql = """
+                SELECT sp.SongID
+                  FROM SongsPlaylists sp
+                 WHERE sp.PlaylistID = ?
+                 ORDER BY %s
+                """.formatted(orderBy);
+        if (hasSharedConnection()) return findSongIds(sharedConnection(), sql, playlistId);
+        try (Connection c = openConn()) {
+            return findSongIds(c, sql, playlistId);
+        }
+    }
+
+    private List<Long> findSongIds(Connection c, String sql, long playlistId) throws SQLException {
+        List<Long> ids = new ArrayList<>();
+        try (PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setLong(1, playlistId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) ids.add(rs.getLong(1));
+            }
+        }
+        return ids;
     }
 
     private long resolveSongIdForPlaylist(Connection c,
