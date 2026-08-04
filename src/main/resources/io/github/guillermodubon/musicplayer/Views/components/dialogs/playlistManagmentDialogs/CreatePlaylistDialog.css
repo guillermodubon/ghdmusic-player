@@ -1,0 +1,193 @@
+@import "../base/dialog-shell.css";
+@import "../base/dialog-controls.css";
+
+.create-playlist-dialog {
+    -fx-background-color: transparent;
+}
+
+.create-playlist-dialog .dialog-shell {
+    -fx-background-color: #111111;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.create-playlist-close-button,
+.create-playlist-close-button:hover,
+.create-playlist-close-button:focused,
+.create-playlist-close-button:pressed,
+.create-playlist-close-button:armed {
+    -fx-min-width: 34;
+    -fx-min-height: 34;
+    -fx-pref-width: 34;
+    -fx-pref-height: 34;
+    -fx-max-width: 34;
+    -fx-max-height: 34;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}
+
+.create-playlist-dialog .dialog-header {
+    -fx-padding: 26 28 14 28;
+    -fx-spacing: 0;
+}
+
+.create-playlist-dialog .dialog-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+}
+
+.create-playlist-dialog .dialog-header > .dialog-subtitle {
+    -fx-font-size: 0;
+    -fx-padding: 0;
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-opacity: 0;
+}
+
+.create-playlist-dialog .dialog-content-holder {
+    -fx-padding: 0 28 0 28;
+}
+
+.create-playlist-dialog .playlist-form-content {
+    -fx-padding: 0;
+}
+
+.create-playlist-dialog .playlist-cover-picker {
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.34), 18, 0.24, 0, 5);
+}
+
+.create-playlist-dialog .playlist-cover-caption {
+    -fx-text-fill: rgba(255, 255, 255, 0.70);
+}
+
+.create-playlist-dialog .playlist-field-label {
+    -fx-text-fill: rgba(255, 255, 255, 0.82);
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.create-playlist-dialog .dialog-field {
+    -fx-background-color: #2f2f2f;
+    -fx-control-inner-background: #2f2f2f;
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-width: 1;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.46);
+    -fx-highlight-fill: #0077B6;
+    -fx-highlight-text-fill: #FFFFFF;
+    -fx-font-size: 15px;
+    -fx-padding: 10 12 10 12;
+}
+
+.create-playlist-dialog .dialog-field.input-error,
+.create-playlist-dialog .dialog-field.input-error:focused {
+    -fx-border-color: #D32F2F;
+}
+
+.create-playlist-dialog .dialog-field:focused {
+    -fx-border-color: rgba(255, 255, 255, 0.30);
+}
+
+.create-playlist-dialog .dialog-text-area,
+.create-playlist-dialog .dialog-text-area:focused {
+    -fx-wrap-text: true;
+    -fx-pref-height: 158px;
+    -fx-background-color: #2f2f2f;
+    -fx-control-inner-background: #2f2f2f;
+    -fx-text-box-border: rgba(255, 255, 255, 0.12);
+    -fx-faint-focus-color: transparent;
+}
+
+.create-playlist-dialog .text-area.dialog-text-area,
+.create-playlist-dialog .text-area.dialog-text-area:focused,
+.create-playlist-dialog .dialog-text-area .scroll-pane,
+.create-playlist-dialog .dialog-text-area .scroll-pane .viewport,
+.create-playlist-dialog .dialog-text-area .scroll-pane .content,
+.create-playlist-dialog .text-area.dialog-text-area .scroll-pane,
+.create-playlist-dialog .text-area.dialog-text-area .scroll-pane .viewport,
+.create-playlist-dialog .text-area.dialog-text-area .scroll-pane .content {
+    -fx-background-color: #2f2f2f;
+}
+
+.create-playlist-dialog .dialog-text-area .content,
+.create-playlist-dialog .text-area.dialog-text-area .content {
+    -fx-background-color: #2f2f2f;
+    -fx-background-radius: 3;
+}
+
+.create-playlist-dialog .playlist-error-row {
+    -fx-padding: 0 0 2 0;
+}
+
+.create-playlist-dialog .playlist-error-label {
+    -fx-text-fill: #D32F2F;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.create-playlist-dialog .dialog-actions-bar {
+    -fx-padding: 18 28 24 28;
+    -fx-spacing: 12;
+    -fx-alignment: center-right;
+}
+
+.create-playlist-dialog .dialog-button {
+    -fx-min-width: 116px;
+    -fx-pref-height: 40px;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 9 22 9 22;
+    -fx-cursor: hand;
+}
+
+.create-playlist-dialog .primary-button {
+    -fx-background-color: #0077B6;
+    -fx-border-color: #0077B6;
+    -fx-text-fill: #FFFFFF;
+}
+
+.create-playlist-dialog .primary-button:hover {
+    -fx-background-color: #0088D1;
+    -fx-border-color: #0088D1;
+    -fx-text-fill: #FFFFFF;
+}
+
+.create-playlist-dialog .primary-button:focused {
+    -fx-background-color: #0077B6;
+    -fx-border-color: #0077B6;
+    -fx-text-fill: #FFFFFF;
+}
+
+.create-playlist-dialog .secondary-button {
+    -fx-background-color: transparent;
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}
+
+.create-playlist-dialog .secondary-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}
+
+.create-playlist-dialog .secondary-button:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}

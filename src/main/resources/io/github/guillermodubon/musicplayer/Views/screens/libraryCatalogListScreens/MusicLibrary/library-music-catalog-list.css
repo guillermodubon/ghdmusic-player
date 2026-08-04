@@ -1,0 +1,155 @@
+@import "../../../generalStyles/app-theme.css";
+@import "../common/library-catalog-filter.css";
+
+.catalog-header {
+    -fx-spacing: 6;
+    -fx-padding: 22 6 8 28;
+    -fx-background-color: transparent;
+    -fx-fill-width: true;
+}
+
+.catalog-title {
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.catalog-title-row {
+    -fx-alignment: center-left;
+    -fx-max-width: infinity;
+}
+
+.catalog-filter-button,
+.catalog-filter-button:hover,
+.catalog-filter-button:focused,
+.catalog-filter-button:showing,
+.catalog-filter-button:pressed {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 4 2 4 10;
+    -fx-content-display: right;
+    -fx-alignment: center;
+    -fx-translate-y: 3;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.catalog-filter-button .label {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.catalog-filter-button:hover .label,
+.catalog-filter-button:focused .label,
+.catalog-filter-button:showing .label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.catalog-filter-button .arrow-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.catalog-filter-button .arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+/* MenuButton uses a ContextMenu skin for its options. */
+.context-menu {
+    -fx-background-color: #0D0D0D;
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6;
+}
+
+.context-menu .catalog-filter-menu-header,
+.context-menu .catalog-filter-menu-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 9 14 9 12;
+}
+
+.context-menu .catalog-filter-menu-item:hover,
+.context-menu .catalog-filter-menu-item:focused {
+    -fx-background-color: #222222;
+}
+
+.context-menu .catalog-filter-menu-header .label {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.context-menu .catalog-filter-menu-item .label {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.context-menu .catalog-filter-option-label {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.context-menu .catalog-filter-menu-item:hover .catalog-filter-option-label,
+.context-menu .catalog-filter-menu-item:focused .catalog-filter-option-label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.context-menu .catalog-filter-menu-item-selected .catalog-filter-option-label {
+    -fx-text-fill: #0077B6;
+}
+
+.context-menu .catalog-filter-menu-item-selected .label {
+    -fx-text-fill: #0077B6;
+}
+
+.catalog-filter-selected-icon {
+    -fx-background-color: #0077B6;
+}
+
+.catalog-scroll {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.catalog-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.catalog-grid {
+    -fx-hgap: 18;
+    -fx-vgap: 24;
+    -fx-padding: 12 28 32 28;
+    -fx-alignment: TOP_LEFT;
+}
+
+.catalog-scroll .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+}
+
+.catalog-content-stack {
+    -fx-background-color: transparent;
+}
+
+.catalog-empty-state {
+    -fx-text-fill: #B3B3B3;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+    -fx-padding: 24;
+}

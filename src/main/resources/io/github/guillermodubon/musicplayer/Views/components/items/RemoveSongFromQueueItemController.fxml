@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<HBox fx:id="rootBox"
+      xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.items.musicItems.RemoveSongFromQueueItemController"
+      alignment="CENTER_LEFT"
+      spacing="10"
+      maxWidth="Infinity"
+      stylesheets="@remove-song-from-queue-item.css"
+      styleClass="queue-song-item queue-song-item-playable remove-song-from-queue-item">
+
+    <ImageView fx:id="coverView"
+               fitWidth="46"
+               fitHeight="46"
+               preserveRatio="false"
+               smooth="true"
+               styleClass="queue-song-cover"/>
+
+    <VBox spacing="3"
+          maxWidth="Infinity"
+          HBox.hgrow="ALWAYS"
+          styleClass="queue-song-text">
+        <StackPane fx:id="titleViewport"
+                    minWidth="0"
+                    maxWidth="Infinity"
+                    alignment="CENTER_LEFT"
+                    styleClass="song-item-title-viewport">
+            <HBox fx:id="titleTrack"
+                  alignment="CENTER_LEFT"
+                  styleClass="song-item-title-track">
+                <Label fx:id="titleLabel"
+                       maxWidth="Infinity"
+                       textOverrun="ELLIPSIS"
+                       styleClass="queue-song-title"/>
+            </HBox>
+        </StackPane>
+        <StackPane fx:id="artistViewport"
+                   minWidth="0"
+                   maxWidth="Infinity"
+                   styleClass="song-item-artist-viewport">
+            <HBox fx:id="artistContainer"
+                  spacing="4"
+                  alignment="CENTER_LEFT"
+                  styleClass="queue-song-artists"/>
+        </StackPane>
+    </VBox>
+
+    <Pane HBox.hgrow="ALWAYS"/>
+
+    <Button fx:id="btnRemove"
+            focusTraversable="false"
+            styleClass="queue-song-icon-button"/>
+</HBox>

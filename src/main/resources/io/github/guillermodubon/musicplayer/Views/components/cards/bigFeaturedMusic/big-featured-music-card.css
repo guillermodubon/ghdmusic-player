@@ -1,0 +1,182 @@
+@import "../../../generalStyles/app-theme.css";
+
+.big-featured-music-card {
+    -fx-background-color: transparent;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-cursor: hand;
+}
+
+.big-featured-body {
+    -fx-background-color: transparent;
+    -fx-background-radius: 12;
+    -fx-border-color: transparent;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.big-featured-music-card-hover .big-featured-body {
+    -fx-background-color: rgba(26, 26, 26, 1.0);
+}
+
+.big-featured-header {
+    -fx-background-color: transparent;
+    -fx-min-height: 56px;
+    -fx-pref-height: 56px;
+    -fx-max-height: 56px;
+}
+
+.big-featured-title-viewport,
+.big-featured-artists-viewport {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-alignment: center-left;
+}
+
+.big-featured-title-track,
+.big-featured-artists-track {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-alignment: center-left;
+    -fx-fill-height: false;
+}
+
+.big-featured-title {
+    -fx-font-size: 21px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.big-featured-artists {
+    -fx-min-height: 22px;
+    -fx-pref-height: 22px;
+    -fx-max-height: 22px;
+    -fx-spacing: 4;
+    -fx-alignment: center-left;
+}
+
+.big-featured-cover-shell {
+    -fx-background-color: transparent;
+    -fx-background-radius: 24;
+    -fx-border-color: transparent;
+    -fx-border-radius: 24;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-alignment: center;
+}
+
+.big-featured-cover {
+    -fx-effect: none;
+}
+
+
+.big-featured-artists .hyperlink,
+.big-featured-artists .music-artist-link,
+.big-featured-music-card .big-featured-artists .hyperlink,
+.big-featured-music-card .big-featured-artists .music-artist-link {
+    -fx-text-fill: #FAFAFA;
+    -fx-underline: false;
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+}
+
+
+.big-featured-artists .hyperlink .text,
+.big-featured-artists .music-artist-link .text,
+.big-featured-music-card .big-featured-artists .hyperlink .text,
+.big-featured-music-card .big-featured-artists .music-artist-link .text {
+    -fx-fill: #FAFAFA;
+}
+
+
+.big-featured-artists .hyperlink:visited,
+.big-featured-artists .music-artist-link:visited,
+.big-featured-music-card .big-featured-artists .hyperlink:visited,
+.big-featured-music-card .big-featured-artists .music-artist-link:visited {
+    -fx-text-fill: #FAFAFA;
+    -fx-underline: false;
+}
+
+.big-featured-artists .hyperlink:visited .text,
+.big-featured-artists .music-artist-link:visited .text,
+.big-featured-music-card .big-featured-artists .hyperlink:visited .text,
+.big-featured-music-card .big-featured-artists .music-artist-link:visited .text {
+    -fx-fill: #FAFAFA;
+}
+
+
+.big-featured-artists .hyperlink:focused,
+.big-featured-artists .music-artist-link:focused,
+.big-featured-music-card .big-featured-artists .hyperlink:focused,
+.big-featured-music-card .big-featured-artists .music-artist-link:focused {
+    -fx-text-fill: #FAFAFA;
+    -fx-underline: false;
+    -fx-border-color: transparent;
+}
+
+.big-featured-artists .hyperlink:focused .text,
+.big-featured-artists .music-artist-link:focused .text,
+.big-featured-music-card .big-featured-artists .hyperlink:focused .text,
+.big-featured-music-card .big-featured-artists .music-artist-link:focused .text {
+    -fx-fill: #FAFAFA;
+}
+
+
+.big-featured-artists .hyperlink:hover,
+.big-featured-artists .music-artist-link:hover,
+.big-featured-music-card .big-featured-artists .hyperlink:hover,
+.big-featured-music-card .big-featured-artists .music-artist-link:hover {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.big-featured-artists .hyperlink:hover .text,
+.big-featured-artists .music-artist-link:hover .text,
+.big-featured-music-card .big-featured-artists .hyperlink:hover .text,
+.big-featured-music-card .big-featured-artists .music-artist-link:hover .text {
+    -fx-fill: #0077B6;
+}
+
+
+.big-featured-artists .hyperlink:visited:hover,
+.big-featured-artists .music-artist-link:visited:hover,
+.big-featured-music-card .big-featured-artists .hyperlink:visited:hover,
+.big-featured-music-card .big-featured-artists .music-artist-link:visited:hover {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.big-featured-artists .hyperlink:visited:hover .text,
+.big-featured-artists .music-artist-link:visited:hover .text,
+.big-featured-music-card .big-featured-artists .hyperlink:visited:hover .text,
+.big-featured-music-card .big-featured-artists .music-artist-link:visited:hover .text {
+    -fx-fill: #0077B6;
+}
+
+
+.big-featured-artists .hyperlink:focused:hover,
+.big-featured-artists .music-artist-link:focused:hover,
+.big-featured-music-card .big-featured-artists .hyperlink:focused:hover,
+.big-featured-music-card .big-featured-artists .music-artist-link:focused:hover {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.big-featured-artists .hyperlink:focused:hover .text,
+.big-featured-artists .music-artist-link:focused:hover .text,
+.big-featured-music-card .big-featured-artists .hyperlink:focused:hover .text,
+.big-featured-music-card .big-featured-artists .music-artist-link:focused:hover .text {
+    -fx-fill: #0077B6;
+}
+
+
+.big-featured-music-card .music-artist-text,
+.big-featured-music-card .music-artist-separator,
+.big-featured-artists .music-artist-text,
+.big-featured-artists .music-artist-separator {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 13px;
+}

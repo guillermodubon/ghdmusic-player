@@ -1,0 +1,103 @@
+@import "../../generalStyles/app-theme.css";
+@import "../../generalStyles/section-carousel.css";
+@import "../../components/cards/genre/genre-card.css";
+
+.genre-page-root {
+    -fx-background-color: #111111;
+}
+
+.genre-page-shell {
+    -fx-background-color: #111111;
+}
+
+.genre-page-progress {
+    -fx-progress-color: #0077B6;
+}
+
+.genre-page-scroll {
+    -fx-background: #111111;
+    -fx-background-color: #111111;
+    -fx-padding: 0;
+}
+
+.genre-page-scroll > .viewport {
+    -fx-background-color: #111111;
+}
+
+.genre-page-content,
+.genre-page-sections {
+    -fx-background-color: #111111;
+}
+
+.genre-page-header {
+    -fx-background-radius: 0;
+    -fx-min-height: 300px;
+    -fx-pref-height: 360px;
+    -fx-max-height: 420px;
+}
+
+.genre-page-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 74px;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.48), 16, 0.32, 0, 3);
+}
+
+.genre-details-section {
+    -fx-spacing: 10;
+    -fx-padding: 6 0 16 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+.genre-details-section-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 19px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 2 0;
+}
+
+.genre-details-flow {
+    -fx-hgap: 16;
+    -fx-vgap: 24;
+    -fx-padding: 4 0 0 0;
+    -fx-alignment: top-left;
+    -fx-background-color: transparent;
+}
+
+.genre-page-scroll .scroll-bar:vertical,
+.genre-page-scroll .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.genre-page-scroll .scroll-bar:vertical .thumb,
+.genre-page-scroll .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 8;
+}
+
+.genre-page-scroll .scroll-bar:vertical .thumb:hover,
+.genre-page-scroll .scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: rgba(10, 203, 242, 0.46);
+}
+
+.genre-page-scroll .scroll-bar:vertical .track,
+.genre-page-scroll .scroll-bar:horizontal .track {
+    -fx-background-color: transparent;
+}
+
+.genre-page-load-error {
+    -fx-alignment: center;
+    -fx-spacing: 14;
+    -fx-padding: 48 28 48 28;
+    -fx-background-color: transparent;
+}
+
+.genre-page-load-error-message {
+    -fx-font-family: "Inter";
+    -fx-font-size: 17px;
+    -fx-text-fill: #AFAFAF;
+    -fx-text-alignment: center;
+    -fx-alignment: center;
+}

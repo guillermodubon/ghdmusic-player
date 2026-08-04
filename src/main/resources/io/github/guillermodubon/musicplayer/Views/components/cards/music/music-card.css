@@ -1,0 +1,81 @@
+@import "../../../generalStyles/app-theme.css";
+
+.music-card {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+}
+
+.music-card-body {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 10;
+}
+
+.music-card-hover .music-card-body {
+    -fx-background-color: rgba(26, 26, 26, 1.0);
+
+}
+
+.music-card-cover-shell {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-alignment: center;
+}
+
+.music-card-cover {
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.24), 8, 0.18, 0, 2);
+}
+
+.music-card-copy {
+    -fx-padding: 0 2 0 2;
+}
+
+.music-text-viewport {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.music-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.music-artist-link,
+.music-artist-text,
+.music-artist-separator,
+.music-artist-overflow {
+    -fx-font-size: 12px;
+    -fx-underline: false;
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.music-artist-link {
+    -fx-text-fill: #FAFAFA;
+}
+
+.music-artist-text,
+.music-artist-separator {
+    -fx-text-fill: #B3B3B3;
+}
+
+.music-artist-overflow {
+    -fx-text-fill: #222222;
+    -fx-background-color: #111111;
+    -fx-padding: 0 0 0 4;
+}
+
+.music-artist-link:hover,
+.music-artist-link:focused {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.github.guillermodubon.musicplayer.controllers.layout.AppShellController"
+            fx:id="shellRoot"
+            minWidth="0"
+            minHeight="0"
+            styleClass="app-root"
+            stylesheets="@app-shell.css">
+
+    <left>
+        <Pane fx:id="leftHost"
+              minWidth="236"
+              prefWidth="236"
+              maxWidth="236"
+              styleClass="app-left-host"/>
+    </left>
+
+    <top>
+        <Pane fx:id="headerHost"
+              minHeight="76"
+              prefHeight="76"
+              styleClass="app-header-host"/>
+    </top>
+
+    <center>
+        <!--
+            The content host owns the central screen and every lateral pane.
+            Keeping it separate from shellRoot.bottom guarantees that queue and
+            download sidebars never occupy the player bar's vertical space.
+        -->
+        <BorderPane fx:id="contentHost"
+                    minWidth="0"
+                    minHeight="0"
+                    maxWidth="Infinity"
+                    maxHeight="Infinity"
+                    styleClass="app-content-host">
+            <center>
+                <BorderPane fx:id="centerHost"
+                            minWidth="0"
+                            minHeight="0"
+                            maxWidth="Infinity"
+                            maxHeight="Infinity"/>
+            </center>
+        </BorderPane>
+    </center>
+
+    <bottom>
+        <!--
+            The player bar is a dynamic child. StackPane owns its geometry so
+            native Stage fullscreen changes cannot leave the bar at stale Pane
+            coordinates.
+        -->
+        <StackPane fx:id="bottomHost"
+                   alignment="BOTTOM_CENTER"
+                   minWidth="0"
+                   minHeight="0"
+                   maxWidth="Infinity"/>
+    </bottom>
+</BorderPane>

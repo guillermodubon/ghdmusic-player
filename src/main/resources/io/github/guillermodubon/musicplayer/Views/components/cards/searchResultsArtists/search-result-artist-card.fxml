@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane fx:id="rootPane"
+           xmlns="http://javafx.com/javafx"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.cards.SearchResultArtistCard"
+           stylesheets="@search-result-artist-card.css"
+           maxWidth="Infinity"
+           styleClass="search-result-card search-artist-card card-root"
+           onMouseEntered="#onHoverEnter"
+           onMouseExited="#onHoverExit">
+
+    <HBox fx:id="body"
+          spacing="12"
+          alignment="CENTER_LEFT"
+          prefHeight="72"
+          maxWidth="Infinity"
+          styleClass="search-result-card-body search-artist-body">
+        <StackPane fx:id="coverShell"
+                   minWidth="60"
+                   minHeight="60"
+                   prefWidth="60"
+                   prefHeight="60"
+                   maxWidth="60"
+                   maxHeight="60"
+                   styleClass="search-artist-cover-shell">
+            <ImageView fx:id="coverImage"
+                       fitWidth="60"
+                       fitHeight="60"
+                       preserveRatio="false"
+                       smooth="true"
+                       styleClass="search-card-cover"/>
+        </StackPane>
+
+        <VBox spacing="2" HBox.hgrow="ALWAYS">
+            <Label fx:id="nameLabel"
+                   wrapText="true"
+                   maxWidth="Infinity"
+                   styleClass="search-result-title search-artist-name"/>
+            <Label fx:id="typeLabel"
+                   text="Artist"
+                   styleClass="search-result-subtitle search-artist-type"/>
+        </VBox>
+    </HBox>
+</StackPane>

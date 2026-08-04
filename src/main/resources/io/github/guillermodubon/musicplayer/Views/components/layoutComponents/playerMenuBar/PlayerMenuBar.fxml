@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Slider?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane fx:id="root"
+            xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.playerMenuBar.PlayerMenuBarController"
+            minHeight="86"
+            maxWidth="Infinity"
+            stylesheets="@player-menu-bar.css"
+            styleClass="player-menu-bar">
+
+   <center>
+      <HBox fx:id="playerMainRow"
+            alignment="CENTER_LEFT"
+            spacing="24"
+            maxWidth="Infinity"
+            styleClass="player-main-row">
+         <padding>
+            <Insets top="10" right="24" bottom="10" left="24"/>
+         </padding>
+
+         <HBox fx:id="nowPlayingRow"
+               spacing="12"
+               alignment="CENTER_LEFT"
+               styleClass="player-now-playing-row">
+            <StackPane fx:id="playerCoverWrap"
+                       styleClass="player-cover-wrap">
+               <ImageView fx:id="coverImageView"
+                          fitWidth="70"
+                          fitHeight="70"
+                          preserveRatio="false"
+                          smooth="true"
+                          styleClass="player-cover"/>
+            </StackPane>
+
+            <VBox fx:id="playerTrackText"
+                  spacing="4"
+                  HBox.hgrow="ALWAYS"
+                  minWidth="0"
+                  maxWidth="Infinity"
+                  styleClass="player-track-text">
+               <StackPane fx:id="playerTitleViewport"
+                          minWidth="0"
+                          maxWidth="Infinity"
+                          styleClass="player-title-viewport">
+                  <HBox fx:id="playerTitleMarqueeBox"
+                        alignment="CENTER_LEFT"
+                        styleClass="player-title-marquee-box">
+                     <Label fx:id="CurrentSongNameLabelBar"
+                            maxWidth="Infinity"
+                            textOverrun="ELLIPSIS"
+                            styleClass="player-title"/>
+                  </HBox>
+               </StackPane>
+               <StackPane fx:id="playerArtistsViewport"
+                          minWidth="0"
+                          maxWidth="Infinity"
+                          styleClass="player-artists-viewport">
+                  <HBox fx:id="ArtistsLinksContainer"
+                        spacing="0"
+                        alignment="CENTER_LEFT"
+                        maxWidth="Infinity"
+                        styleClass="player-artists player-artists-marquee-box"/>
+               </StackPane>
+            </VBox>
+
+            <Button fx:id="actionsMenuButton"
+                    onAction="#onShowActionsMenu"
+                    focusTraversable="false"
+                    HBox.hgrow="NEVER"
+                    styleClass="player-icon-button player-meatball-menu"/>
+         </HBox>
+
+         <VBox fx:id="playerPlaybackCenter"
+               alignment="CENTER"
+               spacing="8"
+               HBox.hgrow="ALWAYS"
+               maxWidth="Infinity"
+               styleClass="player-playback-center">
+            <HBox fx:id="playerTransportRow"
+                  spacing="20"
+                  alignment="CENTER"
+                  styleClass="player-transport-row">
+            <Button fx:id="PreviousButton"
+                    onAction="#PreviousSong"
+                    focusTraversable="false"
+                    styleClass="player-icon-button player-skip-button"/>
+            <ToggleButton fx:id="PlayToggleButton"
+                          onAction="#PlayPauseSong"
+                          focusTraversable="false"
+                          styleClass="player-icon-button player-play-button"/>
+            <Button fx:id="NextButton"
+                    onAction="#nextSong"
+                    focusTraversable="false"
+                    styleClass="player-icon-button player-skip-button"/>
+            </HBox>
+
+            <HBox fx:id="TimeRow"
+                  alignment="CENTER"
+                  spacing="10"
+                  prefWidth="640"
+                  maxWidth="720"
+                  styleClass="player-time-row">
+               <Label fx:id="CurrentMinuteLabel"
+                      minWidth="52"
+                      prefWidth="52"
+                      alignment="CENTER_RIGHT"
+                      textOverrun="CLIP"
+                      text="0:00"
+                      styleClass="player-time-text"/>
+               <StackPane fx:id="SongTimerSliderShell"
+                          HBox.hgrow="ALWAYS"
+                          minWidth="220"
+                          prefWidth="540"
+                          maxWidth="650"
+                          styleClass="player-slider-shell player-time-slider-shell">
+                  <Region fx:id="SongTimerSliderBase"
+                          mouseTransparent="true"
+                          StackPane.alignment="CENTER_LEFT"
+                          styleClass="player-slider-base"/>
+                  <Region fx:id="SongTimerSliderFill"
+                          mouseTransparent="true"
+                          StackPane.alignment="CENTER_LEFT"
+                          styleClass="player-slider-fill"/>
+                  <Slider fx:id="SongTimerSlider"
+                          min="0"
+                          max="100"
+                          value="0"
+                          minWidth="220"
+                          prefWidth="540"
+                          maxWidth="650"
+                          styleClass="player-time-slider player-overlay-slider"/>
+               </StackPane>
+               <Label fx:id="SongLengthLabel"
+                      minWidth="52"
+                      prefWidth="52"
+                      alignment="CENTER_LEFT"
+                      textOverrun="CLIP"
+                      text="0:00"
+                      styleClass="player-time-text"/>
+            </HBox>
+         </VBox>
+
+         <HBox fx:id="playerRightControls"
+               spacing="24"
+               alignment="CENTER_RIGHT"
+               styleClass="player-right-controls">
+            <ToggleButton fx:id="ReplayToggleButton"
+                          focusTraversable="false"
+                          styleClass="player-icon-button player-toggle"/>
+            <ToggleButton fx:id="RandomToggleButton"
+                          focusTraversable="false"
+                          styleClass="player-icon-button player-toggle"/>
+            <Button fx:id="QueueButton"
+                    onAction="#onShowQueue"
+                    focusTraversable="false"
+                    styleClass="player-icon-button"/>
+            <ToggleButton fx:id="FullScreenToggleButton"
+                          onAction="#onToggleFullScreenMode"
+                          focusTraversable="false"
+                          styleClass="player-icon-button player-toggle"/>
+            <HBox fx:id="VolumeBox"
+                  spacing="8"
+                  alignment="CENTER_RIGHT"
+                  styleClass="player-volume-box">
+               <StackPane fx:id="VolumeIconHost"
+                          minWidth="24"
+                          prefWidth="24"
+                          maxWidth="24"
+                          styleClass="player-volume-icon-host"/>
+               <StackPane fx:id="VolumeSliderShell"
+                          minWidth="96"
+                          prefWidth="118"
+                          maxWidth="118"
+                          styleClass="player-slider-shell player-volume-slider-shell">
+                  <Region fx:id="VolumeSliderBase"
+                          mouseTransparent="true"
+                          StackPane.alignment="CENTER_LEFT"
+                          styleClass="player-slider-base"/>
+                  <Region fx:id="VolumeSliderFill"
+                          mouseTransparent="true"
+                          StackPane.alignment="CENTER_LEFT"
+                          styleClass="player-slider-fill"/>
+                  <Slider fx:id="VolumeSlider"
+                          prefWidth="118"
+                          maxWidth="118"
+                          minWidth="96"
+                          min="0"
+                          max="100"
+                          value="100"
+                          styleClass="player-volume-slider player-overlay-slider"/>
+               </StackPane>
+            </HBox>
+         </HBox>
+      </HBox>
+   </center>
+</BorderPane>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane xmlns="http://javafx.com/javafx"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.cards.GenreCard"
+           fx:id="root"
+           minHeight="132"
+           prefWidth="320"
+           prefHeight="132"
+           maxWidth="Infinity"
+           styleClass="genre-card"
+           stylesheets="@genre-card.css">
+
+    <padding>
+        <Insets top="0" right="0" bottom="0" left="0"/>
+    </padding>
+
+    <HBox alignment="CENTER_LEFT" spacing="14" styleClass="genre-card-content">
+        <StackPane prefWidth="112"
+                   prefHeight="112"
+                   minWidth="112"
+                   minHeight="112"
+                   maxWidth="112"
+                   maxHeight="112"
+                   fx:id="coverShell"
+                   styleClass="genre-image-placeholder genre-card-cover-shell">
+            <ImageView fx:id="coverView"
+                       fitWidth="112"
+                       fitHeight="112"
+                       preserveRatio="false"
+                       smooth="true"/>
+        </StackPane>
+        <VBox alignment="CENTER_LEFT" HBox.hgrow="ALWAYS">
+            <Label fx:id="titleLabel"
+                   wrapText="true"
+                   maxWidth="Infinity"
+                   styleClass="genre-card-title"/>
+        </VBox>
+    </HBox>
+</StackPane>

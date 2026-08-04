@@ -1,0 +1,81 @@
+@import "../../generalStyles/app-theme.css";
+
+.splash-root {
+    -fx-background-color:
+        linear-gradient(from 0% 0% to 100% 0%,
+            rgba(0, 40, 61, 0.48) 0%,
+            rgba(0, 40, 61, 0.35) 16%,
+            rgba(0, 40, 61, 0.16) 34%,
+            rgba(17, 17, 17, 1.00) 52%,
+            rgba(17, 17, 17, 1.00) 68%,
+            rgba(79, 55, 76, 0.16) 82%,
+            rgba(79, 55, 76, 0.46) 100%),
+        #111111;
+    -fx-background-insets: 0;
+}
+
+.splash-identity {
+    -fx-alignment: center;
+}
+
+.splash-title {
+    -fx-font-family: "Archivo";
+    -fx-font-size: 28px;
+    -fx-font-weight: 700;
+}
+
+.splash-title-brand,
+.splash-title-name {
+    -fx-font-family: "Archivo";
+    -fx-font-size: 28px;
+    -fx-font-weight: 700;
+}
+
+.splash-title-brand {
+    -fx-fill: #0077B6;
+}
+
+.splash-title-name {
+    -fx-fill: #FAFAFA;
+}
+
+.splash-slogan {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-family: "Inter";
+    -fx-font-size: 14px;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+}
+
+.splash-loading-area {
+    -fx-alignment: center;
+}
+
+.splash-status {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-family: "Inter";
+    -fx-font-size: 14px;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+}
+
+.splash-progress {
+    -fx-accent: #0077B6;
+    -fx-background-color: transparent;
+    -fx-min-height: 6px;
+    -fx-pref-height: 6px;
+    -fx-max-height: 6px;
+}
+
+.splash-progress > .track {
+    -fx-background-color: #222222;
+    -fx-background-insets: 0;
+    -fx-background-radius: 3px;
+}
+
+.splash-progress > .bar {
+    -fx-background-color: #0077B6;
+    -fx-background-insets: 0;
+    -fx-background-radius: 3px;
+    -fx-padding: 0.25em;
+}

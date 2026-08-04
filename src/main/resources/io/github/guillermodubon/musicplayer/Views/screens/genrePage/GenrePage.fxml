@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressIndicator?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.screens.genrePage.GenrePageController"
+           fx:id="rootPane"
+           styleClass="genre-page-root">
+
+    <VBox maxWidth="Infinity"
+          maxHeight="Infinity"
+          styleClass="genre-page-shell">
+        <ScrollPane fx:id="scrollPane"
+                    fitToWidth="true"
+                    hbarPolicy="NEVER"
+                    vbarPolicy="AS_NEEDED"
+                    VBox.vgrow="ALWAYS"
+                    styleClass="genre-page-scroll">
+            <content>
+                <VBox fx:id="pageContent"
+                      spacing="0"
+                      styleClass="genre-page-content">
+
+                    <StackPane fx:id="headerPane"
+                               alignment="BOTTOM_LEFT"
+                               styleClass="genre-page-header">
+                        <padding>
+                            <Insets top="46" right="28" bottom="46" left="38"/>
+                        </padding>
+                        <Label fx:id="titleLabel"
+                               wrapText="true"
+                               styleClass="genre-page-title"/>
+                    </StackPane>
+
+                    <VBox fx:id="itemsContainer"
+                          spacing="14"
+                          styleClass="genre-page-sections">
+                        <padding>
+                            <Insets top="18" right="28" bottom="32" left="28"/>
+                        </padding>
+                    </VBox>
+                </VBox>
+            </content>
+        </ScrollPane>
+    </VBox>
+
+    <ProgressIndicator fx:id="loadingIndicator"
+                       progress="-1"
+                       prefWidth="46"
+                       prefHeight="46"
+                       visible="false"
+                       managed="false"
+                       mouseTransparent="true"
+                       styleClass="genre-page-progress"
+                       StackPane.alignment="CENTER"/>
+
+</StackPane>

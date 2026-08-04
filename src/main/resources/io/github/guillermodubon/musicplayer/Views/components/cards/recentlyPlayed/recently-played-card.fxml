@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+
+<HBox fx:id="rootHBox"
+      xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.cards.RecentlyPlayedMusicCard"
+      spacing="10"
+      alignment="CENTER_LEFT"
+      stylesheets="@recently-played-card.css"
+      styleClass="recently-played-card card-root"
+      onMouseClicked="#onPlayClicked">
+
+    <padding>
+        <Insets top="6" right="8" bottom="6" left="8"/>
+    </padding>
+
+    <ImageView fx:id="coverView"
+               fitWidth="56"
+               fitHeight="56"
+               preserveRatio="true"
+               smooth="true"
+               pickOnBounds="true"/>
+
+    <Label fx:id="titleLabel"
+           wrapText="false"
+           maxWidth="9999"
+           styleClass="recently-played-title"/>
+</HBox>

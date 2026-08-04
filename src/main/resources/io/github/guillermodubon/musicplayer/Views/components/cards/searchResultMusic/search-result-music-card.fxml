@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane fx:id="rootPane"
+           xmlns="http://javafx.com/javafx"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.cards.SearchResultMusicCard"
+           stylesheets="@search-result-music-card.css"
+           maxWidth="Infinity"
+           styleClass="search-result-card search-music-card card-root"
+           onMouseEntered="#onHover"
+           onMouseExited="#onExit">
+
+    <HBox fx:id="body"
+          spacing="12"
+          alignment="CENTER_LEFT"
+          maxWidth="Infinity"
+          styleClass="search-result-card-body search-music-body">
+        <ImageView fx:id="coverView"
+                   fitWidth="72"
+                   fitHeight="72"
+                   preserveRatio="false"
+                   smooth="true"
+                   styleClass="search-card-cover"/>
+
+        <VBox spacing="4" HBox.hgrow="ALWAYS">
+            <Label fx:id="titleLabel"
+                   wrapText="true"
+                   maxWidth="Infinity"
+                   styleClass="search-result-title search-music-title"/>
+
+            <Label fx:id="subtitleLabel"
+                   wrapText="true"
+                   maxWidth="Infinity"
+                   styleClass="search-result-subtitle search-music-subtitle"/>
+        </VBox>
+    </HBox>
+</StackPane>

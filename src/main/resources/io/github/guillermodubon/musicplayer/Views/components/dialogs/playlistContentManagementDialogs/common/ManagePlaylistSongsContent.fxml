@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.dialogs.playlistContentManagementDialogs.common.ManagePlaylistSongsContentController"
+      spacing="12"
+      styleClass="manage-playlist-content">
+
+    <fx:include fx:id="playlistSearchBar"
+                source="../../../inputs/searchBar/SearchBar.fxml"/>
+
+    <ScrollPane fx:id="playlistScrollPane"
+                fitToWidth="true"
+                hbarPolicy="NEVER"
+                VBox.vgrow="ALWAYS"
+                styleClass="manage-playlist-scroll">
+        <content>
+            <VBox fx:id="listContainer" spacing="0" styleClass="manage-playlist-list"/>
+        </content>
+    </ScrollPane>
+
+    <VBox fx:id="emptyStateBox"
+          visible="false"
+          managed="false"
+          alignment="CENTER"
+          spacing="28"
+          VBox.vgrow="ALWAYS"
+          styleClass="manage-playlist-empty-state"/>
+</VBox>

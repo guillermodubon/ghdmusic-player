@@ -1,0 +1,85 @@
+@import "../base/dialog-shell.css";
+@import "../base/dialog-controls.css";
+
+.remote-content-error-dialog-root {
+    -fx-background-color: transparent;
+}
+
+.remote-content-error-dialog-root .dialog-shell {
+    -fx-background-color: #111111;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.remote-content-error-dialog-root .dialog-header {
+    -fx-padding: 24 32 8 32;
+    -fx-spacing: 5;
+}
+
+.remote-content-error-dialog-root .dialog-title {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+}
+
+.remote-content-error-dialog-root .dialog-subtitle {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 13px;
+}
+
+.remote-content-error-dialog-root .dialog-content-holder {
+    -fx-padding: 12 32 8 32;
+}
+
+.remote-content-error-dialog-root .dialog-actions-bar {
+    -fx-padding: 8 32 24 32;
+    -fx-alignment: center-right;
+}
+
+.remote-content-error-content {
+    -fx-alignment: center;
+    -fx-spacing: 12;
+    -fx-min-width: 0;
+}
+
+.remote-content-error-message {
+    -fx-font-family: "Inter";
+    -fx-font-size: 14px;
+    -fx-text-fill: #FAFAFA;
+    -fx-text-alignment: center;
+    -fx-alignment: center;
+}
+
+.remote-content-error-hint {
+    -fx-font-family: "Inter";
+    -fx-font-size: 13px;
+    -fx-text-fill: #AFAFAF;
+    -fx-text-alignment: center;
+    -fx-alignment: center;
+}
+
+.remote-content-error-dialog-root .dialog-button {
+    -fx-min-width: 104px;
+    -fx-pref-height: 38px;
+    -fx-padding: 8 20 8 20;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.remote-content-error-dialog-root .secondary-button,
+.remote-content-error-dialog-root .secondary-button:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: #FAFAFA;
+    -fx-text-fill: #FAFAFA;
+}
+
+.remote-content-error-dialog-root .secondary-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}

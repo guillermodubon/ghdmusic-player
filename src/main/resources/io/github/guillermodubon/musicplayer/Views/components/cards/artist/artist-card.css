@@ -1,0 +1,38 @@
+@import "artist-title-theme.css";
+
+.artist-card {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+}
+
+.artist-card-body {
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 10;
+}
+
+.music-card-hover .artist-card-body,
+.artist-card:hover .artist-card-body {
+    -fx-background-color: rgba(26, 26, 26, 1.0);
+}
+
+.artist-image-container {
+    -fx-background-color: transparent;
+    -fx-padding: 4;
+}
+
+.artist-label-background,
+.artist-label-background-hover {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.artist-name-label {
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+}

@@ -1,0 +1,276 @@
+@import "../../../../generalStyles/app-theme.css";
+
+.preview-bar {
+    -fx-background-color: #000000;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 18, 0.22, 0, 6);
+}
+
+.preview-main-row {
+    -fx-background-color: #000000;
+    -fx-background-radius: 12;
+    -fx-padding: 0 26 0 0;
+}
+
+.preview-cover-shell {
+    -fx-min-width: 88;
+    -fx-min-height: 88;
+    -fx-pref-width: 88;
+    -fx-pref-height: 88;
+    -fx-max-width: 88;
+    -fx-max-height: 88;
+}
+
+.preview-cover {
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.36), 8, 0.20, 0, 2);
+}
+
+.preview-track-text {
+    -fx-alignment: center-left;
+    -fx-fill-width: true;
+}
+
+.preview-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.preview-title-viewport {
+    -fx-min-width: 0;
+    -fx-min-height: 21px;
+    -fx-pref-height: 21px;
+    -fx-max-height: 21px;
+    -fx-alignment: center-left;
+}
+
+.preview-title-marquee-box,
+.preview-artists-marquee-box {
+    -fx-alignment: center-left;
+    -fx-fill-height: false;
+}
+
+.preview-artists {
+    -fx-alignment: center-left;
+}
+
+.preview-artists-viewport {
+    -fx-min-width: 0;
+    -fx-min-height: 18px;
+    -fx-pref-height: 18px;
+    -fx-max-height: 18px;
+    -fx-alignment: center-left;
+}
+
+.preview-artist-link {
+    -fx-font-size: 13px;
+    -fx-text-fill: #FAFAFA;
+    -fx-padding: 0;
+}
+
+.preview-artist-link .text {
+    -fx-fill: #FAFAFA;
+}
+
+.preview-artist-link:hover,
+.preview-artist-link:focused {
+    -fx-text-fill: #0077B6;
+}
+
+.preview-artist-link:hover .text,
+.preview-artist-link:focused .text {
+    -fx-fill: #0077B6;
+}
+
+.preview-artist-separator,
+.preview-artist-empty {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 13px;
+}
+
+.preview-playback-column {
+    -fx-alignment: center;
+}
+
+.preview-time-row {
+    -fx-alignment: center;
+}
+
+.preview-time-label {
+    -fx-text-fill: rgba(255, 255, 255, 0.72);
+    -fx-font-size: 13px;
+    -fx-min-width: 54px;
+    -fx-pref-width: 54px;
+    -fx-max-width: 54px;
+}
+
+.preview-bar .button.preview-icon-button,
+.preview-bar .button.preview-icon-button:hover,
+.preview-bar .button.preview-icon-button:focused,
+.preview-bar .button.preview-icon-button:pressed,
+.preview-bar .button.preview-icon-button:armed,
+.preview-icon-button,
+.preview-icon-button:hover,
+.preview-icon-button:focused,
+.preview-icon-button:pressed,
+.preview-icon-button:armed,
+.preview-play-button,
+.preview-play-button:hover,
+.preview-play-button:focused,
+.preview-play-button:pressed,
+.preview-play-button:armed {
+    -fx-min-width: 42;
+    -fx-min-height: 42;
+    -fx-pref-width: 42;
+    -fx-pref-height: 42;
+    -fx-max-width: 42;
+    -fx-max-height: 42;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+    -fx-text-fill: transparent;
+}
+
+.preview-bar .button.preview-icon-button > .label,
+.preview-icon-button > .label,
+.preview-play-button > .label {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.preview-volume-column {
+    -fx-background-color: transparent;
+    -fx-alignment: center-right;
+    -fx-min-width: 184px;
+    -fx-pref-width: 198px;
+    -fx-max-width: 220px;
+}
+
+.preview-volume-box {
+    -fx-background-color: transparent;
+    -fx-alignment: center-right;
+}
+
+.preview-volume-icon-host {
+    -fx-background-color: transparent;
+}
+
+.preview-slider-shell {
+    -fx-background-color: transparent;
+    -fx-alignment: center-left;
+}
+
+.preview-time-slider-shell {
+    -fx-min-height: 16px;
+    -fx-pref-height: 16px;
+    -fx-max-height: 16px;
+}
+
+.preview-volume-slider-shell {
+    -fx-min-width: 138px;
+    -fx-pref-width: 158px;
+    -fx-max-width: 176px;
+    -fx-min-height: 18px;
+    -fx-pref-height: 18px;
+    -fx-max-height: 18px;
+}
+
+.preview-slider-base,
+.preview-slider-fill {
+    -fx-min-height: 4px;
+    -fx-pref-height: 4px;
+    -fx-max-height: 4px;
+    -fx-background-radius: 999;
+}
+
+.preview-slider-base {
+    -fx-background-color: #AFAFAF;
+}
+
+.preview-slider-fill {
+    -fx-background-color: #0077B6;
+}
+
+.preview-time-slider-shell .preview-slider-base,
+.preview-time-slider-shell .preview-slider-fill {
+    -fx-background-radius: 0;
+}
+
+.preview-time-slider,
+.preview-volume-slider,
+.preview-overlay-slider {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.preview-bar .slider,
+.preview-bar .slider:focused,
+.preview-bar .slider:hover {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.preview-time-slider {
+    -fx-min-height: 16px;
+    -fx-pref-height: 16px;
+}
+
+.preview-volume-slider {
+    -fx-min-height: 18px;
+    -fx-pref-height: 18px;
+    -fx-max-height: 18px;
+}
+
+.preview-time-slider .track,
+.preview-volume-slider .track,
+.preview-overlay-slider .track,
+.preview-bar .slider .track {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-pref-height: 4px;
+    -fx-opacity: 0;
+}
+
+.preview-time-slider .colored-track,
+.preview-volume-slider .colored-track,
+.preview-overlay-slider .colored-track,
+.preview-bar .slider .colored-track {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-opacity: 0;
+}
+
+.preview-time-slider .thumb {
+    -fx-background-color: #0077B6;
+    -fx-background-radius: 999;
+    -fx-pref-width: 13px;
+    -fx-pref-height: 13px;
+}
+
+.preview-volume-slider {
+    -fx-min-width: 138px;
+    -fx-pref-width: 158px;
+    -fx-max-width: 176px;
+}
+
+.preview-volume-slider .thumb {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 999;
+    -fx-pref-width: 11px;
+    -fx-pref-height: 11px;
+}

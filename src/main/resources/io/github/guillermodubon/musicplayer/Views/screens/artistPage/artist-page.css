@@ -1,0 +1,174 @@
+@import "../../generalStyles/app-theme.css";
+@import "../../generalStyles/section-carousel.css";
+
+.artist-page-root {
+    -fx-background-color: #111111;
+    -fx-min-width: 0;
+    -fx-min-height: 0;
+}
+
+.artist-page-scroll {
+    -fx-background-color: #111111;
+    -fx-background: #111111;
+    -fx-min-width: 0;
+}
+
+.artist-page-scroll > .viewport {
+    -fx-background-color: #111111;
+}
+
+.artist-page-content {
+    -fx-background-color: #111111;
+    -fx-min-width: 0;
+}
+
+.artist-header {
+    -fx-background-color: #111111;
+    -fx-min-height: 250px;
+    -fx-pref-height: 430px;
+    -fx-max-height: 560px;
+    -fx-min-width: 0;
+}
+
+.artist-header-background-image {
+    -fx-opacity: 0.52;
+}
+
+.artist-header-image-frame {
+    -fx-background-color: transparent;
+}
+
+.artist-header-image {
+    -fx-opacity: 0.98;
+}
+
+.artist-header-scrim {
+    -fx-background-color: linear-gradient(
+        from 0% 0% to 0% 100%,
+        rgba(17, 17, 17, 0.10) 0%,
+        rgba(17, 17, 17, 0.48) 52%,
+        #111111 100%
+    );
+}
+
+.artist-header-overlay {
+    -fx-background-color: transparent;
+    -fx-min-width: 0;
+}
+
+.artist-name {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 40px;
+    -fx-font-weight: bold;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.62), 12, 0.34, 0, 2);
+}
+
+.artist-header-bio {
+    -fx-fill: rgba(255, 255, 255, 0.86);
+    -fx-font-size: 14px;
+    -fx-line-spacing: 4px;
+}
+
+.artist-main-content {
+    -fx-background-color: #111111;
+    -fx-min-width: 0;
+}
+
+.artist-section {
+    -fx-background-color: transparent;
+    -fx-spacing: 10;
+    -fx-padding: 6 0 16 0;
+}
+
+.artist-section-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 19px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 2 0;
+}
+
+.artist-card-flow {
+    -fx-background-color: transparent;
+    -fx-hgap: 16;
+    -fx-vgap: 24;
+    -fx-padding: 4 0 0 0;
+    -fx-alignment: top-left;
+    -fx-min-width: 0;
+}
+
+.artist-carousel-host {
+    -fx-background-color: transparent;
+}
+
+.artist-page-load-error {
+    -fx-alignment: center;
+    -fx-spacing: 12;
+    -fx-padding: 16 28 22 28;
+    -fx-background-color: transparent;
+}
+
+.artist-page-load-error-message {
+    -fx-font-family: "Inter";
+    -fx-font-size: 17px;
+    -fx-text-fill: #AFAFAF;
+    -fx-text-alignment: center;
+    -fx-alignment: center;
+}
+
+.artist-page-section-retry {
+    -fx-alignment: center;
+    -fx-padding: 4 28 10 28;
+    -fx-background-color: transparent;
+}
+
+.artist-page-section-retry .progress-indicator {
+    -fx-progress-color: #0077B6;
+}
+
+.artist-page-scroll .scroll-bar:vertical,
+.artist-page-scroll .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.artist-page-scroll .scroll-bar:vertical .thumb,
+.artist-page-scroll .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 8;
+}
+
+.artist-page-scroll .scroll-bar:vertical .thumb:hover,
+.artist-page-scroll .scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: rgba(10, 203, 242, 0.46);
+}
+
+.artist-page-scroll .scroll-bar:vertical .track,
+.artist-page-scroll .scroll-bar:horizontal .track {
+    -fx-background-color: transparent;
+}
+
+/* The center host becomes narrower when Queue or Downloads is open. */
+.artist-page-root.artist-page-compact .artist-name {
+    -fx-font-size: 32px;
+}
+
+.artist-page-root.artist-page-compact .artist-header-bio {
+    -fx-font-size: 13px;
+    -fx-line-spacing: 2px;
+}
+
+.artist-page-root.artist-page-compact .artist-section-title {
+    -fx-font-size: 18px;
+}
+
+.artist-page-root.artist-page-narrow .artist-name {
+    -fx-font-size: 25px;
+}
+
+.artist-page-root.artist-page-narrow .artist-header-bio {
+    -fx-font-size: 12px;
+    -fx-line-spacing: 1px;
+}
+
+.artist-page-root.artist-page-narrow .artist-section-title {
+    -fx-font-size: 17px;
+}

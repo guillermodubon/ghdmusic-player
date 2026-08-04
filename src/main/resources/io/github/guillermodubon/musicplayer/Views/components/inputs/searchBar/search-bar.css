@@ -1,0 +1,101 @@
+@import "../../../generalStyles/app-theme.css";
+
+.app-search-bar {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(0, 119, 182, 1.0);
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+    -fx-padding: 0;
+    -fx-min-height: 46;
+    -fx-pref-height: 46;
+    -fx-max-height: 46;
+}
+
+.app-search-icon-host {
+    -fx-min-width: 54;
+    -fx-pref-width: 54;
+    -fx-max-width: 54;
+    -fx-alignment: center;
+}
+
+.app-search-field {
+    -fx-background-color: transparent;
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.62);
+    -fx-font-size: 15px;
+    -fx-font-smoothing-type: lcd;
+    -fx-background-radius: 14;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 12 48 12 58;
+    -fx-min-height: 46;
+    -fx-pref-height: 46;
+    -fx-max-height: 46;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.app-search-text-quality {
+    -fx-font-smoothing-type: lcd;
+}
+
+.app-search-bar-minimal {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent transparent #FFFFFF transparent;
+    -fx-border-radius: 0;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 0;
+    -fx-min-height: 42;
+    -fx-pref-height: 42;
+    -fx-max-height: 42;
+}
+
+.app-search-bar-minimal .app-search-icon-host {
+    -fx-min-width: 44;
+    -fx-pref-width: 44;
+    -fx-max-width: 44;
+}
+
+.app-search-bar-minimal .app-search-field,
+.app-search-field-minimal {
+    -fx-background-color: transparent;
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.66);
+    -fx-font-size: 15px;
+    -fx-font-smoothing-type: lcd;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 10 44 10 48;
+    -fx-min-height: 42;
+    -fx-pref-height: 42;
+    -fx-max-height: 42;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.app-search-clear-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-min-width: 38;
+    -fx-pref-width: 38;
+    -fx-max-width: 38;
+    -fx-min-height: 38;
+    -fx-pref-height: 38;
+    -fx-max-height: 38;
+    -fx-cursor: hand;
+}
+
+.app-search-clear-button:hover {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.app-search-bar-minimal .app-search-clear-button:hover {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}

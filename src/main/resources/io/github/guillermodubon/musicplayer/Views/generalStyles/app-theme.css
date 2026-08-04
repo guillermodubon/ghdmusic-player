@@ -1,0 +1,317 @@
+/*
+ * Shared visual tokens.
+ * Add future font families here and reuse the semantic text/link/button classes
+ * from any screen stylesheet.
+ */
+@font-face {
+    font-family: "Archivo";
+    src: url("/io/github/guillermodubon/musicplayer/assets/fonts/Archivo/static/Archivo-Regular.ttf");
+}
+
+@font-face {
+    font-family: "Archivo";
+    font-weight: bold;
+    src: url("/io/github/guillermodubon/musicplayer/assets/fonts/Archivo/static/Archivo-Bold.ttf");
+}
+
+@font-face {
+    font-family: "Inter";
+    src: url("/io/github/guillermodubon/musicplayer/assets/fonts/Inter/static/Inter_18pt-Regular.ttf");
+}
+
+@font-face {
+    font-family: "Inter";
+    font-weight: bold;
+    src: url("/io/github/guillermodubon/musicplayer/assets/fonts/Inter/static/Inter_18pt-Bold.ttf");
+}
+
+*,
+.root,
+.app-root,
+.screen-root,
+.mainmenu-scroll,
+.music-card,
+.big-featured-music-card,
+.recently-played-card {
+    -app-background: #111111;
+    -app-surface: rgba(138, 43, 226, 0.10);
+    -app-surface-elevated: rgba(138, 43, 226, 0.16);
+    -app-surface-hover: rgba(138, 43, 226, 0.24);
+    -app-border: rgba(138, 43, 226, 0.26);
+    -app-border-strong: rgba(10, 203, 242, 0.58);
+    -app-text: #FFFFFF;
+    -app-text-muted: rgba(255, 255, 255, 0.70);
+    -app-text-soft: rgba(255, 255, 255, 0.54);
+    -app-primary: #0077B6;
+    -app-primary-hover: #0A8FCE;
+    -app-link: #FAFAFA;
+    -app-link-hover: #0077B6;
+    -app-focus-ring: rgba(0, 119, 182, 0.36);
+    -fx-font-family: "Inter";
+}
+
+.button,
+.toggle-button,
+.menu-button,
+.text-field,
+.text-area,
+.combo-box,
+.choice-box,
+.list-view,
+.table-view,
+.hyperlink,
+.app-hyperlink,
+.app-text-subtitle,
+.app-text-body,
+.app-text-caption {
+    -fx-font-family: "Inter";
+}
+
+.app-text-display {
+    -fx-font-family: "Archivo";
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.app-text-title {
+    -fx-font-family: "Archivo";
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.app-text-section-title {
+    -fx-font-family: "Archivo";
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+
+}
+
+.mainmenu-section-title,
+.catalog-title,
+.discover-section-title,
+.genre-details-section-title,
+.artist-section-title,
+.player-menu-title,
+.player-menu-section-title,
+.player-menu-more-by-artist-title-text,
+.player-menu-more-by-artist-title-link,
+.music-card-title,
+.big-featured-title,
+.artist-card-title,
+.search-result-title,
+.search-artist-name,
+.dialog-title,
+.queue-title,
+.queue-section-title,
+.download-sidebar-title,
+.download-cell-title,
+.player-title,
+.preview-title {
+    -fx-font-family: "Archivo";
+}
+
+.app-text-subtitle {
+    -fx-font-size: 14px;
+    -fx-text-fill: #B3B3B3;
+}
+
+.app-text-body {
+    -fx-font-size: 13px;
+    -fx-text-fill: #B3B3B3;
+}
+
+.app-text-caption {
+    -fx-font-size: 12px;
+    -fx-text-fill: #8A8A8A;
+}
+
+.app-text-shimmer {
+    -fx-text-fill: #AFAFAF;
+}
+
+/* Deezer uses this aggregate name for compilation metadata, not an artist. */
+.artist-plain-label {
+    -fx-text-fill: #FAFAFA;
+    -fx-underline: false;
+    -fx-cursor: default;
+}
+
+.hyperlink,
+.app-hyperlink {
+    -fx-text-fill: #FAFAFA;
+    -fx-underline: false;
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.hyperlink .text,
+.app-hyperlink .text {
+    -fx-fill: #FAFAFA;
+}
+
+.hyperlink:visited,
+.app-hyperlink:visited {
+    -fx-text-fill: #FAFAFA;
+}
+
+.hyperlink:visited .text,
+.app-hyperlink:visited .text {
+    -fx-fill: #FAFAFA;
+}
+
+.hyperlink:focused,
+.app-hyperlink:focused {
+    -fx-text-fill: #0077B6;
+    -fx-border-color: transparent;
+}
+
+.hyperlink:focused .text,
+.app-hyperlink:focused .text {
+    -fx-fill: #0077B6;
+}
+
+.hyperlink:hover,
+.hyperlink:visited:hover,
+.app-hyperlink:hover,
+.app-hyperlink:visited:hover,
+.app-hyperlink:focused:hover {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.hyperlink:hover .text,
+.hyperlink:visited:hover .text,
+.app-hyperlink:hover .text,
+.app-hyperlink:visited:hover .text,
+.app-hyperlink:focused:hover .text {
+    -fx-fill: #0077B6;
+}
+
+.button,
+.toggle-button,
+.menu-button,
+.app-button,
+.app-button-primary {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-color: #0077B6;
+    -fx-border-color: #0077B6;
+    -fx-text-fill: #FFFFFF;
+    -fx-background-radius: 8;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+}
+
+.app-button-primary {
+    -fx-background-color: #0077B6;
+    -fx-border-color: #0077B6;
+    -fx-text-fill: #FFFFFF;
+}
+
+.button:hover,
+.button:focused,
+.toggle-button:hover,
+.toggle-button:focused,
+.toggle-button:selected,
+.menu-button:hover,
+.menu-button:focused,
+.app-button-primary:hover,
+.app-button-primary:focused {
+    -fx-background-color: #0A8FCE;
+    -fx-border-color: #0A8FCE;
+}
+
+/*
+ * Global scrollbars.
+ * Keep scrollbar styling centralized so screens and components inherit one
+ * consistent scroll treatment.
+ */
+.scroll-bar,
+.scroll-bar:vertical,
+.scroll-bar:horizontal {
+    -fx-background-color: #111111;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.scroll-bar:vertical {
+    -fx-min-width: 14px;
+    -fx-pref-width: 14px;
+    -fx-max-width: 14px;
+}
+
+.scroll-bar:horizontal {
+    -fx-min-height: 14px;
+    -fx-pref-height: 14px;
+    -fx-max-height: 14px;
+}
+
+.scroll-bar .track,
+.scroll-bar .track-background {
+    -fx-background-color: #111111;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: rgba(175, 175, 175, 0.30);
+    -fx-background-radius: 999;
+    -fx-background-insets: 3;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: rgba(175, 175, 175, 0.46);
+}
+
+.scroll-bar .thumb:pressed {
+    -fx-background-color: rgba(175, 175, 175, 0.62);
+}
+
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: #111111;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-padding: 2;
+}
+
+.scroll-bar:vertical .increment-button,
+.scroll-bar:vertical .decrement-button {
+    -fx-min-height: 18px;
+    -fx-pref-height: 18px;
+    -fx-max-height: 18px;
+}
+
+.scroll-bar:horizontal .increment-button,
+.scroll-bar:horizontal .decrement-button {
+    -fx-min-width: 18px;
+    -fx-pref-width: 18px;
+    -fx-max-width: 18px;
+}
+
+.scroll-bar .increment-arrow,
+.scroll-bar .decrement-arrow {
+    -fx-background-color: rgba(175, 175, 175, 0.74);
+    -fx-padding: 3;
+    -fx-effect: null;
+}
+
+.scroll-bar .increment-button:hover .increment-arrow,
+.scroll-bar .decrement-button:hover .decrement-arrow {
+    -fx-background-color: #FAFAFA;
+}
+
+.scroll-pane,
+.scroll-pane > .viewport,
+.list-view,
+.tree-view,
+.table-view {
+    -fx-background-color: transparent;
+}

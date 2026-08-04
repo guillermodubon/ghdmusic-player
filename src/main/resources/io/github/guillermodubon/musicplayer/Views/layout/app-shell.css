@@ -1,0 +1,41 @@
+@import "../generalStyles/app-theme.css";
+
+#shellRoot {
+    -fx-background-color: #111111;
+}
+
+.app-root > .center,
+.app-root > .bottom,
+.app-header-host {
+    -fx-min-width: 0;
+}
+
+.app-content-host {
+    -fx-min-width: 0;
+    -fx-min-height: 0;
+}
+
+/* The player bar is the shell's only bottom child. */
+.app-root > .bottom {
+    -fx-background-color: #000000;
+}
+
+.app-header-host,
+.app-left-host {
+    -fx-background-color: #000000;
+}
+
+.catalog-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-padding: 10 10 0 10;
+}
+
+.catalog-grid {
+    -fx-padding: 10;
+}
+
+.catalog-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}

@@ -1,0 +1,73 @@
+@import "../base/dialog-shell.css";
+@import "../base/dialog-controls.css";
+
+.preview-unavailable-dialog-root {
+    -fx-background-color: transparent;
+}
+
+.preview-unavailable-dialog-root .dialog-shell {
+    -fx-background-color: #111111;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.preview-unavailable-dialog-root .dialog-header {
+    -fx-padding: 26 30 8 30;
+    -fx-spacing: 5;
+}
+
+.preview-unavailable-dialog-root .dialog-title {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+}
+
+.preview-unavailable-dialog-root .dialog-subtitle {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 13px;
+}
+
+.preview-unavailable-dialog-root .dialog-content-holder {
+    -fx-padding: 14 30 10 30;
+}
+
+.preview-unavailable-dialog-root .dialog-actions-bar {
+    -fx-padding: 10 30 26 30;
+    -fx-alignment: center-right;
+}
+
+.preview-unavailable-content {
+    -fx-spacing: 0;
+}
+
+.preview-unavailable-message {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 14px;
+    -fx-wrap-text: true;
+}
+
+.preview-unavailable-dialog-root .dialog-button {
+    -fx-min-width: 104px;
+    -fx-pref-height: 38px;
+    -fx-padding: 8 20 8 20;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.preview-unavailable-dialog-root .secondary-button,
+.preview-unavailable-dialog-root .secondary-button:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: #FAFAFA;
+    -fx-text-fill: #FAFAFA;
+}
+
+.preview-unavailable-dialog-root .secondary-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}

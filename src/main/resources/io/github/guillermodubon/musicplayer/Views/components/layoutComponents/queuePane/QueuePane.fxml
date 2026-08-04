@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane fx:id="root"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.queuePane.QueueController"
+            stylesheets="@queue-pane.css"
+            styleClass="queue-sidebar">
+
+    <left>
+        <Region fx:id="resizeHandle"
+                prefWidth="10"
+                maxWidth="10"
+                minWidth="10"
+                styleClass="queue-sidebar-resize-handle"/>
+    </left>
+
+    <top>
+        <HBox spacing="10" alignment="CENTER_LEFT" styleClass="queue-header">
+            <Label text="Queue" styleClass="queue-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="closeButton"
+                    onAction="#onClose"
+                    focusTraversable="false"
+                    styleClass="queue-icon-button"/>
+        </HBox>
+    </top>
+
+    <center>
+        <ScrollPane fx:id="queueScrollPane"
+                    fitToWidth="true"
+                    hbarPolicy="NEVER"
+                    vbarPolicy="AS_NEEDED"
+                    styleClass="queue-scroll-pane">
+            <content>
+                <VBox spacing="14" styleClass="queue-content">
+
+                    <VBox spacing="8" styleClass="queue-section">
+                        <Label text="Now playing" styleClass="queue-section-title"/>
+                        <AnchorPane fx:id="nowPlayingContainer" styleClass="queue-now-playing-container"/>
+                    </VBox>
+
+                    <VBox fx:id="nextQueueSection" spacing="8" styleClass="queue-section">
+                        <HBox alignment="CENTER_LEFT" spacing="8">
+                            <Label text="Next in queue" styleClass="queue-section-title"/>
+                            <Button fx:id="clearQueueButton"
+                                    onAction="#onClearQueue"
+                                    focusTraversable="false"
+                                    styleClass="queue-icon-button queue-clear-button"/>
+                        </HBox>
+                        <VBox fx:id="nextQueueList" spacing="8" styleClass="queue-list"/>
+                    </VBox>
+
+                    <VBox spacing="8" styleClass="queue-section">
+                        <Label fx:id="nextFromLabel" text="Next from:" styleClass="queue-section-title"/>
+                        <VBox fx:id="nextFromList" spacing="8" styleClass="queue-list"/>
+                    </VBox>
+
+                </VBox>
+            </content>
+        </ScrollPane>
+    </center>
+
+</BorderPane>

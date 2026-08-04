@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Slider?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane fx:id="root"
+            xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.playerMenuBar.preview.PreviewBarController"
+            minWidth="880"
+            prefWidth="940"
+            maxWidth="1080"
+            minHeight="88"
+            prefHeight="88"
+            maxHeight="88"
+            stylesheets="@preview-bar.css"
+            styleClass="preview-bar">
+
+    <center>
+        <HBox alignment="CENTER_LEFT"
+              spacing="14"
+              maxWidth="Infinity"
+              styleClass="preview-main-row">
+
+            <StackPane fx:id="coverShell" styleClass="preview-cover-shell">
+                <ImageView fx:id="coverImageView"
+                           fitWidth="88"
+                           fitHeight="88"
+                           preserveRatio="false"
+                           smooth="true"
+                           styleClass="preview-cover"/>
+            </StackPane>
+
+            <VBox spacing="4"
+                  fx:id="trackTextBox"
+                  minWidth="0"
+                  prefWidth="220"
+                  maxWidth="320"
+                  HBox.hgrow="NEVER"
+                  styleClass="preview-track-text">
+                <StackPane fx:id="titleViewport"
+                           minWidth="0"
+                           maxWidth="Infinity"
+                           styleClass="preview-title-viewport">
+                    <HBox fx:id="titleMarqueeBox"
+                          alignment="CENTER_LEFT"
+                          styleClass="preview-title-marquee-box">
+                        <Label fx:id="titleLabel"
+                               maxWidth="Infinity"
+                               textOverrun="ELLIPSIS"
+                               styleClass="preview-title"/>
+                    </HBox>
+                </StackPane>
+                <StackPane fx:id="artistViewport"
+                           minWidth="0"
+                           maxWidth="Infinity"
+                           styleClass="preview-artists-viewport">
+                    <HBox fx:id="artistLinksContainer"
+                          spacing="0"
+                          alignment="CENTER_LEFT"
+                          maxWidth="Infinity"
+                          styleClass="preview-artists preview-artists-marquee-box"/>
+                </StackPane>
+            </VBox>
+
+            <VBox fx:id="playbackColumn"
+                  alignment="CENTER"
+                  spacing="8"
+                  HBox.hgrow="ALWAYS"
+                  maxWidth="Infinity"
+                  styleClass="preview-playback-column">
+                <Button fx:id="playPauseBtn"
+                        focusTraversable="false"
+                        styleClass="preview-icon-button preview-play-button"/>
+
+                <HBox fx:id="timeRow"
+                      alignment="CENTER"
+                      spacing="8"
+                      minWidth="384"
+                      prefWidth="500"
+                      maxWidth="620"
+                      styleClass="preview-time-row">
+                    <Label fx:id="currentTimeLabel"
+                           minWidth="54"
+                           prefWidth="54"
+                           maxWidth="54"
+                           alignment="CENTER_RIGHT"
+                           text="0:00"
+                           styleClass="preview-time-label"/>
+                    <StackPane fx:id="timeSliderShell"
+                               HBox.hgrow="ALWAYS"
+                               minWidth="260"
+                               prefWidth="380"
+                               maxWidth="500"
+                               styleClass="preview-slider-shell preview-time-slider-shell">
+                        <Region fx:id="timeSliderBase"
+                                mouseTransparent="true"
+                                StackPane.alignment="CENTER_LEFT"
+                                styleClass="preview-slider-base"/>
+                        <Region fx:id="timeSliderFill"
+                                mouseTransparent="true"
+                                StackPane.alignment="CENTER_LEFT"
+                                styleClass="preview-slider-fill"/>
+                        <Slider fx:id="timeSlider"
+                                min="0"
+                                max="100"
+                                value="0"
+                                styleClass="preview-time-slider preview-overlay-slider"/>
+                    </StackPane>
+                    <Label fx:id="lengthLabel"
+                           minWidth="54"
+                           prefWidth="54"
+                           maxWidth="54"
+                           alignment="CENTER_LEFT"
+                           text="0:00"
+                           styleClass="preview-time-label"/>
+                </HBox>
+            </VBox>
+
+            <VBox alignment="CENTER_RIGHT"
+                  spacing="8"
+                  minWidth="184"
+                  prefWidth="198"
+                  maxWidth="220"
+                  styleClass="preview-volume-column">
+                <Pane minHeight="42" prefHeight="42" maxHeight="42"/>
+                <HBox fx:id="volumeBox"
+                      spacing="8"
+                      alignment="CENTER_RIGHT"
+                      minWidth="184"
+                      prefWidth="198"
+                      maxWidth="220"
+                      styleClass="preview-volume-box">
+                    <StackPane fx:id="volumeIconHost"
+                               minWidth="24"
+                               prefWidth="24"
+                               maxWidth="24"
+                               styleClass="preview-volume-icon-host"/>
+                    <StackPane fx:id="volumeSliderShell"
+                               minWidth="138"
+                               prefWidth="158"
+                               maxWidth="176"
+                               styleClass="preview-slider-shell preview-volume-slider-shell">
+                        <Region fx:id="volumeSliderBase"
+                                mouseTransparent="true"
+                                StackPane.alignment="CENTER_LEFT"
+                                styleClass="preview-slider-base"/>
+                        <Region fx:id="volumeSliderFill"
+                                mouseTransparent="true"
+                                StackPane.alignment="CENTER_LEFT"
+                                styleClass="preview-slider-fill"/>
+                        <Slider fx:id="volumeSlider"
+                                min="0"
+                                max="100"
+                                value="100"
+                                styleClass="preview-volume-slider preview-overlay-slider"/>
+                    </StackPane>
+                </HBox>
+            </VBox>
+        </HBox>
+    </center>
+</BorderPane>

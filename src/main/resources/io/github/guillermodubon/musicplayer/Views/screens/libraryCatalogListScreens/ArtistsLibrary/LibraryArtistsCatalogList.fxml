@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.screens.libraryCatalogListScreens.LibraryArtistsCatalogListController"
+            stylesheets="@library-artists-catalog-list.css"
+            fx:id="screenRoot"
+            styleClass="catalog-page">
+
+    <top>
+        <VBox spacing="6" maxWidth="Infinity" styleClass="catalog-header">
+            <HBox alignment="CENTER_LEFT" spacing="12" maxWidth="Infinity" styleClass="catalog-title-row">
+                <Label fx:id="titleLabel"
+                       text="Artists from your library"
+                       styleClass="catalog-title"
+                       HBox.hgrow="ALWAYS"/>
+            </HBox>
+            <HBox fx:id="catalogTools"
+                  alignment="CENTER_RIGHT"
+                  spacing="12"
+                  maxWidth="Infinity"
+                  visible="false"
+                  managed="false"
+                  styleClass="catalog-tools">
+                <Pane HBox.hgrow="ALWAYS"/>
+                <StackPane fx:id="catalogSearchBox"
+                           minWidth="220"
+                           prefWidth="320"
+                           maxWidth="420"
+                           styleClass="catalog-search-box">
+                    <fx:include fx:id="catalogSearchBar"
+                                source="../../../components/inputs/searchBar/SearchBar.fxml"/>
+                </StackPane>
+                <MenuButton fx:id="filterMenuButton"
+                            text="Recently added"
+                            visible="false"
+                            managed="false"
+                            focusTraversable="false"
+                            contentDisplay="RIGHT"
+                            styleClass="catalog-filter-button"/>
+            </HBox>
+        </VBox>
+    </top>
+
+    <center>
+        <StackPane styleClass="catalog-content-stack">
+            <ScrollPane fx:id="scrollPane" fitToWidth="true" hbarPolicy="NEVER" styleClass="catalog-scroll">
+                <content>
+                    <FlowPane fx:id="artistFlow" hgap="10" vgap="10" styleClass="catalog-grid">
+                        <padding>
+                            <Insets top="10" right="10" bottom="10" left="10"/>
+                        </padding>
+                    </FlowPane>
+                </content>
+            </ScrollPane>
+            <Label fx:id="emptyStateLabel"
+                   text="You don't have any artists in your library"
+                   visible="false"
+                   managed="false"
+                   mouseTransparent="true"
+                   styleClass="catalog-empty-state"/>
+        </StackPane>
+    </center>
+</BorderPane>

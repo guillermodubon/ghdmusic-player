@@ -1,0 +1,99 @@
+@import "../../generalStyles/app-theme.css";
+@import "../../generalStyles/section-layout.css";
+@import "../../generalStyles/section-carousel.css";
+
+.search-results-root {
+    -fx-background-color: #111111;
+}
+
+.search-results-header {
+    -fx-background-color: #111111;
+    -fx-min-height: 118px;
+    -fx-pref-height: 118px;
+    -fx-padding: 0;
+}
+
+.search-results-header-content {
+    -fx-padding: 28 28 34 28;
+    -fx-background-color: linear-gradient(
+        from 0% 0% to 100% 100%,
+        rgba(0, 119, 182, 0.20) 0%,
+        rgba(138, 43, 226, 0.12) 45%,
+        rgba(17, 17, 17, 0.96) 100%
+    );
+}
+
+.search-results-header-bottom-fade {
+    -fx-min-height: 58px;
+    -fx-pref-height: 58px;
+    -fx-max-height: 58px;
+    -fx-background-color: linear-gradient(
+        from 0% 0% to 0% 100%,
+        rgba(17, 17, 17, 0.00) 0%,
+        rgba(17, 17, 17, 0.64) 58%,
+        #111111 100%
+    );
+}
+
+.search-results-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+}
+
+.search-results-scroll {
+    -fx-background: #111111;
+    -fx-background-color: #111111;
+    -fx-padding: 0;
+}
+
+.search-results-scroll > .viewport {
+    -fx-background-color: #111111;
+}
+
+.search-results-content {
+    -fx-background-color: #111111;
+    -fx-spacing: 14;
+}
+
+.search-results-feedback {
+    -fx-alignment: center;
+    -fx-max-width: 620;
+    -fx-padding: 28;
+}
+
+.search-results-feedback-icon {
+    -fx-min-width: 36;
+    -fx-pref-width: 36;
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+    -fx-alignment: center;
+}
+
+.search-results-feedback-message {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 16px;
+    -fx-wrap-text: true;
+    -fx-text-alignment: center;
+}
+
+.search-results-scroll .scroll-bar:vertical,
+.search-results-scroll .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.search-results-scroll .scroll-bar:vertical .track,
+.search-results-scroll .scroll-bar:horizontal .track {
+    -fx-background-color: transparent;
+}
+
+.search-results-scroll .scroll-bar:vertical .thumb,
+.search-results-scroll .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 8;
+}
+
+.search-results-scroll .scroll-bar:vertical .thumb:hover,
+.search-results-scroll .scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: rgba(10, 203, 242, 0.46);
+}

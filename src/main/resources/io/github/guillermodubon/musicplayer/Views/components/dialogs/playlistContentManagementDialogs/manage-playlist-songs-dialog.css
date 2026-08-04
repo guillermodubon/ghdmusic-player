@@ -1,0 +1,203 @@
+@import "../base/dialog-shell.css";
+@import "../base/dialog-controls.css";
+
+.manage-playlist-dialog-root {
+    -fx-background-color: transparent;
+}
+
+.popover > .border {
+    -fx-fill: #0d0d0d;
+    -fx-stroke: rgba(255, 255, 255, 0.10);
+    -fx-stroke-width: 1;
+}
+
+.popover > .content {
+    -fx-background-color: #0d0d0d;
+}
+
+.popover > .arrow,
+.popover > .detached,
+.popover > .detached .arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-opacity: 0;
+}
+
+.manage-playlist-dialog-root .dialog-shell {
+    -fx-background-color: #0d0d0d;
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.manage-playlist-dialog-root .dialog-header {
+    -fx-padding: 20 24 6 24;
+    -fx-spacing: 6;
+}
+
+.manage-playlist-dialog-root .dialog-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.manage-playlist-dialog-root .dialog-subtitle {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 13px;
+}
+
+.manage-playlist-subtitle-flow {
+    -fx-line-spacing: 2;
+}
+
+.manage-playlist-subtitle-text {
+    -fx-fill: #BDBDBD;
+    -fx-font-size: 13px;
+}
+
+.manage-playlist-subtitle-highlight {
+    -fx-fill: #ffffff;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.manage-playlist-dialog-root .dialog-content-holder {
+    -fx-padding: 0 24 8 24;
+}
+
+.manage-playlist-dialog-root .dialog-actions-bar {
+    -fx-padding: 8 24 18 24;
+    -fx-alignment: center-right;
+}
+
+.manage-playlist-content {
+    -fx-padding: 0;
+    -fx-spacing: 12;
+}
+
+.manage-playlist-search-box {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(0, 119, 182, 1.0);
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+    -fx-min-height: 44;
+    -fx-pref-height: 44;
+    -fx-max-height: 44;
+}
+
+.manage-playlist-search-icon {
+    -fx-min-width: 46;
+    -fx-pref-width: 46;
+    -fx-max-width: 46;
+    -fx-alignment: center;
+}
+
+.manage-playlist-search-field {
+    -fx-background-color: transparent;
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.58);
+    -fx-font-size: 14px;
+    -fx-background-radius: 14;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 11 16 11 46;
+    -fx-min-height: 44;
+}
+
+.manage-playlist-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 4;
+}
+
+.manage-playlist-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.manage-playlist-scroll .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 9;
+}
+
+.manage-playlist-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.28);
+    -fx-background-radius: 999;
+}
+
+.manage-playlist-scroll .scroll-bar .track,
+.manage-playlist-scroll .scroll-bar .increment-button,
+.manage-playlist-scroll .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+}
+
+.manage-playlist-list {
+    -fx-background-color: transparent;
+}
+
+.manage-playlist-empty-state {
+    -fx-padding: 34 12 34 12;
+    -fx-alignment: center;
+    -fx-min-height: 220;
+}
+
+.manage-playlist-empty-text {
+    -fx-fill: #BDBDBD;
+    -fx-font-size: 13px;
+}
+
+.manage-playlist-create-link,
+.manage-playlist-create-link:visited,
+.manage-playlist-create-link:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: #BDBDBD;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-border-width: 1.2;
+    -fx-padding: 16 20 16 20;
+    -fx-underline: false;
+    -fx-cursor: hand;
+    -fx-content-display: graphic-only;
+}
+
+.manage-playlist-create-link:hover {
+
+    -fx-underline: false;
+}
+
+.manage-playlist-create-link .text {
+    -fx-underline: false;
+}
+
+.manage-playlist-create-text {
+    -fx-fill: #BDBDBD;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.manage-playlist-dialog-root .dialog-button {
+    -fx-min-width: 104px;
+    -fx-pref-height: 38px;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 8 20 8 20;
+    -fx-cursor: hand;
+}
+
+.manage-playlist-dialog-root .secondary-button {
+    -fx-background-color: transparent;
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}
+
+.manage-playlist-dialog-root .secondary-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}

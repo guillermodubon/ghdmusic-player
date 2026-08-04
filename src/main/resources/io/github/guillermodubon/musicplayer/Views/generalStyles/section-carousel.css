@@ -1,0 +1,47 @@
+@import "app-theme.css";
+
+.section-card-carousel,
+.home-card-carousel {
+    -fx-padding: 4 0 0 0;
+    -fx-min-height: 286;
+    -fx-pref-height: 286;
+    -fx-max-height: 286;
+}
+
+.section-carousel-track,
+.home-carousel-track {
+    -fx-padding: 0;
+}
+
+.section-card-carousel-track,
+.home-card-carousel-track {
+    -fx-alignment: center-left;
+    -fx-min-height: 254;
+    -fx-pref-height: 254;
+    -fx-max-height: 254;
+}
+
+.section-carousel-button,
+.home-carousel-button {
+    -fx-background-color: #0d0d0d;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 999;
+    -fx-border-color: #0d0d0d;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+    -fx-opacity: 0.96;
+    -fx-padding: 0;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 10, 0.22, 0, 2);
+}
+
+.section-carousel-button:hover,
+.section-carousel-button:focused,
+.home-carousel-button:hover,
+.home-carousel-button:focused {
+    -fx-background-color: #0d0d0d;
+    -fx-border-color: #0d0d0d;
+    -fx-text-fill: #FFFFFF;
+}

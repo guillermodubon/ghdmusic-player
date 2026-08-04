@@ -1,0 +1,288 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.MenuButton?>
+<?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.ToggleButton?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.screens.playerMenu.PlayerMenuController"
+            fx:id="playerMenuRoot"
+            prefWidth="1231.0"
+            prefHeight="671.0"
+            stylesheets="@player-menu.css"
+            styleClass="player-menu-root">
+
+   <center>
+      <ScrollPane fx:id="playerMenuScroll"
+                  fitToWidth="true"
+                  hbarPolicy="NEVER"
+                  vbarPolicy="ALWAYS"
+                  styleClass="player-menu-scroll">
+
+         <VBox fx:id="playerMenuSurface"
+               spacing="8"
+               styleClass="player-menu-surface">
+
+            <VBox styleClass="player-menu-header-stack"
+                  spacing="0">
+
+               <HBox fx:id="playerMenuHeader"
+                     spacing="28"
+                     alignment="CENTER_LEFT"
+                     styleClass="player-menu-header">
+
+                  <StackPane fx:id="headerCoverShell"
+                             styleClass="player-menu-cover-shell">
+
+                     <ImageView fx:id="headerCover"
+                                fitWidth="280"
+                                fitHeight="280"
+                                preserveRatio="false"
+                                smooth="true"
+                                styleClass="player-menu-cover"/>
+                  </StackPane>
+
+                  <VBox spacing="8"
+                        alignment="BOTTOM_LEFT"
+                        minWidth="0"
+                        maxWidth="Infinity"
+                        HBox.hgrow="ALWAYS"
+                        styleClass="player-menu-header-copy">
+
+                     <Label fx:id="recordTypeLabel"
+                            styleClass="player-menu-record-type"/>
+
+                     <Label fx:id="headerTitle"
+                            wrapText="true"
+                            maxWidth="Infinity"
+                            textOverrun="ELLIPSIS"
+                            styleClass="player-menu-title"/>
+
+                     <StackPane fx:id="creatorViewport"
+                                minWidth="0"
+                                maxWidth="Infinity"
+                                styleClass="player-menu-creators-viewport">
+
+                        <HBox fx:id="creatorContainer"
+                              spacing="8"
+                              alignment="CENTER_LEFT"
+                              styleClass="player-menu-creators"/>
+                     </StackPane>
+
+                     <Label fx:id="playlistDescLabel"
+                            wrapText="true"
+                            visible="false"
+                            managed="false"
+                            styleClass="player-menu-description"/>
+
+                     <HBox spacing="8"
+                           alignment="CENTER_LEFT"
+                           styleClass="player-menu-meta-row">
+
+                        <Label fx:id="dateLabel"
+                               styleClass="player-menu-meta"/>
+
+                        <Label text="•"
+                               styleClass="player-menu-meta-separator"/>
+
+                        <Label fx:id="songCountLabel"
+                               text="0 songs"
+                               styleClass="player-menu-meta"/>
+                     </HBox>
+                  </VBox>
+
+               </HBox>
+
+               <Region fx:id="playerMenuHeaderFade"
+                       mouseTransparent="true"
+                       styleClass="player-menu-header-fade"/>
+            </VBox>
+
+             <StackPane minHeight="72"
+                        maxWidth="Infinity"
+                        styleClass="player-menu-options-host">
+
+                <HBox fx:id="searchSongRow"
+                      spacing="16"
+                      alignment="CENTER_LEFT"
+                      maxWidth="Infinity"
+                      styleClass="player-menu-options-section">
+
+                   <HBox fx:id="playerMenuActionButtons"
+                         spacing="24"
+                         alignment="CENTER_LEFT"
+                         styleClass="player-menu-action-buttons">
+
+                      <Button fx:id="playVisibleSongsButton"
+                              text=""
+                              focusTraversable="false"
+                              styleClass="player-menu-inline-icon-button player-menu-inline-play-button"/>
+
+                      <ToggleButton fx:id="randomVisibleSongsButton"
+                                    text=""
+                                    focusTraversable="false"
+                                    styleClass="player-menu-inline-icon-button player-menu-inline-toggle-button"/>
+
+                      <Button fx:id="addVisibleSongsToPlaylistButton"
+                              text=""
+                              focusTraversable="false"
+                              styleClass="player-menu-inline-icon-button player-menu-inline-toggle-button"/>
+
+                      <Button fx:id="downloadAllButton"
+                              text=""
+                              focusTraversable="false"
+                              styleClass="player-menu-inline-icon-button player-menu-inline-toggle-button"/>
+
+                      <MenuButton fx:id="menuOptions"
+                                  text=""
+                                  styleClass="player-menu-options">
+
+                         <items>
+                            <MenuItem fx:id="miEdit"
+                                      text="Edit Playlist"/>
+
+                            <MenuItem fx:id="miDelete"
+                                      text="Delete Playlist"/>
+                         </items>
+                      </MenuButton>
+
+                      <CheckBox fx:id="remoteSaveCheckBox"
+                                text=""
+                                visible="false"
+                                managed="false"
+                                selected="false"
+                                disable="false"
+                                focusTraversable="false"
+                                accessibleText="Add this playlist to your library"
+                                styleClass="player-menu-inline-icon-button player-menu-inline-toggle-button player-menu-remote-save-toggle remote-library-check-button"/>
+
+                      <MenuButton fx:id="playlistSortMenuButton"
+                                  text="Recently added"
+                                  visible="false"
+                                  managed="false"
+                                  focusTraversable="false"
+                                  contentDisplay="RIGHT"
+                                  styleClass="player-menu-sort-button"/>
+
+                   </HBox>
+
+                   <Pane HBox.hgrow="ALWAYS"/>
+
+                   <StackPane fx:id="songSearchBox"
+                              minWidth="260"
+                              prefWidth="320"
+                              maxWidth="420"
+                              styleClass="player-menu-search-box">
+
+                      <fx:include fx:id="songSearchBar"
+                                  source="../../components/inputs/searchBar/SearchBar.fxml"/>
+                   </StackPane>
+                </HBox>
+
+                <StackPane fx:id="headerOptionsSlot"
+                           minWidth="44"
+                           prefWidth="44"
+                           maxWidth="44"
+                           minHeight="44"
+                           prefHeight="44"
+                            maxHeight="44"
+                            visible="false"
+                            managed="false"
+                            StackPane.alignment="CENTER_RIGHT"
+                            styleClass="player-menu-options-slot">
+                   <StackPane.margin>
+                      <Insets top="14" right="24" bottom="14" left="24"/>
+                   </StackPane.margin>
+                </StackPane>
+             </StackPane>
+
+            <Pane fx:id="songListVirtualShell"
+                  minHeight="180"
+                  prefHeight="180"
+                  styleClass="player-menu-song-list-shell">
+
+               <ListView fx:id="SongsToPlayView"
+                         fixedCellSize="66"
+                         prefHeight="0"
+                         styleClass="player-menu-song-list"/>
+            </Pane>
+
+            <VBox fx:id="footerPane"
+                  spacing="10"
+                  styleClass="player-menu-footer">
+
+               <padding>
+                  <Insets top="10"
+                          right="10"
+                          bottom="10"
+                          left="10"/>
+               </padding>
+
+               <VBox fx:id="recContainer"
+                     spacing="5"
+                     styleClass="player-menu-recommendations">
+
+                  <HBox alignment="CENTER_LEFT"
+                        styleClass="player-menu-recommendation-title-row">
+                     <Label fx:id="recTitleLabel"
+                            text="Add song from your library to playlist"
+                            HBox.hgrow="ALWAYS"
+                            maxWidth="1.7976931348623157E308"
+                            styleClass="player-menu-section-title"/>
+                     <Button fx:id="addAllRecommendationsButton"
+                             text="Add all"
+                             styleClass="player-menu-recommendation-add-all"/>
+                  </HBox>
+
+                  <HBox spacing="10"
+                        alignment="CENTER_LEFT"
+                        styleClass="player-menu-recommendation-tools">
+
+                     <StackPane fx:id="recommendationSearchBox"
+                                minWidth="260"
+                                prefWidth="340"
+                                maxWidth="420"
+                                HBox.hgrow="ALWAYS"
+                                styleClass="player-menu-search-box">
+
+                        <fx:include fx:id="recommendationSearchBar"
+                                    source="../../components/inputs/searchBar/SearchBar.fxml"/>
+                     </StackPane>
+
+                     <Button fx:id="btnRefreshRec"
+                             text=""
+                             styleClass="player-menu-action player-menu-refresh-icon-button"/>
+                  </HBox>
+
+                  <ListView fx:id="recList"
+                            fixedCellSize="66"
+                            prefHeight="0"
+                            styleClass="player-menu-song-list"/>
+               </VBox>
+
+               <Separator styleClass="player-menu-separator"/>
+
+               <VBox fx:id="moreByArtistsContainer"
+                     spacing="15"
+                     styleClass="player-menu-more-by-artists"/>
+            </VBox>
+         </VBox>
+      </ScrollPane>
+   </center>
+
+</BorderPane>

@@ -1,0 +1,24 @@
+@import "app-theme.css";
+
+.app-section {
+    -fx-spacing: 10;
+    -fx-padding: 6 0 16 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+.app-section-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 19px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 2 0;
+}
+
+.app-card-grid {
+    -fx-hgap: 16;
+    -fx-vgap: 24;
+    -fx-padding: 4 0 0 0;
+    -fx-alignment: top-left;
+    -fx-background-color: transparent;
+}

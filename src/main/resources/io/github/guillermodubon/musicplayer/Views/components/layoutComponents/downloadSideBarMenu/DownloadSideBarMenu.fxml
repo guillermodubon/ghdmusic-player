@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.downloadComponents.DownloadSidebarMenuController"
+           fx:id="downloadSidebarPane"
+           minWidth="300"
+           prefWidth="380"
+           stylesheets="@download-sidebar-menu.css"
+           styleClass="download-sidebar-root">
+
+    <VBox fx:id="sidebarContent"
+          spacing="16"
+          fillWidth="true"
+          styleClass="download-sidebar-content">
+        <padding>
+            <Insets top="18" right="16" bottom="16" left="16"/>
+        </padding>
+
+        <HBox alignment="CENTER_LEFT"
+              spacing="10"
+              styleClass="download-sidebar-header">
+            <Label text="Downloads"
+                   maxWidth="Infinity"
+                   styleClass="download-sidebar-title"/>
+            <Region HBox.hgrow="ALWAYS"/>
+            <Button fx:id="closeButton"
+                    focusTraversable="false"
+                    styleClass="download-sidebar-icon-button"/>
+        </HBox>
+
+        <VBox spacing="8"
+              styleClass="download-location-section">
+            <HBox alignment="CENTER_LEFT"
+                  spacing="10">
+                <Label text="Current location"
+                       styleClass="download-sidebar-subtitle"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="clearAllButton"
+                        text="Clear all"
+                        visible="false"
+                        managed="false"
+                        focusTraversable="false"
+                        styleClass="download-clear-all-button"/>
+            </HBox>
+
+            <HBox fx:id="locationRow"
+                  alignment="CENTER_LEFT"
+                  spacing="10"
+                  styleClass="download-location-row">
+                <Label fx:id="selectedPathLabel"
+                       textOverrun="ELLIPSIS"
+                       styleClass="download-path-label"/>
+                <Button fx:id="choosePathButton"
+                        focusTraversable="false"
+                        styleClass="download-sidebar-icon-button download-folder-button"/>
+            </HBox>
+        </VBox>
+
+        <ListView fx:id="downloadsListView"
+                  VBox.vgrow="ALWAYS"
+                  styleClass="download-list-view"/>
+    </VBox>
+
+    <Region fx:id="resizeHandle"
+            prefWidth="8"
+            maxWidth="8"
+            minWidth="8"
+            styleClass="download-sidebar-resize-handle"
+            StackPane.alignment="CENTER_LEFT"/>
+</StackPane>

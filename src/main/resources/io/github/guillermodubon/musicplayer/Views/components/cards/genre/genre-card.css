@@ -1,0 +1,92 @@
+@import "../../../generalStyles/app-theme.css";
+
+.genre-card {
+    -fx-min-width: 220px;
+    -fx-background-color: #202020;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-effect: none;
+    -fx-cursor: hand;
+}
+
+.genre-card:hover {
+    -fx-border-color: rgba(255, 255, 255, 0.26);
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.38), 16, 0.20, 0, 4);
+}
+
+.genre-card-content {
+    -fx-padding: 10 14 10 10;
+}
+
+.genre-image-placeholder,
+.genre-card-cover-shell {
+    -fx-background-color: rgba(0, 0, 0, 0.26);
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(255, 255, 255, 0.16);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+}
+
+.genre-card-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+}
+
+.genre-mood-pop {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #8A2BE2, #C1127B);
+}
+
+.genre-mood-dance {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #0077B6, #0F766E);
+}
+
+.genre-mood-hiphop {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #24115A, #111827);
+}
+
+.genre-mood-rock {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #7F1D1D, #2B0B0B);
+}
+
+.genre-mood-jazz {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #7A4B16, #2F1B0C);
+}
+
+.genre-mood-classical {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #3D405B, #111827);
+}
+
+.genre-mood-reggae {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #166534, #854D0E);
+}
+
+.genre-mood-blues {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #1D4ED8, #172554);
+}
+
+.genre-mood-soul {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #6D2E75, #3B0764);
+}
+
+.genre-mood-metal {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #374151, #020617);
+}
+
+.genre-mood-world {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #047857, #0F172A);
+}
+
+.genre-mood-film {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #7C2D12, #312E81);
+}
+
+.genre-mood-folk {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #57534E, #1C1917);
+}
+
+.genre-mood-default {
+    -fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #202020, #3B0764);
+}

@@ -1,0 +1,124 @@
+.catalog-title-row {
+    -fx-alignment: center-left;
+    -fx-max-width: infinity;
+}
+
+.catalog-tools {
+    -fx-alignment: center-right;
+    -fx-spacing: 12;
+}
+
+.catalog-search-box {
+    -fx-background-color: transparent;
+    -fx-alignment: center-right;
+}
+
+.catalog-empty-state.catalog-no-results {
+    -fx-font-family: "Inter";
+    -fx-font-size: 14px;
+    -fx-font-weight: normal;
+    -fx-text-fill: #B3B3B3;
+}
+
+.catalog-filter-button,
+.catalog-filter-button:hover,
+.catalog-filter-button:focused,
+.catalog-filter-button:showing,
+.catalog-filter-button:pressed {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 4 2 4 10;
+    -fx-content-display: right;
+    -fx-alignment: center;
+    -fx-translate-y: 3;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.catalog-filter-button .label {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.catalog-filter-button:hover .label,
+.catalog-filter-button:focused .label,
+.catalog-filter-button:showing .label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.catalog-filter-button .arrow-button,
+.catalog-filter-button .arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.context-menu {
+    -fx-background-color: #0D0D0D;
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6;
+}
+
+.context-menu .catalog-filter-menu-header,
+.context-menu .catalog-filter-menu-header:hover,
+.context-menu .catalog-filter-menu-header:focused,
+.context-menu .catalog-filter-menu-header:pressed,
+.context-menu .catalog-filter-menu-header:disabled,
+.context-menu .catalog-filter-menu-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 9 14 9 12;
+}
+
+.context-menu .catalog-filter-menu-header,
+.context-menu .catalog-filter-menu-header-label,
+.context-menu .catalog-filter-menu-header .label {
+    -fx-cursor: default;
+    -fx-opacity: 1;
+}
+
+.context-menu .catalog-filter-menu-item,
+.context-menu .catalog-filter-option-row,
+.context-menu .catalog-filter-menu-item .label,
+.context-menu .catalog-filter-option-row .label {
+    -fx-cursor: hand;
+}
+
+.context-menu .catalog-filter-menu-item:hover,
+.context-menu .catalog-filter-menu-item:focused {
+    -fx-background-color: #222222;
+}
+
+.context-menu .catalog-filter-menu-header .label,
+.context-menu .catalog-filter-menu-header-label {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.context-menu .catalog-filter-option-label {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.context-menu .catalog-filter-menu-item:hover .catalog-filter-option-label,
+.context-menu .catalog-filter-menu-item:focused .catalog-filter-option-label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.context-menu .catalog-filter-menu-item-selected .catalog-filter-option-label {
+    -fx-text-fill: #0077B6;
+}
+
+.catalog-filter-selected-icon {
+    -fx-background-color: #0077B6;
+}

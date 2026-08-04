@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane fx:id="rootPane"
+           xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.cards.MusicCard"
+           minWidth="176"
+           prefWidth="176"
+           maxWidth="176"
+           minHeight="254"
+           prefHeight="254"
+           maxHeight="254"
+           stylesheets="@music-card.css"
+           styleClass="music-card card-root"
+           onMouseEntered="#onHover"
+           onMouseExited="#onExit"
+           onMouseClicked="#onPlay">
+
+    <VBox spacing="8"
+          alignment="TOP_LEFT"
+          maxWidth="Infinity"
+          styleClass="music-card-body">
+
+        <StackPane fx:id="coverShell"
+                   minHeight="140"
+                   prefHeight="156"
+                   maxHeight="176"
+                   maxWidth="Infinity"
+                   styleClass="music-card-cover-shell">
+            <ImageView fx:id="coverView"
+                       fitWidth="156"
+                       fitHeight="156"
+                       preserveRatio="true"
+                       smooth="true"
+                       cache="true"
+                       pickOnBounds="true"
+                       styleClass="music-card-cover"/>
+        </StackPane>
+
+        <VBox spacing="4"
+              maxWidth="Infinity"
+              styleClass="music-card-copy">
+            <StackPane fx:id="titleViewport"
+                       alignment="CENTER_LEFT"
+                       maxWidth="Infinity"
+                       prefHeight="20"
+                       maxHeight="20"
+                       styleClass="music-text-viewport">
+                <HBox fx:id="titleMarqueeBox"
+                      alignment="CENTER_LEFT">
+                    <Label fx:id="titleLabel"
+                           wrapText="false"
+                           textOverrun="ELLIPSIS"
+                           styleClass="music-title"/>
+                </HBox>
+            </StackPane>
+
+            <StackPane fx:id="artistViewport"
+                       alignment="CENTER_LEFT"
+                       maxWidth="Infinity"
+                       prefHeight="19"
+                       maxHeight="19"
+                       styleClass="music-text-viewport">
+                <HBox fx:id="artistLinkContainer"
+                      spacing="4"
+                      alignment="CENTER_LEFT"/>
+                <Label fx:id="artistOverflowLabel"
+                       text="..."
+                       mouseTransparent="true"
+                       visible="false"
+                       managed="false"
+                       styleClass="music-artist-overflow"
+                       StackPane.alignment="CENTER_RIGHT"/>
+            </StackPane>
+        </VBox>
+    </VBox>
+</StackPane>

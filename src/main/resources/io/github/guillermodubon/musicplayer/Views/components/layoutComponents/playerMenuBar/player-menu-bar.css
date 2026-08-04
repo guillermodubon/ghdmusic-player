@@ -1,0 +1,669 @@
+@import "../../../generalStyles/app-theme.css";
+
+.player-menu-bar {
+    -fx-background-color: #000000;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 0;
+    -fx-min-height: 96px;
+}
+
+.player-main-row {
+    -fx-background-color: #000000;
+    -fx-alignment: center-left;
+}
+
+.player-left-controls {
+    -fx-min-width: 222px;
+    -fx-pref-width: 248px;
+}
+
+.player-right-controls {
+    -fx-min-width: 278px;
+    -fx-pref-width: 358px;
+    -fx-alignment: center-right;
+}
+
+.player-now-playing-row {
+    -fx-min-width: 220px;
+    -fx-pref-width: 410px;
+    -fx-max-width: 470px;
+    -fx-alignment: center-left;
+}
+
+.player-cover-wrap {
+    -fx-min-width: 70px;
+    -fx-min-height: 70px;
+    -fx-pref-width: 70px;
+    -fx-pref-height: 70px;
+    -fx-max-width: 70px;
+    -fx-max-height: 70px;
+
+    -fx-alignment: center;
+    -fx-background-color: transparent;
+}
+
+.player-cover {
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(0, 0, 0, 0.36),
+            8,
+            0.20,
+            0,
+            2
+    );
+}
+
+.player-track-text {
+    -fx-min-width: 0;
+    -fx-alignment: center-left;
+}
+
+.player-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.player-title-viewport {
+    -fx-min-width: 0;
+    -fx-min-height: 22px;
+    -fx-pref-height: 22px;
+    -fx-max-height: 22px;
+    -fx-alignment: center-left;
+}
+
+.player-title-marquee-box,
+.player-artists-marquee-box {
+    -fx-alignment: center-left;
+}
+
+.player-artists {
+    -fx-alignment: center-left;
+}
+
+.player-artists-viewport {
+    -fx-min-width: 0;
+    -fx-min-height: 19px;
+    -fx-pref-height: 19px;
+    -fx-max-height: 19px;
+    -fx-alignment: center-left;
+}
+
+.player-artist-link {
+    -fx-font-size: 13px;
+    -fx-padding: 0;
+}
+
+.player-artist-separator,
+.player-artist-empty {
+    -fx-text-fill: rgba(255, 255, 255, 0.58);
+    -fx-font-size: 13px;
+}
+
+.player-playback-center {
+    -fx-min-width: 280px;
+    -fx-pref-width: 640px;
+    -fx-alignment: center;
+}
+
+.player-transport-row {
+    -fx-alignment: center;
+}
+
+.player-time-row {
+    -fx-min-width: 244px;
+    -fx-pref-width: 640px;
+    -fx-max-width: 720px;
+    -fx-alignment: center;
+}
+
+.player-icon-button,
+.player-icon-button:hover,
+.player-icon-button:focused,
+.player-icon-button:pressed,
+.player-icon-button:armed,
+.player-icon-button:selected {
+    -fx-min-width: 34;
+    -fx-min-height: 34;
+    -fx-pref-width: 34;
+    -fx-pref-height: 34;
+    -fx-max-width: 34;
+    -fx-max-height: 34;
+
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}
+
+.player-play-button,
+.player-play-button:hover,
+.player-play-button:focused,
+.player-play-button:pressed,
+.player-play-button:armed,
+.player-play-button:selected {
+    -fx-min-width: 52;
+    -fx-min-height: 52;
+    -fx-pref-width: 52;
+    -fx-pref-height: 52;
+    -fx-max-width: 52;
+    -fx-max-height: 52;
+
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}
+
+.player-meatball-menu,
+.player-meatball-menu:hover,
+.player-meatball-menu:focused,
+.player-meatball-menu:pressed,
+.player-meatball-menu:armed,
+.player-meatball-menu:showing {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-effect: null;
+}
+
+.player-meatball-menu .arrow-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+
+    -fx-min-width: 0;
+    -fx-pref-width: 0;
+    -fx-max-width: 0;
+}
+
+.player-meatball-menu .arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+
+    -fx-min-width: 0;
+    -fx-pref-width: 0;
+    -fx-max-width: 0;
+}
+
+.player-meatball-menu > .label {
+    -fx-padding: 0;
+}
+
+.player-meatball-icon {
+    -fx-alignment: center;
+    -fx-background-color: transparent;
+}
+
+.player-meatball-dot {
+    -fx-background-color: #AFAFAF;
+    -fx-background-radius: 999;
+}
+
+.player-time-inline {
+    -fx-min-width: 78px;
+}
+
+.player-time-text {
+    -fx-text-fill: rgba(255, 255, 255, 0.62);
+    -fx-font-size: 13px;
+
+    -fx-min-width: 52px;
+    -fx-pref-width: 52px;
+    -fx-max-width: 52px;
+}
+
+.player-volume-box {
+    -fx-background-color: transparent;
+
+    -fx-min-width: 106px;
+    -fx-pref-width: 150px;
+    -fx-max-width: 150px;
+
+    -fx-alignment: center-right;
+}
+
+.player-volume-icon-host {
+    -fx-background-color: transparent;
+}
+
+.player-slider-shell {
+    -fx-background-color: transparent;
+    -fx-alignment: center-left;
+}
+
+.player-time-slider-shell {
+    -fx-min-width: 220px;
+    -fx-pref-width: 540px;
+    -fx-max-width: 650px;
+
+    -fx-min-height: 16px;
+    -fx-pref-height: 16px;
+    -fx-max-height: 16px;
+}
+
+.player-volume-slider-shell {
+    -fx-min-width: 96px;
+    -fx-pref-width: 118px;
+    -fx-max-width: 118px;
+
+    -fx-min-height: 18px;
+    -fx-pref-height: 18px;
+    -fx-max-height: 18px;
+}
+
+.player-slider-base,
+.player-slider-fill {
+    -fx-min-height: 4px;
+    -fx-pref-height: 4px;
+    -fx-max-height: 4px;
+    -fx-background-radius: 999;
+}
+
+.player-slider-base {
+    -fx-background-color: #AFAFAF;
+}
+
+.player-slider-fill {
+    -fx-background-color: #0077B6;
+}
+
+.player-time-slider-shell .player-slider-base,
+.player-time-slider-shell .player-slider-fill {
+    -fx-background-radius: 0;
+}
+
+.player-time-slider,
+.player-volume-slider,
+.player-overlay-slider {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.player-menu-bar .slider,
+.player-menu-bar .slider:focused,
+.player-menu-bar .slider:hover {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.player-time-slider {
+    -fx-min-height: 16px;
+    -fx-pref-height: 16px;
+}
+
+.player-time-slider .track,
+.player-volume-slider .track,
+.player-overlay-slider .track,
+.player-menu-bar .slider .track {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999;
+    -fx-pref-height: 4px;
+    -fx-opacity: 0;
+}
+
+.player-time-slider .colored-track,
+.player-volume-slider .colored-track,
+.player-overlay-slider .colored-track,
+.player-menu-bar .slider .colored-track {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-opacity: 0;
+}
+
+.player-time-slider .thumb {
+    -fx-background-color: #0077B6;
+    -fx-background-radius: 999;
+
+    -fx-pref-width: 13px;
+    -fx-pref-height: 13px;
+}
+
+.player-volume-slider {
+    -fx-min-width: 96px;
+    -fx-pref-width: 118px;
+    -fx-max-width: 118px;
+
+    -fx-min-height: 18px;
+    -fx-pref-height: 18px;
+    -fx-max-height: 18px;
+}
+
+.player-volume-slider .thumb {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 999;
+
+    -fx-pref-width: 11px;
+    -fx-pref-height: 11px;
+}
+
+.context-menu {
+    -fx-background-color: #111111;
+    -fx-background-radius: 8;
+
+    -fx-border-color: rgba(255, 255, 255, 0.14);
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+
+    -fx-padding: 6;
+}
+
+.menu-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+}
+
+.menu-item .label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.menu-item:focused,
+.menu-item:hover {
+    -fx-background-color: rgba(0, 119, 182, 0.22);
+}
+
+
+.player-fullscreen-overlay {
+    -fx-background-color: #000000;
+    -fx-padding: 0;
+    -fx-alignment: center;
+
+    -fx-min-width: 0;
+    -fx-min-height: 0;
+}
+
+.player-fullscreen-root {
+    -fx-background-color: #111111;
+    -fx-padding: 0;
+    -fx-alignment: center;
+
+    -fx-min-width: 0;
+    -fx-min-height: 0;
+}
+
+.player-fullscreen-ambient-background {
+    -fx-background-color: #111111;
+}
+
+
+.player-fullscreen-artwork-container {
+    -fx-background-color: #111111;
+    -fx-background-radius: 24;
+
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 1;
+    -fx-border-radius: 24;
+
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(0, 0, 0, 0.62),
+            26,
+            0.20,
+            0,
+            7
+    );
+}
+
+.player-fullscreen-artwork-fill {
+    -fx-opacity: 0.62;
+}
+
+.player-fullscreen-bottom-mask {
+    -fx-background-color: linear-gradient(
+            to bottom,
+            transparent 0%,
+            rgba(0, 0, 0, 0.02) 24%,
+            rgba(0, 0, 0, 0.08) 38%,
+            rgba(0, 0, 0, 0.22) 54%,
+            rgba(0, 0, 0, 0.58) 76%,
+            rgba(0, 0, 0, 0.88) 100%
+    );
+
+    -fx-background-radius: 14;
+}
+
+
+.player-fullscreen-now-playing {
+    -fx-background-color: transparent;
+    -fx-padding: 16 24 236 24;
+    -fx-alignment: center;
+    -fx-spacing: 12;
+}
+
+
+.player-fullscreen-song-cover-container {
+    -fx-background-color: #111111;
+    -fx-background-radius: 24;
+
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-width: 1;
+    -fx-border-radius: 24;
+
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(0, 0, 0, 0.58),
+            18,
+            0.24,
+            0,
+            5
+    );
+}
+
+
+.player-fullscreen-song-copy {
+    -fx-background-color: transparent;
+    -fx-alignment: center-left;
+    -fx-padding: 0;
+}
+
+.player-fullscreen-song-title-viewport {
+    -fx-background-color: transparent;
+    -fx-alignment: center-left;
+}
+
+
+.player-fullscreen-song-title {
+    -fx-text-fill: #E6E6E6;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-opacity: 1;
+
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(0, 0, 0, 0.88),
+            8,
+            0.30,
+            0,
+            2
+    );
+}
+
+
+.player-fullscreen-song-title .text {
+    -fx-fill: #E6E6E6;
+    -fx-font-weight: bold;
+    -fx-opacity: 1;
+}
+
+
+.player-fullscreen-song-artists {
+    -fx-alignment: center-left;
+    -fx-spacing: 0;
+    -fx-min-width: 0;
+
+}
+
+.player-fullscreen-artist-link,
+.player-fullscreen-artist-separator,
+.player-fullscreen-artist-empty {
+    -fx-fill: #B8B8B8;
+    -fx-text-fill: #B8B8B8;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-opacity: 1;
+
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(0, 0, 0, 0.88),
+            7,
+            0.28,
+            0,
+            2
+    );
+}
+
+.player-fullscreen-artist-link {
+    -fx-padding: 0;
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+    -fx-underline: false;
+    -fx-cursor: hand;
+}
+
+.player-fullscreen-artist-link .text,
+.player-fullscreen-artist-link:visited .text {
+    -fx-fill: #B8B8B8;
+}
+
+.player-fullscreen-artist-link:hover,
+.player-fullscreen-artist-link:focused {
+    -fx-text-fill: #FAFAFA;
+    -fx-underline: true;
+}
+
+.player-fullscreen-artist-link:hover .text,
+.player-fullscreen-artist-link:focused .text {
+    -fx-fill: #FAFAFA;
+}
+
+.player-fullscreen-actions-button,
+.player-fullscreen-actions-button:hover,
+.player-fullscreen-actions-button:focused,
+.player-fullscreen-actions-button:pressed {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-background-radius: 999;
+    -fx-border-color: transparent;
+    -fx-min-width: 34;
+    -fx-pref-width: 34;
+    -fx-max-width: 34;
+    -fx-min-height: 34;
+    -fx-pref-height: 34;
+    -fx-max-height: 34;
+    -fx-padding: 6;
+    -fx-cursor: hand;
+}
+
+.player-fullscreen-close-button,
+.player-fullscreen-close-button:focused {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-border-color: transparent;
+    -fx-padding: 7;
+    -fx-cursor: hand;
+}
+
+.player-fullscreen-close-button:hover,
+.player-fullscreen-close-button:pressed {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-background-radius: 999;
+    -fx-border-color: transparent;
+    -fx-padding: 7;
+    -fx-cursor: hand;
+}
+
+.player-fullscreen-meatball-icon {
+    -fx-background-color: transparent;
+    -fx-alignment: center;
+}
+
+.player-fullscreen-meatball-dot {
+    -fx-background-color: #C8C8C8;
+    -fx-background-radius: 999;
+}
+
+.player-fullscreen-actions-button:hover .player-fullscreen-meatball-dot,
+.player-fullscreen-actions-button:focused .player-fullscreen-meatball-dot {
+    -fx-background-color: #FFFFFF;
+}
+
+
+.player-menu-bar-fullscreen {
+    -fx-background-color: rgba(0, 0, 0, 0.94);
+    -fx-background-insets: 0;
+
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 1 0 0 0;
+
+    -fx-padding: 0;
+
+    -fx-min-height: 96px;
+    -fx-pref-height: 96px;
+    -fx-max-height: 96px;
+
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(0, 0, 0, 0.58),
+            22,
+            0.22,
+            0,
+            -4
+    );
+}
+
+.player-menu-bar-fullscreen .player-main-row {
+    -fx-background-color: rgba(0, 0, 0, 0.94);
+
+    -fx-min-height: 96px;
+    -fx-pref-height: 96px;
+    -fx-max-height: 96px;
+}
+
+.player-menu-bar-fullscreen .player-playback-center,
+.player-menu-bar-fullscreen .player-right-controls,
+.player-menu-bar-fullscreen .player-now-playing-row,
+.player-menu-bar-fullscreen .player-track-text,
+.player-menu-bar-fullscreen .player-transport-row,
+.player-menu-bar-fullscreen .player-time-row,
+.player-menu-bar-fullscreen .player-volume-box {
+    -fx-background-color: transparent;
+}
+
+
+.player-menu-bar-fullscreen .player-time-text {
+    -fx-text-fill: rgba(255, 255, 255, 0.78);
+}
+
+
+.player-menu-bar-fullscreen .player-slider-base {
+    -fx-background-color: rgba(255, 255, 255, 0.54);
+}
+
+.player-menu-bar-fullscreen .player-slider-fill {
+    -fx-background-color: #0077B6;
+}

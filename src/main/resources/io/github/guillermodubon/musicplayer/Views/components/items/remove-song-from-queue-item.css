@@ -1,0 +1,23 @@
+@import "queue-song-item.css";
+
+.remove-song-from-queue-item {
+    -fx-background-color: transparent;
+}
+
+.song-item-artist-viewport {
+    -fx-min-width: 0;
+    -fx-max-height: 20;
+    -fx-alignment: center-left;
+}
+
+.queue-song-item.queue-reorder-drop-before {
+    -fx-border-color: #0077B6 transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+    -fx-border-radius: 0;
+}
+
+.queue-song-item.queue-reorder-drop-after {
+    -fx-border-color: transparent transparent #0077B6 transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-border-radius: 0;
+}

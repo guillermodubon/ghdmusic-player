@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.VBox?>
+
+<ScrollPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.screens.homePage.HomePageController"
+            fx:id="scrollPane"
+            fitToWidth="true"
+            hbarPolicy="NEVER"
+            stylesheets="@home-page.css"
+            styleClass="mainmenu-scroll">
+   <content>
+      <VBox fx:id="sectionContainer"
+            spacing="24"
+            fillWidth="true"
+            maxWidth="Infinity"
+            styleClass="mainmenu-container"/>
+   </content>
+</ScrollPane>

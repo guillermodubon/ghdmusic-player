@@ -1,0 +1,16 @@
+@import "../../../generalStyles/app-theme.css";
+
+.artist-card-title,
+.artist-name-label,
+.search-artist-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-underline: false;
+}
+
+.artist-card-title .text,
+.artist-name-label .text,
+.search-artist-name .text {
+    -fx-fill: #FFFFFF;
+}

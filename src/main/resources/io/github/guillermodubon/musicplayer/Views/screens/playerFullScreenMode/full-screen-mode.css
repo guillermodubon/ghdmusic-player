@@ -1,0 +1,71 @@
+.player-full-screen-active {
+    -fx-background-color: #050607;
+}
+
+.player-full-screen-active .player-menu-bar {
+    -fx-background-color: rgba(7, 9, 13, 0.42);
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+}
+
+.player-bar-full-screen {
+    -fx-background-color: rgba(7, 9, 13, 0.42);
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+}
+
+.player-full-screen-active .player-button,
+.player-full-screen-active .player-toggle,
+.player-full-screen-active .player-play-button,
+.player-full-screen-active .player-meatball-menu {
+    -fx-background-color: rgba(18, 22, 30, 0.46);
+    -fx-border-color: rgba(255, 255, 255, 0.18);
+    -fx-text-fill: white;
+}
+
+.player-full-screen-active .player-play-button {
+    -fx-background-color: rgba(255, 255, 255, 0.88);
+    -fx-border-color: rgba(255, 255, 255, 0.88);
+    -fx-text-fill: #0d1117;
+}
+
+.player-full-screen-active .player-cover-wrap {
+    -fx-background-color: rgba(12, 15, 20, 0.32);
+    -fx-border-color: rgba(255, 255, 255, 0.18);
+}
+
+.player-full-screen-active .player-title,
+.player-full-screen-active .player-artist-link {
+    -fx-text-fill: white;
+}
+
+.player-full-screen-active .player-artist-separator,
+.player-full-screen-active .player-artist-empty,
+.player-full-screen-active .player-time-text {
+    -fx-text-fill: rgba(255, 255, 255, 0.76);
+}
+
+.player-full-screen-active .player-slider-base {
+    -fx-background-color: rgba(255, 255, 255, 0.24);
+}
+
+.player-full-screen-active .player-slider-fill {
+    -fx-background-color: #0077B6;
+}
+
+.player-full-screen-active .player-time-slider .track,
+.player-full-screen-active .player-volume-slider .track {
+    -fx-background-color: transparent;
+}
+
+.player-full-screen-active .player-time-slider .thumb,
+.player-full-screen-active .player-volume-slider .thumb {
+    -fx-background-color: white;
+}
+
+.player-full-screen-layer {
+    -fx-background-color: #050607;
+    -fx-alignment: center;
+}
+
+.player-full-screen-background {
+    -fx-opacity: 1;
+}

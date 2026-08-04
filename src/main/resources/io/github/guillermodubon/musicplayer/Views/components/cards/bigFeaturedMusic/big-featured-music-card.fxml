@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<?import java.lang.String?>
+<StackPane fx:id="rootPane"
+           xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.cards.BigFeaturedMusicCard"
+           minWidth="0"
+           prefWidth="320"
+           maxWidth="Infinity"
+           minHeight="0"
+           prefHeight="420"
+           maxHeight="Infinity"
+           stylesheets="@big-featured-music-card.css"
+           onMouseEntered="#onHover"
+           onMouseExited="#onExit"
+           onMouseClicked="#onPlay">
+    <styleClass>
+        <String fx:value="big-featured-music-card"/>
+        <String fx:value="card-root"/>
+    </styleClass>
+
+    <VBox spacing="10"
+          maxWidth="Infinity"
+          maxHeight="Infinity"
+          styleClass="big-featured-body">
+        <padding>
+            <Insets top="14" right="14" bottom="14" left="14"/>
+        </padding>
+
+        <VBox alignment="TOP_LEFT"
+              spacing="6"
+              maxWidth="Infinity"
+              maxHeight="56"
+              styleClass="big-featured-header">
+            <StackPane fx:id="titleViewport"
+                       minWidth="0"
+                       prefWidth="0"
+                       minHeight="28"
+                       prefHeight="28"
+                       maxHeight="28"
+                       maxWidth="Infinity"
+                       styleClass="big-featured-title-viewport">
+                <HBox fx:id="titleTrack"
+                      alignment="CENTER_LEFT"
+                      maxHeight="28"
+                      maxWidth="Infinity"
+                      styleClass="big-featured-title-track">
+                    <Label fx:id="titleLabel"
+                           maxWidth="Infinity"
+                           wrapText="false"
+                           textOverrun="ELLIPSIS"
+                           styleClass="big-featured-title"/>
+                </HBox>
+            </StackPane>
+
+            <StackPane fx:id="artistViewport"
+                       minWidth="0"
+                       prefWidth="0"
+                       minHeight="22"
+                       prefHeight="22"
+                       maxHeight="22"
+                       maxWidth="Infinity"
+                       styleClass="big-featured-artists-viewport">
+                <HBox fx:id="artistTrack"
+                      alignment="CENTER_LEFT"
+                      maxHeight="22"
+                      maxWidth="Infinity"
+                      styleClass="big-featured-artists-track">
+                    <HBox fx:id="artistLinkContainer"
+                          spacing="4"
+                          alignment="CENTER_LEFT"
+                          maxWidth="Infinity"
+                          styleClass="big-featured-artists"/>
+                </HBox>
+            </StackPane>
+        </VBox>
+
+        <StackPane fx:id="coverShell"
+                   VBox.vgrow="ALWAYS"
+                   minHeight="0"
+                   prefHeight="352"
+                   maxHeight="Infinity"
+                   maxWidth="Infinity"
+                   styleClass="big-featured-cover-shell">
+
+            <ImageView fx:id="coverView"
+                       fitWidth="1"
+                       fitHeight="1"
+                       preserveRatio="false"
+                       smooth="true"
+                       styleClass="big-featured-cover"/>
+        </StackPane>
+    </VBox>
+</StackPane>

@@ -1,0 +1,103 @@
+@import "../../generalStyles/app-theme.css";
+
+.queue-song-item {
+    -fx-padding: 8;
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-cursor: hand;
+}
+
+.queue-song-item:hover {
+    -fx-background-color: rgba(250, 250, 250, 0.10);
+    -fx-border-color: transparent;
+}
+
+/* Shared interactive state for every queue row that can start playback. */
+.queue-song-item.queue-song-item-playable:hover {
+    -fx-background-color: #222222;
+    -fx-border-color: transparent;
+}
+
+.queue-song-cover {
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 8, 0.20, 0, 2);
+}
+
+.queue-song-text {
+    -fx-min-width: 0;
+}
+
+.queue-song-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.queue-song-item.playing-song-item .queue-song-title,
+.queue-song-title.currently-playing-title {
+    -fx-text-fill: #0077B6;
+}
+
+.queue-song-item.playing-song-item .queue-song-title .text,
+.queue-song-title.currently-playing-title .text {
+    -fx-fill: #0077B6;
+}
+
+.playing-indicator-host,
+.animated-equalizer-icon {
+    -fx-background-color: transparent;
+}
+
+.queue-song-artists {
+    -fx-min-height: 18;
+}
+
+.queue-song-artists .artist-link,
+.queue-song-artists .app-hyperlink {
+    -fx-font-size: 12px;
+    -fx-padding: 0;
+    -fx-border-color: transparent;
+    -fx-background-color: transparent;
+    -fx-text-fill: #FAFAFA;
+    -fx-underline: false;
+}
+
+.queue-song-artists .artist-separator {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 12px;
+}
+
+.queue-song-artists .artist-link:hover,
+.queue-song-artists .app-hyperlink:hover,
+.queue-song-artists .artist-link:focused,
+.queue-song-artists .app-hyperlink:focused {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.queue-song-icon-button,
+.queue-song-icon-button:hover,
+.queue-song-icon-button:focused,
+.queue-song-icon-button:pressed,
+.queue-song-icon-button:armed,
+.queue-song-icon-button:showing {
+    -fx-min-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-width: 30;
+    -fx-pref-height: 30;
+    -fx-max-width: 30;
+    -fx-max-height: 30;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}

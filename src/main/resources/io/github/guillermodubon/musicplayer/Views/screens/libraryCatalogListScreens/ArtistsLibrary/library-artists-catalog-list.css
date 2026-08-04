@@ -1,0 +1,51 @@
+@import "../../../generalStyles/app-theme.css";
+@import "../common/library-catalog-filter.css";
+
+.catalog-header {
+    -fx-spacing: 6;
+    -fx-padding: 22 6 8 28;
+    -fx-background-color: transparent;
+    -fx-fill-width: true;
+}
+
+.catalog-title {
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.catalog-scroll {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.catalog-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.catalog-grid {
+    -fx-hgap: 18;
+    -fx-vgap: 24;
+    -fx-padding: 12 28 32 28;
+    -fx-alignment: TOP_LEFT;
+}
+
+.catalog-scroll .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+}
+
+.catalog-content-stack {
+    -fx-background-color: transparent;
+}
+
+.catalog-empty-state {
+    -fx-text-fill: #B3B3B3;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+    -fx-padding: 24;
+}

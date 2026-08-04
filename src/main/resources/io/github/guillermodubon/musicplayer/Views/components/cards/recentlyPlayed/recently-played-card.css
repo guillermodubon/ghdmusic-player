@@ -1,0 +1,32 @@
+@import "../../../generalStyles/app-theme.css";
+
+.recently-played-card,
+.recently-played-glass-card {
+    -fx-alignment: center-left;
+    -fx-background-color:
+        linear-gradient(from 0% 0% to 100% 100%, rgba(255,255,255,0.16), rgba(255,255,255,0.04)),
+        rgba(34,34,34,0.92);
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 12, 11;
+    -fx-border-color: rgba(255,255,255,0.18);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.30), 16, 0.18, 0, 4);
+}
+
+.recently-played-card:hover,
+.recently-played-glass-card:hover {
+    -fx-background-color:
+        linear-gradient(from 0% 0% to 100% 100%, rgba(255,255,255,0.20), rgba(255,255,255,0.06)),
+        rgba(48,48,48,0.96);
+    -fx-border-color: rgba(255,255,255,0.28);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.38), 18, 0.20, 0, 5);
+}
+
+.recently-played-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-alignment: center-left;
+}

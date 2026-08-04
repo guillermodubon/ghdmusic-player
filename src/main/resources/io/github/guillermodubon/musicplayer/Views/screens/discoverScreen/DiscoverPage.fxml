@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.BorderPane?>
+<?import javafx.scene.layout.VBox?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.screens.discoverPage.DiscoverPageController"
+            stylesheets="@discover.css"
+            fx:id="screenRoot"
+            styleClass="discover-root">
+
+    <center>
+        <ScrollPane fx:id="scrollPane"
+                    fitToWidth="true"
+                    hbarPolicy="NEVER"
+                    styleClass="discover-scroll">
+            <content>
+                <VBox fx:id="rootContainer" spacing="14" styleClass="discover-container">
+                    <padding>
+                        <Insets top="18" right="28" bottom="32" left="28"/>
+                    </padding>
+                </VBox>
+            </content>
+        </ScrollPane>
+    </center>
+</BorderPane>

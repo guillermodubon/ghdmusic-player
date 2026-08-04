@@ -1,0 +1,149 @@
+@import "../base/dialog-shell.css";
+@import "../base/dialog-controls.css";
+
+.delete-playlist-dialog-root {
+    -fx-background-color: transparent;
+}
+
+.delete-playlist-dialog-root .dialog-shell {
+    -fx-background-color: #111111;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.delete-playlist-close-button,
+.delete-playlist-close-button:hover,
+.delete-playlist-close-button:focused,
+.delete-playlist-close-button:pressed,
+.delete-playlist-close-button:armed {
+    -fx-min-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-width: 30;
+    -fx-pref-height: 30;
+    -fx-max-width: 30;
+    -fx-max-height: 30;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}
+
+.delete-playlist-dialog-root .dialog-header {
+    -fx-padding: 26 30 10 30;
+    -fx-spacing: 0;
+}
+
+.delete-playlist-dialog-root .dialog-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+}
+
+.delete-playlist-dialog-root .dialog-header > .dialog-subtitle {
+    -fx-font-size: 0;
+    -fx-padding: 0;
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-opacity: 0;
+}
+
+.delete-playlist-dialog-root .dialog-content-holder {
+    -fx-padding: 4 30 10 30;
+}
+
+.delete-playlist-dialog-root .dialog-actions-bar {
+    -fx-padding: 8 30 26 30;
+    -fx-spacing: 14;
+    -fx-alignment: center-right;
+}
+
+.delete-playlist-content {
+    -fx-spacing: 0;
+}
+
+.delete-playlist-message {
+    -fx-line-spacing: 2;
+}
+
+.delete-playlist-message-text {
+    -fx-fill: rgba(255, 255, 255, 0.78);
+    -fx-font-size: 14px;
+}
+
+.delete-playlist-message-highlight {
+    -fx-fill: #FFFFFF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.delete-playlist-dialog-root .dialog-button {
+    -fx-min-width: 104px;
+    -fx-pref-height: 38px;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-padding: 8 20 8 20;
+    -fx-cursor: hand;
+}
+
+.delete-playlist-dialog-root .secondary-button {
+    -fx-background-color: transparent;
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}
+
+.delete-playlist-dialog-root .secondary-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}
+
+.delete-playlist-dialog-root .secondary-button:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}
+
+.delete-playlist-dialog-root .danger-button {
+    -fx-background-color: #D32F2F;
+    -fx-border-color: #D32F2F;
+    -fx-text-fill: #FFFFFF;
+}
+
+.delete-playlist-dialog-root .danger-button:hover {
+    -fx-background-color: #E53935;
+    -fx-border-color: #E53935;
+    -fx-text-fill: #FFFFFF;
+}
+
+.delete-playlist-dialog-root .danger-button:focused {
+    -fx-background-color: #D32F2F;
+    -fx-border-color: #D32F2F;
+    -fx-text-fill: #FFFFFF;
+}
+
+.delete-playlist-dialog-root .primary-button {
+    -fx-background-color: #0077B6;
+    -fx-border-color: #0077B6;
+    -fx-text-fill: #FFFFFF;
+}
+
+.delete-playlist-dialog-root .primary-button:hover {
+    -fx-background-color: #0A8FD8;
+    -fx-border-color: #0A8FD8;
+    -fx-text-fill: #FFFFFF;
+}
+
+.delete-playlist-dialog-root .primary-button:focused {
+    -fx-background-color: #0077B6;
+    -fx-border-color: #0077B6;
+    -fx-text-fill: #FFFFFF;
+}

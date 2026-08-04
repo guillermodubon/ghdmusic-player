@@ -1,0 +1,122 @@
+@import "../../../generalStyles/app-theme.css";
+
+.queue-sidebar {
+    -fx-pref-width: 380px;
+    -fx-min-width: 300px;
+    -fx-max-width: 620px;
+    -fx-background-color: #0d0d0d;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 0 0 0 1;
+}
+
+.queue-header {
+    -fx-padding: 18 16 10 16;
+    -fx-min-height: 54;
+    -fx-background-color: #0d0d0d;
+}
+
+.queue-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+}
+
+.queue-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.queue-scroll-pane > .viewport {
+    -fx-background-color: transparent;
+}
+
+.queue-content {
+    -fx-padding: 8 16 16 16;
+    -fx-background-color: #0d0d0d;
+}
+
+.queue-section {
+    -fx-padding: 10 0 0 0;
+}
+
+.queue-section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FAFAFA;
+}
+
+.queue-list {
+    -fx-spacing: 8;
+}
+
+.queue-list .queue-reorder-drop-before {
+    -fx-border-color: #0077B6 transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+
+.queue-list .queue-reorder-drop-after {
+    -fx-border-color: transparent transparent #0077B6 transparent;
+    -fx-border-width: 0 0 2 0;
+}
+
+.queue-now-playing-container {
+    -fx-padding: 0;
+}
+
+.queue-icon-button,
+.queue-icon-button:hover,
+.queue-icon-button:focused,
+.queue-icon-button:pressed,
+.queue-icon-button:armed {
+    -fx-min-width: 32;
+    -fx-min-height: 32;
+    -fx-pref-width: 32;
+    -fx-pref-height: 32;
+    -fx-max-width: 32;
+    -fx-max-height: 32;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}
+
+.queue-clear-button {
+    -fx-min-width: 28;
+    -fx-min-height: 28;
+    -fx-pref-width: 28;
+    -fx-pref-height: 28;
+    -fx-max-width: 28;
+    -fx-max-height: 28;
+}
+
+.queue-scroll-pane .scroll-bar:vertical,
+.queue-scroll-pane .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.queue-scroll-pane .scroll-bar:vertical .track,
+.queue-scroll-pane .scroll-bar:horizontal .track {
+    -fx-background-color: transparent;
+}
+
+.queue-scroll-pane .scroll-bar:vertical .thumb,
+.queue-scroll-pane .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 8;
+}
+
+.queue-sidebar-resize-handle {
+    -fx-background-color: linear-gradient(to right, rgba(0, 0, 0, 0.66), rgba(0, 0, 0, 0.22), transparent);
+    -fx-cursor: h-resize;
+}
+
+.queue-sidebar-resize-handle:hover {
+    -fx-background-color: linear-gradient(to right, rgba(0, 119, 182, 0.34), rgba(0, 0, 0, 0.24), transparent);
+}

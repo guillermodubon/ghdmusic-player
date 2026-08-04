@@ -1,0 +1,72 @@
+@import "../../../generalStyles/app-theme.css";
+
+.search-result-card,
+.search-music-card {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-cursor: hand;
+}
+
+.search-result-card-body,
+.search-music-body {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 8 12 8 12;
+}
+
+.search-result-card-hover .search-result-card-body,
+.search-result-card:hover .search-result-card-body,
+.search-result-card:keyboard-selected .search-result-card-body,
+.search-result-card-body:keyboard-selected,
+.search-result-card-body-hover {
+    -fx-background-color: rgba(26, 26, 26, 1.0);
+}
+
+.search-card-cover {
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.28), 8, 0.18, 0, 2);
+}
+
+.search-result-title,
+.search-music-title {
+    -fx-font-family: "Archivo";
+    -fx-font-weight: bold;
+    -fx-font-size: 15px;
+    -fx-font-smoothing-type: lcd;
+    -fx-text-fill: #FFFFFF;
+}
+
+.search-result-card .label.search-result-title,
+.search-result-card .label.search-music-title,
+.search-music-card .label.search-music-title {
+    -fx-font-family: "Archivo";
+    -fx-font-weight: bold;
+    -fx-font-size: 15px;
+    -fx-font-smoothing-type: lcd;
+    -fx-text-fill: #FFFFFF;
+}
+
+.search-result-card .search-result-title .text,
+.search-result-card .search-music-title .text {
+    -fx-font-family: "Archivo";
+    -fx-font-smoothing-type: lcd;
+    -fx-fill: #FFFFFF;
+}
+
+.search-result-subtitle,
+.search-music-subtitle {
+    -fx-font-family: "Inter";
+    -fx-font-size: 13px;
+    -fx-font-smoothing-type: lcd;
+    -fx-text-fill: #afafaf;
+}
+
+.search-result-card .search-result-subtitle .text,
+.search-result-card .search-music-subtitle .text {
+    -fx-font-family: "Inter";
+    -fx-font-smoothing-type: lcd;
+    -fx-fill: #afafaf;
+}

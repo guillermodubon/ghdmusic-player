@@ -1,0 +1,60 @@
+@import "../searchResultMusic/search-result-music-card.css";
+
+.search-artist-card {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-cursor: hand;
+}
+
+.search-artist-body {
+    -fx-background-color: transparent;
+    -fx-background-radius: 10;
+    -fx-border-color: transparent;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 8 12 8 12;
+}
+
+.search-artist-cover-shell {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+}
+
+.search-artist-name {
+    -fx-font-family: "Archivo";
+    -fx-font-size: 15px;
+    -fx-font-smoothing-type: lcd;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-text-alignment: left;
+}
+
+.search-result-card .label.search-artist-name,
+.search-artist-card .label.search-artist-name {
+    -fx-font-family: "Archivo";
+    -fx-font-size: 15px;
+    -fx-font-smoothing-type: lcd;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.search-artist-name .text {
+    -fx-font-family: "Archivo";
+    -fx-font-smoothing-type: lcd;
+    -fx-fill: #FFFFFF;
+}
+
+.search-artist-type {
+    -fx-font-family: "Inter";
+    -fx-font-size: 13px;
+    -fx-font-smoothing-type: lcd;
+    -fx-text-fill: #afafaf;
+}
+
+.search-artist-type .text {
+    -fx-font-family: "Inter";
+    -fx-font-smoothing-type: lcd;
+    -fx-fill: #afafaf;
+}

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<HBox fx:id="rootBox"
+      xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.items.musicItems.PlayableSongItemController"
+      alignment="CENTER_LEFT"
+      spacing="10"
+      maxWidth="Infinity"
+      stylesheets="@playable-song-item.css"
+      styleClass="queue-song-item queue-song-item-playable playable-song-item">
+
+    <ImageView fx:id="coverView"
+               fitWidth="42"
+               fitHeight="42"
+               preserveRatio="false"
+               smooth="true"
+               styleClass="queue-song-cover"/>
+
+    <VBox spacing="3"
+          maxWidth="Infinity"
+          HBox.hgrow="ALWAYS"
+          styleClass="queue-song-text">
+        <HBox alignment="CENTER_LEFT"
+              spacing="5"
+              maxWidth="Infinity"
+              styleClass="playable-song-title-row">
+            <StackPane fx:id="titleViewport"
+                        minWidth="0"
+                        maxWidth="Infinity"
+                        HBox.hgrow="ALWAYS"
+                        alignment="CENTER_LEFT"
+                        styleClass="song-item-title-viewport">
+                <HBox fx:id="titleTrack"
+                      alignment="CENTER_LEFT"
+                      styleClass="song-item-title-track">
+                    <Label fx:id="titleLabel"
+                           minWidth="0"
+                           maxWidth="Infinity"
+                           textOverrun="ELLIPSIS"
+                           styleClass="queue-song-title"/>
+                </HBox>
+            </StackPane>
+            <StackPane fx:id="playingIndicatorHost"
+                       visible="false"
+                       managed="false"
+                       minWidth="20"
+                       prefWidth="20"
+                       maxWidth="20"
+                       minHeight="20"
+                       prefHeight="20"
+                       maxHeight="20"
+                       styleClass="playing-indicator-host"/>
+        </HBox>
+        <StackPane fx:id="artistViewport"
+                   minWidth="0"
+                   maxWidth="Infinity"
+                   styleClass="song-item-artist-viewport">
+            <HBox fx:id="artistContainer"
+                  spacing="4"
+                  alignment="CENTER_LEFT"
+                  styleClass="queue-song-artists"/>
+        </StackPane>
+    </VBox>
+
+    <Pane HBox.hgrow="ALWAYS"/>
+
+    <Button fx:id="optionsButton"
+            onAction="#onShowOptionsMenu"
+            focusTraversable="false"
+            styleClass="queue-song-icon-button"/>
+</HBox>

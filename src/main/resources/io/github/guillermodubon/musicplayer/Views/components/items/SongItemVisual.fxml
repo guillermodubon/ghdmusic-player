@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.*?>
+
+<HBox fx:id="rootBox"
+      xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.items.musicItems.SongItemVisualController"
+      spacing="10"
+      alignment="CENTER_LEFT"
+      stylesheets="@song-item-visual.css"
+      styleClass="song-item-visual">
+
+    <ImageView fx:id="coverView"
+               fitWidth="42"
+               fitHeight="42"
+               preserveRatio="false"
+               smooth="true"
+               styleClass="song-item-cover"/>
+
+    <VBox spacing="3" HBox.hgrow="ALWAYS" styleClass="song-item-text">
+        <StackPane fx:id="titleViewport"
+                    minWidth="0"
+                    maxWidth="Infinity"
+                    alignment="CENTER_LEFT"
+                    styleClass="song-item-title-viewport">
+            <HBox fx:id="titleTrack"
+                  alignment="CENTER_LEFT"
+                  styleClass="song-item-title-track">
+                <Label fx:id="titleLabel"
+                       maxWidth="Infinity"
+                       styleClass="song-item-title"/>
+            </HBox>
+        </StackPane>
+        <StackPane fx:id="artistViewport"
+                   minWidth="0"
+                   maxWidth="Infinity"
+                   styleClass="song-item-artist-viewport">
+            <HBox fx:id="artistContainer"
+                  spacing="3"
+                  alignment="CENTER_LEFT"
+                  styleClass="song-item-artist-row"/>
+        </StackPane>
+    </VBox>
+
+    <Pane HBox.hgrow="ALWAYS"/>
+
+    <HBox spacing="8" alignment="CENTER_RIGHT" styleClass="song-item-actions">
+        <Button fx:id="btnPreview"
+                focusTraversable="false"
+                styleClass="song-item-action-button"/>
+        <Button fx:id="btnDownload"
+                focusTraversable="false"
+                styleClass="song-item-action-button"/>
+        <Button fx:id="btnAddToPlaylist"
+                focusTraversable="false"
+                styleClass="song-item-action-button"/>
+    </HBox>
+
+</HBox>

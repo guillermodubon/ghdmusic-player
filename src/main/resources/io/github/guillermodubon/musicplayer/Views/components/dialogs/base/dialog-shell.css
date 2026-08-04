@@ -1,0 +1,29 @@
+.dialog-shell {
+    -fx-background-color: white;
+}
+
+.dialog-header {
+    -fx-padding: 18 20 12 20;
+    -fx-spacing: 4;
+}
+
+.dialog-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+.dialog-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: #6b7280;
+}
+
+.dialog-content-holder {
+    -fx-padding: 0 20 0 20;
+}
+
+.dialog-actions-bar {
+    -fx-padding: 14 20 18 20;
+    -fx-spacing: 10;
+    -fx-alignment: center-right;
+}

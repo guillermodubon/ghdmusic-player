@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.text.Text?>
+<?import javafx.scene.text.TextFlow?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.screens.SplashScreen.SplashScreenController"
+      fx:id="splashRoot"
+      xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      alignment="CENTER"
+      fillWidth="true"
+      minWidth="320"
+      minHeight="320"
+      prefWidth="480"
+      prefHeight="480"
+      spacing="0"
+      stylesheets="@splash-screen.css"
+      styleClass="splash-root">
+    <padding>
+        <Insets top="28" right="56" bottom="22" left="56"/>
+    </padding>
+
+    <Region VBox.vgrow="ALWAYS" minHeight="18"/>
+
+    <VBox alignment="CENTER" fillWidth="true" spacing="8" styleClass="splash-identity">
+        <ImageView fx:id="logoView"
+                   fitWidth="240"
+                   fitHeight="240"
+                   preserveRatio="true"
+                   smooth="true"
+                   pickOnBounds="false"/>
+
+        <TextFlow maxWidth="390"
+                  textAlignment="CENTER"
+                  styleClass="splash-title">
+            <Text text="GHD" styleClass="splash-title-brand"/>
+            <Text text="Music" styleClass="splash-title-name"/>
+        </TextFlow>
+
+        <Label text="Organize, discover, download, and enjoy your music."
+               wrapText="true"
+               maxWidth="390"
+               styleClass="splash-slogan"/>
+    </VBox>
+
+    <Region VBox.vgrow="ALWAYS" minHeight="18"/>
+
+    <VBox alignment="CENTER" fillWidth="true" spacing="10" styleClass="splash-loading-area">
+        <Label fx:id="statusLabel"
+               text="Preparing your music library..."
+               wrapText="true"
+               maxWidth="390"
+               styleClass="splash-status"/>
+
+        <ProgressBar fx:id="progressBar"
+                     maxWidth="360"
+                     prefWidth="360"
+                     prefHeight="5"
+                     styleClass="splash-progress"/>
+    </VBox>
+</VBox>

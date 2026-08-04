@@ -1,0 +1,164 @@
+@import "../../../generalStyles/app-theme.css";
+
+.download-sidebar-root {
+    -fx-background-color: #0d0d0d;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-width: 0 0 0 1;
+}
+
+.download-sidebar-content {
+    -fx-background-color: #0d0d0d;
+}
+
+.download-sidebar-header {
+    -fx-min-height: 36;
+}
+
+.download-sidebar-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+}
+
+.download-sidebar-subtitle {
+    -fx-text-fill: rgba(255, 255, 255, 0.62);
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.download-clear-all-button,
+.download-clear-all-button:hover,
+.download-clear-all-button:focused,
+.download-clear-all-button:pressed {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-text-fill: rgba(255, 255, 255, 0.68);
+    -fx-underline: false;
+    -fx-cursor: hand;
+}
+
+.download-clear-all-button:hover,
+.download-clear-all-button:focused {
+    -fx-text-fill: #0077B6;
+}
+
+.download-location-section {
+    -fx-padding: 2 0 4 0;
+}
+
+.download-location-row {
+    -fx-background-color: rgba(255, 255, 255, 0.045);
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 10 10 10 12;
+}
+
+.download-path-label {
+    -fx-text-fill: rgba(255, 255, 255, 0.82);
+    -fx-font-size: 12px;
+}
+
+.download-sidebar-icon-button {
+    -fx-min-width: 34;
+    -fx-min-height: 34;
+    -fx-pref-width: 34;
+    -fx-pref-height: 34;
+    -fx-max-width: 34;
+    -fx-max-height: 34;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-cursor: hand;
+}
+
+.download-sidebar-root .download-sidebar-icon-button,
+.download-sidebar-root .download-sidebar-icon-button:hover,
+.download-sidebar-root .download-sidebar-icon-button:focused,
+.download-sidebar-root .download-sidebar-icon-button:pressed,
+.download-sidebar-root .download-sidebar-icon-button:armed,
+.download-sidebar-root .download-sidebar-icon-button:default,
+.download-sidebar-root .download-sidebar-icon-button:cancel {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.download-sidebar-root .download-folder-button,
+.download-sidebar-root .download-folder-button:hover,
+.download-sidebar-root .download-folder-button:focused,
+.download-sidebar-root .download-folder-button:pressed,
+.download-sidebar-root .download-folder-button:armed {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-effect: null;
+}
+
+.download-folder-button {
+    -fx-min-width: 26;
+    -fx-min-height: 26;
+    -fx-pref-width: 26;
+    -fx-pref-height: 26;
+    -fx-max-width: 26;
+    -fx-max-height: 26;
+}
+
+.download-list-view {
+    -fx-background-color: transparent;
+    -fx-control-inner-background: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+
+.download-list-view > .virtual-flow > .clipped-container > .sheet > .list-cell,
+.download-list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 8 0;
+}
+
+.download-list-view .list-cell:empty {
+    -fx-padding: 0;
+}
+
+.download-empty-state {
+    -fx-text-fill: rgba(250, 250, 250, 0.66);
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+}
+
+.download-list-view .scroll-bar:vertical,
+.download-list-view .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.download-list-view .scroll-bar:vertical .track,
+.download-list-view .scroll-bar:horizontal .track {
+    -fx-background-color: transparent;
+}
+
+.download-list-view .scroll-bar:vertical .thumb,
+.download-list-view .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 8;
+}
+
+.download-sidebar-resize-handle {
+    -fx-background-color: linear-gradient(to right, rgba(0, 0, 0, 0.66), rgba(0, 0, 0, 0.22), transparent);
+    -fx-cursor: h-resize;
+}
+
+.download-sidebar-resize-handle:hover {
+    -fx-background-color: linear-gradient(to right, rgba(0, 119, 182, 0.34), rgba(0, 0, 0, 0.24), transparent);
+}

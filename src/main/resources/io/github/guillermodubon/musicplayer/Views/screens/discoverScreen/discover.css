@@ -1,0 +1,70 @@
+@import "../../generalStyles/app-theme.css";
+
+.discover-scroll {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+}
+
+.discover-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.discover-section {
+    -fx-spacing: 10;
+    -fx-padding: 6 0 16 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+.discover-section-title {
+    -fx-font-size: 19px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-padding: 0 0 2 0;
+}
+
+.discover-section-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: #B3B3B3;
+}
+
+.discover-flow,
+.discover-card-grid,
+.discover-genre-grid {
+    -fx-hgap: 16;
+    -fx-vgap: 18;
+    -fx-padding: 4 0 0 0;
+    -fx-alignment: top-left;
+}
+
+.discover-card-grid {
+    -fx-vgap: 24;
+}
+
+.discover-empty-state {
+    -fx-font-size: 13px;
+    -fx-text-fill: #B3B3B3;
+    -fx-padding: 10 0 8 0;
+}
+
+.discover-scroll .scroll-bar:vertical,
+.discover-scroll .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.discover-scroll .scroll-bar:vertical .thumb,
+.discover-scroll .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 8;
+}
+
+.discover-scroll .scroll-bar:vertical .thumb:hover,
+.discover-scroll .scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: rgba(10, 203, 242, 0.46);
+}
+
+.discover-scroll .scroll-bar:vertical .track,
+.discover-scroll .scroll-bar:horizontal .track {
+    -fx-background-color: transparent;
+}

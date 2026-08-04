@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.downloadComponents.downloadCell.DownloadCellController"
+           minWidth="0"
+           minHeight="104"
+           maxWidth="Infinity"
+           stylesheets="@download-sidebar-cell.css"
+           styleClass="download-cell-shell">
+
+    <VBox spacing="8"
+          minWidth="0"
+          maxWidth="Infinity"
+          styleClass="download-cell-wrapper">
+
+        <Label fx:id="queuedNoticeLabel"
+               visible="false"
+               managed="false"
+               minWidth="0"
+               maxWidth="Infinity"
+               alignment="CENTER"
+               textAlignment="CENTER"
+               wrapText="true"
+               text="Queued. This download will begin automatically after the previous items are finished."
+               styleClass="download-queued-notice"/>
+
+
+        <VBox fx:id="bulkSectionHeader"
+              visible="false"
+              managed="false"
+              minWidth="0"
+              maxWidth="Infinity"
+              fillWidth="true"
+              spacing="6"
+              styleClass="download-bulk-section-header">
+
+            <HBox alignment="CENTER_LEFT"
+                  spacing="12"
+                  minWidth="0"
+                  maxWidth="Infinity">
+
+                <Label fx:id="bulkTitleLabel"
+                       text=""
+                       minWidth="0"
+                       maxWidth="Infinity"
+                       textOverrun="ELLIPSIS"
+                       alignment="CENTER_LEFT"
+                       HBox.hgrow="SOMETIMES"
+                       styleClass="download-bulk-section-title"/>
+
+                <Region minWidth="0"
+                        prefWidth="0"
+                        maxWidth="Infinity"
+                        HBox.hgrow="ALWAYS"/>
+
+                <Button fx:id="bulkCancelButton"
+                        text=""
+                        minWidth="-Infinity"
+                        prefWidth="-1"
+                        maxWidth="-Infinity"
+                        focusTraversable="false"
+                        mnemonicParsing="false"
+                        styleClass="download-bulk-cancel-button"/>
+
+            </HBox>
+
+            <HBox alignment="CENTER_LEFT"
+                  spacing="8"
+                  minWidth="0"
+                  maxWidth="Infinity">
+
+                <StackPane fx:id="bulkStatusIconPane"
+                           visible="false"
+                           managed="false"
+                           minWidth="20"
+                           prefWidth="20"
+                           maxWidth="20"
+                           minHeight="20"
+                           prefHeight="20"
+                           maxHeight="20"
+                           styleClass="download-bulk-status-icon"/>
+
+                <Label fx:id="bulkQueueLabel"
+                       text=""
+                       minWidth="0"
+                       maxWidth="Infinity"
+                       wrapText="true"
+                       alignment="CENTER_LEFT"
+                       textAlignment="LEFT"
+                       HBox.hgrow="ALWAYS"
+                       styleClass="download-bulk-queue-label"/>
+
+            </HBox>
+
+        </VBox>
+
+        <HBox fx:id="rootHBox"
+              alignment="CENTER_LEFT"
+              spacing="12"
+              minWidth="0"
+              maxWidth="Infinity"
+              styleClass="download-cell-root">
+
+            <ImageView fx:id="thumbImageView"
+                       fitWidth="58"
+                       fitHeight="58"
+                       preserveRatio="false"
+                       smooth="true"
+                       pickOnBounds="true"
+                       styleClass="download-cell-cover"/>
+
+            <VBox fx:id="mainContent"
+                  spacing="8"
+                  minWidth="0"
+                  maxWidth="Infinity"
+                  HBox.hgrow="ALWAYS"
+                  styleClass="download-cell-main">
+
+                <Label fx:id="titleLabel"
+                       minWidth="0"
+                       maxWidth="Infinity"
+                       textOverrun="ELLIPSIS"
+                       styleClass="download-cell-title"/>
+
+                <HBox fx:id="progressRow"
+                      alignment="CENTER_LEFT"
+                      spacing="3"
+                      minWidth="0"
+                      maxWidth="Infinity"
+                      styleClass="download-cell-progress-row">
+
+                    <ProgressBar fx:id="progressBar"
+                                 minWidth="0"
+                                 maxWidth="Infinity"
+                                 HBox.hgrow="ALWAYS"
+                                 styleClass="download-cell-progress"/>
+
+                    <Label fx:id="percentLabel"
+                           minWidth="42"
+                           prefWidth="42"
+                           maxWidth="42"
+                           styleClass="download-cell-percent"/>
+
+                    <StackPane fx:id="statusIconPane"
+                               visible="false"
+                               managed="false"
+                               minWidth="24"
+                               prefWidth="24"
+                               maxWidth="24"
+                               styleClass="download-cell-status-icon"/>
+
+                </HBox>
+
+                <Label fx:id="statusLabel"
+                       text=""
+                       visible="false"
+                       managed="false"
+                       minWidth="0"
+                       maxWidth="Infinity"
+                       wrapText="true"
+                       textOverrun="CLIP"
+                       styleClass="download-cell-status"/>
+
+            </VBox>
+
+            <VBox fx:id="buttonBox"
+                  alignment="CENTER"
+                  spacing="3"
+                  minWidth="30"
+                  prefWidth="30"
+                  maxWidth="30"
+                  styleClass="download-cell-actions">
+
+                <Button fx:id="cancelButton"
+                        focusTraversable="false"
+                        styleClass="download-cell-icon-button"/>
+
+                <Button fx:id="actionButton"
+                        visible="false"
+                        managed="false"
+                        focusTraversable="false"
+                        styleClass="download-cell-icon-button"/>
+
+                <Button fx:id="openLocationButton"
+                        visible="false"
+                        managed="false"
+                        focusTraversable="false"
+                        styleClass="download-cell-icon-button"/>
+
+                <Button fx:id="removeButton"
+                        visible="false"
+                        managed="false"
+                        focusTraversable="false"
+                        styleClass="download-cell-icon-button"/>
+
+            </VBox>
+
+        </HBox>
+
+        <Region fx:id="bulkSectionSeparator"
+                visible="false"
+                managed="false"
+                minHeight="1"
+                prefHeight="1"
+                maxHeight="1"
+                maxWidth="Infinity"
+                styleClass="download-bulk-section-separator"/>
+
+    </VBox>
+
+    <padding>
+        <Insets top="4"
+                right="0"
+                bottom="4"
+                left="0"/>
+    </padding>
+
+</StackPane>

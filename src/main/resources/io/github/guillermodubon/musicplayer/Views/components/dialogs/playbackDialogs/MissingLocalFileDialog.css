@@ -1,0 +1,82 @@
+@import "../base/dialog-shell.css";
+@import "../base/dialog-controls.css";
+
+.missing-local-file-dialog-root {
+    -fx-background-color: transparent;
+}
+
+.missing-local-file-dialog-root .dialog-shell {
+    -fx-background-color: #111111;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+}
+
+.missing-local-file-dialog-root .dialog-header {
+    -fx-padding: 26 30 8 30;
+    -fx-spacing: 5;
+}
+
+.missing-local-file-dialog-root .dialog-title {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+}
+
+.missing-local-file-dialog-root .dialog-subtitle {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 13px;
+}
+
+.missing-local-file-dialog-root .dialog-content-holder {
+    -fx-padding: 14 30 10 30;
+}
+
+.missing-local-file-dialog-root .dialog-actions-bar {
+    -fx-padding: 10 30 26 30;
+    -fx-alignment: center-right;
+}
+
+.missing-local-file-content {
+    -fx-spacing: 0;
+}
+
+.missing-local-file-message {
+    -fx-line-spacing: 3;
+}
+
+.missing-local-file-message-text {
+    -fx-fill: #AFAFAF;
+    -fx-font-size: 14px;
+}
+
+.missing-local-file-message-highlight {
+    -fx-fill: #FAFAFA;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.missing-local-file-dialog-root .dialog-button {
+    -fx-min-width: 104px;
+    -fx-pref-height: 38px;
+    -fx-padding: 8 20 8 20;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+}
+
+.missing-local-file-dialog-root .secondary-button,
+.missing-local-file-dialog-root .secondary-button:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: #FAFAFA;
+    -fx-text-fill: #FAFAFA;
+}
+
+.missing-local-file-dialog-root .secondary-button:hover {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}

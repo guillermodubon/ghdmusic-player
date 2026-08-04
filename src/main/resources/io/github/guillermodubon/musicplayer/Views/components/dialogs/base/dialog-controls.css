@@ -1,0 +1,36 @@
+@import "../../../generalStyles/app-theme.css";
+
+.dialog-field {
+    -fx-background-color: white;
+    -fx-border-color: #d1d5db;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 8 10 8 10;
+}
+
+.dialog-text-area {
+    -fx-wrap-text: true;
+}
+
+.dialog-button {
+    -fx-background-color: #0077B6;
+    -fx-border-color: #0077B6;
+    -fx-text-fill: #000000;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 8 14 8 14;
+    -fx-cursor: hand;
+}
+
+.primary-button {
+    -fx-background-color: #0077B6;
+    -fx-border-color: #0077B6;
+    -fx-text-fill: #000000;
+}
+
+.secondary-button {
+    -fx-background-color: #0077B6;
+    -fx-border-color: #0077B6;
+    -fx-text-fill: #000000;
+}

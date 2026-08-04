@@ -1,0 +1,100 @@
+@import "../../generalStyles/app-theme.css";
+
+.song-item-visual {
+    -fx-padding: 8 10 8 10;
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-border-width: 1;
+    -fx-border-radius: 8;
+    -fx-opacity: 0.72;
+    -fx-min-height: 58;
+    -fx-pref-height: 58;
+    -fx-max-height: 58;
+}
+
+.song-item-visual:hover,
+.song-item-visual.keyboard-selected {
+    -fx-background-color: rgba(34, 34, 34, 0.72);
+    -fx-border-color: transparent;
+    -fx-opacity: 0.86;
+}
+
+.song-item-cover {
+    -fx-opacity: 0.78;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.38), 8, 0.2, 0, 1);
+}
+
+.song-item-text {
+    -fx-min-width: 0;
+}
+
+.song-item-title {
+    -fx-text-fill: rgba(255, 255, 255, 0.78);
+    -fx-font-size: 14px;
+    -fx-font-weight: 700;
+    -fx-text-overrun: ellipsis;
+}
+
+.song-item-artist-row {
+    -fx-min-height: 18;
+}
+
+.song-item-artist-viewport {
+    -fx-min-width: 0;
+    -fx-max-height: 20;
+    -fx-alignment: center-left;
+}
+
+.song-item-artist-text {
+    -fx-text-fill: rgba(250, 250, 250, 0.62);
+    -fx-font-size: 12px;
+}
+
+.song-item-artist-separator {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 12px;
+}
+
+.song-item-artist-link {
+    -fx-padding: 0;
+    -fx-border-width: 0;
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(250, 250, 250, 0.72);
+    -fx-font-size: 12px;
+    -fx-underline: false;
+    -fx-text-overrun: ellipsis;
+}
+
+.song-item-artist-link:hover {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.song-item-actions {
+    -fx-min-width: 128;
+}
+
+.song-item-action-button,
+.song-item-action-button:hover,
+.song-item-action-button:focused,
+.song-item-action-button:pressed,
+.song-item-action-button:armed {
+    -fx-min-width: 34;
+    -fx-min-height: 34;
+    -fx-pref-width: 34;
+    -fx-pref-height: 34;
+    -fx-max-width: 34;
+    -fx-max-height: 34;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-cursor: hand;
+}

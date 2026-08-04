@@ -1,0 +1,37 @@
+.app-action-context-menu.context-menu,
+.app-action-context-menu {
+    -fx-background-color: #0d0d0d;
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6;
+}
+
+.app-action-context-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 8 12 8 10;
+}
+
+.app-action-context-menu .menu-item:focused,
+.app-action-context-menu .menu-item:hover {
+    -fx-background-color: #222222;
+    -fx-border-color: transparent;
+}
+
+.app-action-context-menu .menu-item .label {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.app-action-context-menu .menu-item:disabled .label {
+    -fx-text-fill: rgba(255, 255, 255, 0.42);
+}
+
+.app-action-context-menu .action-menu-icon {
+    -fx-background-color: #AFAFAF;
+}

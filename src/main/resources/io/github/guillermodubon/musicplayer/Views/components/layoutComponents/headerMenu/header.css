@@ -1,0 +1,81 @@
+@import "../../../generalStyles/app-theme.css";
+
+.app-header {
+    -fx-background-color: #000000;
+    -fx-border-color: #221F1F;
+    -fx-border-width: 0 0 1 0;
+}
+
+.header-nav-button,
+.header-action-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #FFFFFF;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-min-width: 44;
+    -fx-pref-width: 44;
+    -fx-max-width: 44;
+    -fx-min-height: 44;
+    -fx-pref-height: 44;
+    -fx-max-height: 44;
+    -fx-cursor: hand;
+}
+
+.header-nav-button:hover,
+.header-nav-button:focused,
+.header-action-button:hover,
+.header-action-button:focused {
+    -fx-background-color: transparent;
+}
+
+.header-nav-button:disabled,
+.header-action-button:disabled {
+    -fx-opacity: 1;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-cursor: default;
+}
+
+.header-download-activity-count {
+    -fx-background-color: #3B4C5A;
+    -fx-background-radius: 99;
+    -fx-border-color: #6C7780;
+    -fx-border-width: 1;
+    -fx-border-radius: 99;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-family: "Archivo";
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 0;
+}
+
+.header-search-box {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 14;
+    -fx-border-color: rgba(0, 119, 182, 1.0);
+    -fx-border-radius: 14;
+    -fx-border-width: 1;
+    -fx-padding: 0 0 0 0;
+    -fx-min-height: 46;
+    -fx-pref-height: 46;
+    -fx-max-height: 46;
+}
+
+.header-search-icon {
+    -fx-translate-x: 14;
+}
+
+.header-search-field {
+    -fx-background-color: transparent;
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: #8A8A8A;
+    -fx-font-size: 14px;
+    -fx-background-radius: 14;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 12 16 12 46;
+    -fx-min-height: 46;
+}

@@ -1,0 +1,102 @@
+.playlist-form-content {
+    -fx-padding: 4 0 0 0;
+}
+
+.playlist-form-layout {
+    -fx-alignment: center-left;
+}
+
+.playlist-cover-column {
+    -fx-min-width: 190px;
+    -fx-pref-width: 190px;
+    -fx-max-width: 190px;
+    -fx-padding: 24 0 0 0;
+}
+
+.playlist-cover-picker {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-cursor: hand;
+}
+
+.playlist-cover-frame {
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-cursor: hand;
+}
+
+.playlist-cover-hover-overlay {
+    -fx-background-color: rgba(0, 0, 0, 0.64);
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
+.playlist-cover-hover-content {
+    -fx-alignment: center;
+}
+
+.playlist-cover-hover-label {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+.playlist-cover-more-button {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 4;
+    -fx-cursor: hand;
+}
+
+.playlist-cover-more-button:hover,
+.playlist-cover-more-button:focused {
+    -fx-background-color: rgba(0, 0, 0, 0.38);
+    -fx-background-radius: 16;
+}
+
+.playlist-cover-caption,
+.playlist-field-label {
+    -fx-text-fill: rgba(255, 255, 255, 0.78);
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.playlist-fields-column {
+    -fx-min-width: 300px;
+    -fx-pref-width: 340px;
+}
+
+.playlist-form-content .dialog-field {
+    -fx-background-color: #2f2f2f;
+    -fx-control-inner-background: #2f2f2f;
+    -fx-text-fill: #FFFFFF;
+    -fx-prompt-text-fill: rgba(255, 255, 255, 0.46);
+}
+
+.playlist-form-content .dialog-text-area,
+.playlist-form-content .dialog-text-area:focused,
+.playlist-form-content .dialog-text-area .scroll-pane,
+.playlist-form-content .dialog-text-area .scroll-pane .viewport,
+.playlist-form-content .dialog-text-area .scroll-pane .content,
+.playlist-form-content .dialog-text-area .content {
+    -fx-background-color: #2f2f2f;
+    -fx-control-inner-background: #2f2f2f;
+}
+
+.manage-playlist-content {
+    -fx-padding: 0;
+}
+
+.manage-playlist-row {
+    -fx-alignment: center-left;
+    -fx-spacing: 10;
+    -fx-padding: 8;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 0 0 1 0;
+}
+
+.active-playlist-row {
+    -fx-background-color: rgba(0,0,0,0.04);
+}

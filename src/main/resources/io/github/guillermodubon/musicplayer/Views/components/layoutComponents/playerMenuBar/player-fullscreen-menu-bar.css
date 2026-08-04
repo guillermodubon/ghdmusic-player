@@ -1,0 +1,192 @@
+@import "../../../generalStyles/app-theme.css";
+
+.player-fullscreen-menu-bar {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-min-width: 0;
+    -fx-min-height: 160;
+}
+
+.player-fullscreen-menu-bar-content {
+    -fx-background-color: transparent;
+    -fx-alignment: center;
+}
+
+.player-fullscreen-time-row,
+.player-fullscreen-volume-row {
+    -fx-background-color: transparent;
+    -fx-alignment: center;
+}
+
+.player-fullscreen-time-row {
+    -fx-min-width: 320;
+    -fx-pref-width: 960;
+    -fx-max-width: 1040;
+}
+
+.player-fullscreen-volume-row {
+    -fx-min-width: 120;
+    -fx-pref-width: 480;
+    -fx-max-width: 520;
+}
+
+.player-fullscreen-time-label {
+    -fx-text-fill: rgba(235, 235, 235, 0.84);
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.player-fullscreen-transport-row {
+    -fx-background-color: transparent;
+    -fx-min-width: 320;
+    -fx-pref-width: 960;
+    -fx-max-width: 1040;
+    -fx-padding: 0 2 0 2;
+}
+
+.player-fullscreen-center-controls {
+    -fx-background-color: transparent;
+    -fx-alignment: center;
+}
+
+.player-fullscreen-control-button,
+.player-fullscreen-control-button:hover,
+.player-fullscreen-control-button:focused,
+.player-fullscreen-control-button:pressed,
+.player-fullscreen-control-button:armed,
+.player-fullscreen-control-button:selected,
+.player-fullscreen-play-button,
+.player-fullscreen-play-button:hover,
+.player-fullscreen-play-button:focused,
+.player-fullscreen-play-button:pressed,
+.player-fullscreen-play-button:armed,
+.player-fullscreen-play-button:selected {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+
+.player-fullscreen-control-button {
+    -fx-min-width: 34;
+    -fx-pref-width: 34;
+    -fx-max-width: 34;
+    -fx-min-height: 34;
+    -fx-pref-height: 34;
+    -fx-max-height: 34;
+}
+
+.player-fullscreen-play-button {
+    -fx-min-width: 48;
+    -fx-pref-width: 48;
+    -fx-max-width: 48;
+    -fx-min-height: 48;
+    -fx-pref-height: 48;
+    -fx-max-height: 48;
+}
+
+.player-fullscreen-slider-shell {
+    -fx-background-color: transparent;
+    -fx-alignment: center-left;
+    -fx-min-height: 18;
+    -fx-pref-height: 18;
+    -fx-max-height: 18;
+    -fx-min-width: 0;
+    -fx-opacity: 1;
+}
+
+.player-fullscreen-slider-base,
+.player-fullscreen-slider-fill {
+    -fx-min-height: 4;
+    -fx-pref-height: 4;
+    -fx-max-height: 4;
+    -fx-background-radius: 999;
+}
+
+.player-fullscreen-slider-base {
+    -fx-background-color: rgba(235, 235, 235, 0.42);
+}
+
+.player-fullscreen-slider-fill {
+    -fx-background-color: rgba(235, 235, 235, 0.94);
+}
+
+.player-fullscreen-slider {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-min-height: 18;
+    -fx-pref-height: 18;
+    -fx-background-insets: 0;
+}
+
+.player-fullscreen-slider .track,
+.player-fullscreen-slider .colored-track {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-opacity: 0;
+}
+
+.player-fullscreen-slider .thumb {
+    -fx-background-color: #F0F0F0;
+    -fx-background-radius: 999;
+    -fx-pref-width: 12;
+    -fx-pref-height: 12;
+}
+
+.player-fullscreen-volume-slider .thumb {
+    -fx-pref-width: 10;
+    -fx-pref-height: 10;
+}
+
+/* Keep the volume rail visible even before the skin has finished its first
+   layout pass. The Java regions draw the rail; the native track is hidden. */
+.player-fullscreen-volume-base,
+.player-fullscreen-volume-fill {
+    -fx-opacity: 1;
+    -fx-visible: true;
+}
+
+.player-fullscreen-volume-row .player-fullscreen-slider-shell {
+    -fx-min-height: 22;
+    -fx-pref-height: 22;
+    -fx-max-height: 22;
+}
+
+.player-fullscreen-volume-icon-host {
+    -fx-background-color: transparent;
+    -fx-alignment: center;
+}
+
+.player-fullscreen-meatball-icon {
+    -fx-background-color: transparent;
+    -fx-alignment: center;
+}
+
+.player-fullscreen-meatball-dot {
+    -fx-background-color: #C8C8C8;
+    -fx-background-radius: 999;
+}
+
+.player-fullscreen-actions-button,
+.player-fullscreen-actions-button:hover,
+.player-fullscreen-actions-button:focused,
+.player-fullscreen-actions-button:pressed {
+    -fx-background-color: rgba(255, 255, 255, 0.12);
+    -fx-background-radius: 999;
+    -fx-border-color: transparent;
+    -fx-padding: 8;
+    -fx-cursor: hand;
+}
+
+.player-fullscreen-actions-button:hover .player-fullscreen-meatball-dot,
+.player-fullscreen-actions-button:focused .player-fullscreen-meatball-dot {
+    -fx-background-color: #FFFFFF;
+}

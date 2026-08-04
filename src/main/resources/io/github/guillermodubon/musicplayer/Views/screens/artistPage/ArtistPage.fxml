@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.FlowPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Text?>
+
+<StackPane fx:id="pageRoot"
+           xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.screens.artistPage.ArtistPageController"
+           stylesheets="@artist-page.css"
+           styleClass="artist-page-root"
+           minWidth="0"
+           minHeight="0"
+           maxWidth="Infinity"
+           maxHeight="Infinity"
+           prefWidth="1200"
+           prefHeight="700">
+
+    <ScrollPane fx:id="artistScrollPane"
+                fitToWidth="true"
+                hbarPolicy="NEVER"
+                pannable="true"
+                minWidth="0"
+                minHeight="0"
+                maxWidth="Infinity"
+                maxHeight="Infinity"
+                styleClass="artist-page-scroll">
+        <content>
+            <VBox fx:id="centerVBox"
+                  fillWidth="true"
+                  minWidth="0"
+                  maxWidth="Infinity"
+                  spacing="0"
+                  styleClass="artist-page-content">
+
+                <StackPane fx:id="headerRoot"
+                           minHeight="250"
+                           prefHeight="430"
+                           maxHeight="560"
+                           styleClass="artist-header">
+                    <ImageView fx:id="headerBackgroundImage"
+                               cache="true"
+                               mouseTransparent="true"
+                               pickOnBounds="false"
+                               preserveRatio="true"
+                               smooth="true"
+                               styleClass="artist-header-background-image"/>
+
+                    <StackPane fx:id="headerImageFrame"
+                               mouseTransparent="true"
+                               pickOnBounds="false"
+                               styleClass="artist-header-image-frame">
+                        <ImageView fx:id="headerImage"
+                                   cache="true"
+                                   mouseTransparent="true"
+                                   pickOnBounds="false"
+                                   preserveRatio="true"
+                                   smooth="true"
+                                   styleClass="artist-header-image"/>
+                    </StackPane>
+
+                    <Region mouseTransparent="true" styleClass="artist-header-scrim"/>
+
+                    <HBox fx:id="headerOverlay"
+                          alignment="BOTTOM_LEFT"
+                          spacing="18"
+                          maxWidth="Infinity"
+                          styleClass="artist-header-overlay"
+                          StackPane.alignment="BOTTOM_LEFT">
+                        <padding>
+                            <Insets top="28" right="32" bottom="38" left="32"/>
+                        </padding>
+
+                        <VBox fx:id="headerInfo"
+                              alignment="BOTTOM_LEFT"
+                              spacing="10"
+                              minWidth="0"
+                              maxWidth="960">
+                            <Label fx:id="artistNameLabel" styleClass="artist-name"/>
+                            <Text fx:id="biographyTextHeader"
+                                  wrappingWidth="900"
+                                  styleClass="artist-header-bio"/>
+                        </VBox>
+                    </HBox>
+                </StackPane>
+
+                <VBox fx:id="mainContent"
+                      spacing="22"
+                      fillWidth="true"
+                      minWidth="0"
+                      maxWidth="Infinity"
+                      styleClass="artist-main-content">
+                    <padding>
+                        <Insets top="24" right="28" bottom="36" left="28"/>
+                    </padding>
+
+                    <VBox spacing="10" styleClass="artist-section">
+                        <Label fx:id="localTitle" styleClass="artist-section-title"/>
+                        <StackPane fx:id="localCarouselHost"
+                                   maxWidth="Infinity"
+                                   styleClass="artist-carousel-host"/>
+                        <FlowPane fx:id="localFlow"
+                                  hgap="14"
+                                  vgap="14"
+                                  prefWrapLength="1040"
+                                  visible="false"
+                                  managed="false"
+                                  styleClass="artist-card-flow"/>
+                    </VBox>
+
+                    <VBox spacing="10" styleClass="artist-section">
+                        <Label fx:id="topTracksTitle" styleClass="artist-section-title"/>
+                        <FlowPane fx:id="topTracksFlow"
+                                  hgap="14"
+                                  vgap="14"
+                                  prefWrapLength="1040"
+                                  styleClass="artist-card-flow"/>
+                    </VBox>
+
+                    <VBox spacing="10" styleClass="artist-section">
+                        <Label fx:id="albumsTitle" styleClass="artist-section-title"/>
+                        <FlowPane fx:id="albumsFlow"
+                                  hgap="14"
+                                  vgap="14"
+                                  prefWrapLength="1040"
+                                  styleClass="artist-card-flow"/>
+                    </VBox>
+
+                    <VBox spacing="10" styleClass="artist-section">
+                        <Label fx:id="singlesTitle" styleClass="artist-section-title"/>
+                        <FlowPane fx:id="singlesFlow"
+                                  hgap="14"
+                                  vgap="14"
+                                  prefWrapLength="1040"
+                                  styleClass="artist-card-flow"/>
+                    </VBox>
+
+                    <VBox spacing="10" styleClass="artist-section">
+                        <Label fx:id="playlistsTitle" styleClass="artist-section-title"/>
+                        <FlowPane fx:id="playlistsFlow"
+                                  hgap="14"
+                                  vgap="14"
+                                  prefWrapLength="1040"
+                                  styleClass="artist-card-flow"/>
+                    </VBox>
+                </VBox>
+            </VBox>
+        </content>
+    </ScrollPane>
+</StackPane>

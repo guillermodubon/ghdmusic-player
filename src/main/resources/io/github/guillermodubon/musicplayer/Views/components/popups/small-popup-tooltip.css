@@ -1,0 +1,23 @@
+
+.tooltip.small-popup-tooltip,
+.small-popup-tooltip
+{
+    -fx-background-color: #111827;
+    -fx-background-radius: 9;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 9;
+    -fx-border-width: 1;
+    -fx-padding: 8 12 8 12;
+
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: normal;
+    -fx-opacity: 1;
+}
+
+
+.tooltip.small-popup-tooltip .text,
+.small-popup-tooltip .text
+ {
+    -fx-fill: #FFFFFF;
+}

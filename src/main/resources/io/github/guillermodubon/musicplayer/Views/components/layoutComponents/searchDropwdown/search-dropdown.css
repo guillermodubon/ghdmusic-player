@@ -1,0 +1,93 @@
+@import "../../../generalStyles/app-theme.css";
+
+.search-dropdown-root {
+    -fx-background-color: #111111;
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(175, 175, 175, 0.28);
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.44), 18, 0.20, 0, 7);
+}
+
+.search-dropdown-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-padding: 0;
+}
+
+.search-dropdown-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.search-dropdown-results {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.search-dropdown-loading {
+    -fx-background-color: transparent;
+}
+
+.search-dropdown-keyboard-selected .search-result-card-body,
+.search-dropdown-keyboard-selected .search-artist-body,
+.search-dropdown-keyboard-selected-body,
+.search-result-card:keyboard-selected .search-result-card-body,
+.search-result-card:keyboard-selected .search-artist-body,
+.search-result-card-body:keyboard-selected,
+.search-artist-body:keyboard-selected,
+.search-music-body:keyboard-selected {
+    -fx-background-color: #222222;
+    -fx-border-color: transparent;
+}
+
+.search-dropdown-spinner {
+    -fx-progress-color: #0077B6;
+}
+
+.search-dropdown-scroll .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 10;
+}
+
+.search-dropdown-scroll .scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+}
+
+.search-dropdown-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(175, 175, 175, 0.42);
+    -fx-background-radius: 8;
+}
+
+.search-dropdown-scroll .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: rgba(175, 175, 175, 0.72);
+}
+
+.search-dropdown-scroll .increment-button,
+.search-dropdown-scroll .decrement-button {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.search-view-all-btn {
+    -fx-background-color: transparent;
+    -fx-background-radius: 999;
+    -fx-border-color: #afafaf;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-text-fill: #afafaf;
+    -fx-font-family: "System";
+    -fx-font-size: 14px;
+    -fx-font-smoothing-type: lcd;
+    -fx-font-weight: bold;
+    -fx-underline: false;
+    -fx-padding: 7 16 7 16;
+    -fx-cursor: hand;
+}
+
+.search-view-all-btn:hover,
+.search-view-all-btn:focused,
+.search-view-all-btn.search-dropdown-keyboard-selected,
+.search-view-all-btn:keyboard-selected {
+    -fx-border-color: #FFFFFF;
+    -fx-text-fill: #FFFFFF;
+}

@@ -1,0 +1,763 @@
+@import "../../generalStyles/app-theme.css";
+
+.player-menu-root {
+    -fx-background-color: #111111;
+}
+
+.player-menu-scroll {
+    -fx-background: transparent;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.player-menu-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.player-menu-surface {
+    -fx-background-color: #111111;
+    -fx-padding: 0;
+    -fx-spacing: 0;
+}
+
+.player-menu-header-stack {
+    -fx-background-color: #111111;
+    -fx-fill-width: true;
+}
+
+.player-menu-header {
+    -fx-background-color: #00283D;
+    -fx-background-radius: 0;
+    -fx-padding: 30 36 30 36;
+    -fx-min-height: 340;
+}
+
+.player-menu-header-fade {
+    -fx-min-height: 78;
+    -fx-pref-height: 78;
+    -fx-max-height: 78;
+
+    -fx-background-color: linear-gradient(
+            to bottom,
+            #00283D 0%,
+            rgba(0, 40, 61, 0.78) 30%,
+            rgba(0, 32, 48, 0.42) 100%
+    );
+}
+
+.player-menu-cover-shell {
+    -fx-min-width: 280;
+    -fx-pref-width: 280;
+    -fx-max-width: 280;
+    -fx-min-height: 280;
+    -fx-pref-height: 280;
+    -fx-max-height: 280;
+}
+
+.player-menu-cover {
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.40), 18, 0.22, 0, 5);
+}
+
+.player-menu-header-copy {
+    -fx-padding: 0 0 2 0;
+    -fx-min-width: 0;
+    -fx-spacing: 9;
+}
+
+.player-menu-record-type {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.player-menu-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 72px;
+    -fx-font-weight: bold;
+    -fx-line-spacing: -2px;
+}
+
+.player-menu-creators {
+    -fx-spacing: 8;
+}
+
+.player-menu-creators-viewport {
+    -fx-min-width: 0;
+    -fx-min-height: 52;
+    -fx-pref-height: 52;
+    -fx-max-height: 52;
+    -fx-alignment: center-left;
+}
+
+.player-menu-creator-chip {
+    -fx-alignment: center-left;
+}
+
+.player-menu-artist-avatar {
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.32), 8, 0.20, 0, 2);
+}
+
+.player-menu-creator-link {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.player-menu-local-file-label {
+    -fx-text-fill: #FAFAFA;
+}
+
+.player-menu-description {
+    -fx-text-fill: rgba(255, 255, 255, 0.72);
+    -fx-font-size: 15px;
+    -fx-padding: 0 0 3 0;
+}
+
+.player-menu-meta-row {
+    -fx-padding: 0 0 0 0;
+}
+
+.player-menu-meta,
+.player-menu-meta-separator {
+    -fx-text-fill: rgba(255, 255, 255, 0.72);
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+}
+
+.player-menu-options-slot {
+    -fx-alignment: center;
+    -fx-background-color: transparent;
+}
+
+.player-menu-options,
+.player-menu-options:hover,
+.player-menu-options:focused,
+.player-menu-options:pressed,
+.player-menu-options:showing {
+    -fx-min-width: 48;
+    -fx-pref-width: 48;
+    -fx-max-width: 48;
+    -fx-min-height: 48;
+    -fx-pref-height: 48;
+    -fx-max-height: 48;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.player-menu-options > .label {
+    -fx-padding: 0;
+    -fx-alignment: center;
+}
+
+.player-menu-options > .arrow-button {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.player-menu-options > .arrow-button > .arrow {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-shape: null;
+}
+
+.player-menu-sort-button,
+.player-menu-sort-button:hover,
+.player-menu-sort-button:focused,
+.player-menu-sort-button:showing,
+.player-menu-sort-button:pressed {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 4 2 4 10;
+    -fx-content-display: right;
+    -fx-alignment: center;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.player-menu-sort-button .label {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.player-menu-sort-button:hover .label,
+.player-menu-sort-button:focused .label,
+.player-menu-sort-button:showing .label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.player-menu-sort-button .arrow-button,
+.player-menu-sort-button .arrow {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+/* Keep the sort popup header static and make its options explicitly clickable. */
+.context-menu .player-menu-sort-button-menu-header,
+.context-menu .player-menu-sort-button-menu-header:hover,
+.context-menu .player-menu-sort-button-menu-header:focused,
+.context-menu .player-menu-sort-button-menu-header:pressed,
+.context-menu .player-menu-sort-button-menu-header:disabled {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 9 14 9 12;
+    -fx-cursor: default;
+    -fx-opacity: 1;
+}
+
+.context-menu .player-menu-sort-button-menu-header .label,
+.context-menu .player-menu-sort-button-menu-header-label {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-cursor: default;
+}
+
+.context-menu .player-menu-sort-button-menu-item,
+.context-menu .player-menu-sort-button-menu-option-row,
+.context-menu .player-menu-sort-button-menu-item .label,
+.context-menu .player-menu-sort-button-menu-option-row .label {
+    -fx-cursor: hand;
+}
+
+.player-menu-action-buttons .player-menu-sort-button {
+    -fx-translate-x: -26;
+}
+
+.player-menu-options-icon {
+    -fx-background-color: #AFAFAF;
+}
+
+.player-menu-action {
+    -fx-background-color: #0077B6;
+    -fx-text-fill: #FFFFFF;
+    -fx-border-color: transparent;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+}
+
+.player-menu-refresh-icon-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 7;
+    -fx-min-width: 36;
+    -fx-pref-width: 36;
+    -fx-max-width: 36;
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+    -fx-max-height: 36;
+}
+
+.player-menu-refresh-icon-button:hover,
+.player-menu-refresh-icon-button:focused,
+.player-menu-refresh-icon-button:pressed {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.player-menu-options-section,
+.player-menu-options-host {
+    -fx-background-color: linear-gradient(
+            to bottom,
+            rgba(0, 32, 48, 0.42) 0%,
+            rgba(0, 24, 36, 0.18) 28%,
+            #111111 58%,
+            #111111 100%
+    );
+}
+
+.player-menu-options-section {
+    -fx-padding: 14 24 14 24;
+    -fx-min-height: 72;
+}
+
+.player-menu-options-host {
+    -fx-min-height: 72;
+}
+
+.player-menu-action-buttons {
+    -fx-background-color: transparent;
+    -fx-alignment: center-left;
+    -fx-spacing: 24;
+    -fx-padding: 0 8 0 0;
+}
+
+/* Keep the playlist menu visually closer to Download without changing the
+   spacing of the other action buttons. */
+.player-menu-action-buttons .player-menu-options {
+    -fx-translate-x: -10;
+}
+
+.player-menu-inline-icon-button,
+.player-menu-inline-icon-button:hover,
+.player-menu-inline-icon-button:focused,
+.player-menu-inline-icon-button:pressed,
+.player-menu-inline-icon-button:selected,
+.player-menu-remote-save-toggle,
+.player-menu-remote-save-toggle:hover,
+.player-menu-remote-save-toggle:focused,
+.player-menu-remote-save-toggle:pressed,
+.player-menu-remote-save-toggle:selected,
+.player-menu-inline-toggle-button,
+.player-menu-inline-toggle-button:hover,
+.player-menu-inline-toggle-button:focused,
+.player-menu-inline-toggle-button:pressed,
+.player-menu-inline-toggle-button:selected {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-radius: 999;
+    -fx-border-radius: 999;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-text-fill: transparent;
+}
+
+.player-menu-inline-icon-button .label,
+.player-menu-inline-toggle-button .label,
+.player-menu-remote-save-toggle > .text {
+    -fx-fill: transparent;
+    -fx-text-fill: transparent;
+}
+
+.player-menu-options-section .button.player-menu-inline-icon-button,
+.player-menu-options-section .toggle-button.player-menu-inline-icon-button,
+.player-menu-options-section .check-box.player-menu-remote-save-toggle {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+/* ============================================================
+   Favorite icon toggle for remote playlists
+   ============================================================ */
+
+.remote-library-check-button,
+.remote-library-check-button:hover,
+.remote-library-check-button:focused,
+.remote-library-check-button:pressed,
+.remote-library-check-button:selected,
+.player-menu-remote-save-toggle.remote-library-check-button,
+.player-menu-remote-save-toggle.remote-library-check-button:hover,
+.player-menu-remote-save-toggle.remote-library-check-button:focused,
+.player-menu-remote-save-toggle.remote-library-check-button:pressed,
+.player-menu-remote-save-toggle.remote-library-check-button:selected {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+
+    -fx-min-width: 42;
+    -fx-pref-width: 42;
+    -fx-max-width: 42;
+
+    -fx-min-height: 42;
+    -fx-pref-height: 42;
+    -fx-max-height: 42;
+
+    -fx-alignment: center;
+    -fx-content-display: graphic-only;
+    -fx-cursor: hand;
+    -fx-effect: null;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+    -fx-text-fill: transparent;
+}
+
+/* Hide the native checkbox box; the SVG is the visible control. */
+.remote-library-check-button > .box,
+.player-menu-remote-save-toggle.remote-library-check-button > .box {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-opacity: 0;
+
+    -fx-min-width: 0;
+    -fx-pref-width: 0;
+    -fx-max-width: 0;
+
+    -fx-min-height: 0;
+    -fx-pref-height: 0;
+    -fx-max-height: 0;
+
+    -fx-alignment: center;
+}
+
+/* Keep the native mark hidden because selected state swaps the SVG. */
+.remote-library-check-button > .box > .mark,
+.player-menu-remote-save-toggle.remote-library-check-button > .box > .mark {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+/* The outline or filled heart is swapped by PlayerMenuPlaylistHeaderUi. */
+.remote-library-check-button > .graphic,
+.player-menu-remote-save-toggle.remote-library-check-button > .graphic {
+    -fx-opacity: 1;
+    -fx-min-width: 27;
+    -fx-pref-width: 27;
+    -fx-max-width: 27;
+    -fx-min-height: 27;
+    -fx-pref-height: 27;
+    -fx-max-height: 27;
+}
+
+.remote-library-check-button .text,
+.player-menu-remote-save-toggle.remote-library-check-button .text {
+    -fx-fill: transparent;
+    -fx-text-fill: transparent;
+}
+
+/* State classes preserve the existing subtle active/inactive presentation. */
+.remote-library-check-button-selected {
+    -fx-background-color: rgba(0, 119, 182, 0.05);
+    -fx-background-radius: 999;
+}
+
+.remote-library-check-button-unselected {
+    -fx-background-color: transparent;
+}
+
+.remote-library-check-button:disabled,
+.player-menu-remote-save-toggle.remote-library-check-button:disabled {
+    -fx-opacity: 0.62;
+    -fx-cursor: default;
+}
+
+.player-menu-inline-play-button {
+    -fx-min-width: 56;
+    -fx-pref-width: 56;
+    -fx-max-width: 56;
+    -fx-min-height: 56;
+    -fx-pref-height: 56;
+    -fx-max-height: 56;
+}
+
+.player-menu-inline-play-button-enabled {
+    -fx-opacity: 1.0;
+    -fx-cursor: hand;
+}
+
+.player-menu-inline-play-button-enabled:hover,
+.player-menu-inline-play-button-enabled:focused {
+    -fx-opacity: 1.0;
+}
+
+
+.player-menu-inline-play-button-disabled,
+.player-menu-inline-play-button-disabled:disabled {
+    -fx-opacity: 0.42;
+    -fx-cursor: default;
+    -fx-effect: null;
+}
+
+
+.player-menu-inline-play-button-disabled:hover,
+.player-menu-inline-play-button-disabled:focused,
+.player-menu-inline-play-button-disabled:pressed {
+    -fx-opacity: 0.42;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-effect: null;
+}
+
+.player-menu-inline-play-button-disabled:disabled {
+    -fx-opacity: 0.42;
+    -fx-cursor: default;
+    -fx-effect: null;
+    -fx-mouse-transparent: false;
+}
+
+.player-menu-inline-toggle-button {
+    -fx-min-width: 42;
+    -fx-pref-width: 42;
+    -fx-max-width: 42;
+    -fx-min-height: 42;
+    -fx-pref-height: 42;
+    -fx-max-height: 42;
+}
+
+.player-menu-inline-icon-button:hover,
+.player-menu-inline-toggle-button:hover,
+.player-menu-inline-toggle-button:selected {
+    -fx-opacity: 1.0;
+}
+
+.player-menu-search-box {
+    -fx-background-color: transparent;
+}
+
+.player-menu-song-list {
+    -fx-background-insets: 0;
+    -fx-padding: 0 24 0 24;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.player-menu-song-list-shell {
+    -fx-background-color: #111111;
+    -fx-padding: 0;
+}
+
+.player-menu-song-list .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 3 0 3 0;
+}
+
+.player-menu-song-list .list-cell:selected,
+.player-menu-song-list .list-cell:focused,
+.player-menu-song-list .list-cell:selected:focused {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+}
+
+.player-menu-song-list .list-cell.playlist-reorder-drop-before {
+    -fx-border-color: #0077B6 transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+
+.player-menu-song-list .list-cell.playlist-reorder-drop-after {
+    -fx-border-color: transparent transparent #0077B6 transparent;
+    -fx-border-width: 0 0 2 0;
+}
+
+.player-menu-song-list .list-cell:hover .playable-song-item {
+    -fx-background-color: #222222;
+    -fx-border-color: transparent;
+}
+
+.player-menu-song-list .scroll-bar:vertical,
+.player-menu-song-list .scroll-bar:horizontal {
+    -fx-opacity: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+    -fx-max-width: 0;
+    -fx-max-height: 0;
+}
+
+.player-menu-song-list .scroll-bar:vertical .track,
+.player-menu-song-list .scroll-bar:horizontal .track,
+.player-menu-song-list .scroll-bar:vertical .thumb,
+.player-menu-song-list .scroll-bar:horizontal .thumb,
+.player-menu-song-list .increment-button,
+.player-menu-song-list .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.player-menu-empty-placeholder {
+    -fx-text-fill: #FAFAFA;
+    -fx-font-size: 14px;
+    -fx-alignment: center;
+    -fx-text-alignment: center;
+}
+
+.player-menu-footer {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-padding: 0 24 24 24;
+    -fx-spacing: 18;
+}
+
+.player-menu-section-title {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.player-menu-recommendations {
+    -fx-spacing: 10;
+}
+
+.player-menu-recommendation-title-row {
+    -fx-spacing: 14;
+    -fx-alignment: center-left;
+}
+
+.player-menu-recommendation-add-all,
+.player-menu-recommendation-add-all:hover,
+.player-menu-recommendation-add-all:focused,
+.player-menu-recommendation-add-all:pressed {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-font-size: 14px;
+    -fx-text-fill: #FAFAFA;
+    -fx-underline: false;
+    -fx-cursor: hand;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.player-menu-recommendation-add-all:hover,
+.player-menu-recommendation-add-all:focused {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.player-menu-recommendation-add-all:disabled {
+    -fx-opacity: 0.55;
+    -fx-cursor: wait;
+    -fx-underline: false;
+}
+
+.player-menu-recommendation-tools {
+    -fx-padding: 2 0 8 0;
+}
+
+.player-menu-remote-suggestions,
+.player-menu-more-by-artists {
+    -fx-background-color: transparent;
+}
+
+.player-menu-footer-load-error {
+    -fx-alignment: center;
+    -fx-spacing: 10;
+    -fx-padding: 22 16 22 16;
+    -fx-background-color: transparent;
+}
+
+.player-menu-footer-load-error-message {
+    -fx-font-family: "Inter";
+    -fx-font-size: 14px;
+    -fx-text-fill: #AFAFAF;
+    -fx-text-alignment: center;
+    -fx-alignment: center;
+}
+
+.player-menu-more-by-artist-title-row {
+    -fx-padding: 4 0 0 0;
+}
+
+.player-menu-more-by-artist-title-text,
+.player-menu-more-by-artist-title-link {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.player-menu-more-by-artist-title-link .text {
+    -fx-fill: #FFFFFF;
+    -fx-underline: true;
+}
+
+.player-menu-more-by-artist-title-link:hover,
+.player-menu-more-by-artist-title-link:focused {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.player-menu-more-by-artist-title-link:hover .text,
+.player-menu-more-by-artist-title-link:focused .text {
+    -fx-fill: #0077B6;
+}
+
+.player-menu-responsive-card-grid {
+    -fx-hgap: 18;
+    -fx-vgap: 18;
+}
+
+.app-card-carousel,
+.home-card-carousel {
+    -fx-padding: 4 0 0 0;
+    -fx-min-height: 286;
+    -fx-pref-height: 286;
+    -fx-max-height: 286;
+}
+
+.app-carousel-track,
+.home-carousel-track {
+    -fx-padding: 0;
+}
+
+.app-card-carousel-track,
+.home-card-carousel-track {
+    -fx-alignment: center-left;
+    -fx-min-height: 254;
+    -fx-pref-height: 254;
+    -fx-max-height: 254;
+}
+
+.app-carousel-button,
+.home-carousel-button {
+    -fx-background-color: #0d0d0d;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 999;
+    -fx-border-color: #0d0d0d;
+    -fx-border-radius: 999;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+    -fx-opacity: 0.96;
+    -fx-padding: 0;
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.42), 10, 0.22, 0, 2);
+}
+
+.app-carousel-button:hover,
+.app-carousel-button:focused,
+.home-carousel-button:hover,
+.home-carousel-button:focused {
+    -fx-background-color: #0d0d0d;
+    -fx-border-color: #0d0d0d;
+    -fx-text-fill: #FFFFFF;
+}
+
+.player-menu-separator .line {
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+}
+
+.context-menu {
+    -fx-background-color: #0d0d0d;
+    -fx-background-radius: 8;
+    -fx-border-color: rgba(255, 255, 255, 0.10);
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+    -fx-padding: 6;
+}
+
+.context-menu .menu-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 6;
+    -fx-border-color: transparent;
+    -fx-padding: 8 12 8 10;
+}
+
+.context-menu .menu-item:focused,
+.context-menu .menu-item:hover {
+    -fx-background-color: #222222;
+    -fx-border-color: transparent;
+}
+
+.context-menu .menu-item .label {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.player-menu-option-menu-icon {
+    -fx-background-color: #AFAFAF;
+}

@@ -1,0 +1,173 @@
+@import "../../generalStyles/app-theme.css";
+@import "../../generalStyles/section-carousel.css";
+
+.mainmenu-scroll {
+    -fx-background: #111111;
+    -fx-background-color: #111111;
+}
+
+.mainmenu-scroll > .viewport {
+    -fx-background-color: #111111;
+}
+
+.mainmenu-section {
+    -fx-spacing: 10;
+    -fx-padding: 4 0 6 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+}
+
+.recommendations-section,
+.recommendations-section .home-featured-carousel {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-effect: null;
+}
+
+.mainmenu-section-title {
+    -fx-font-size: 19px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+    -fx-padding: 0 0 2 0;
+}
+
+.home-section-header {
+    -fx-alignment: center-left;
+    -fx-spacing: 16;
+    -fx-min-height: 30;
+}
+
+.home-section-show-all {
+    -fx-text-fill: #AFAFAF;
+    -fx-font-size: 14px;
+    -fx-font-family: "Inter";
+    -fx-font-weight: 600;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-underline: false;
+    -fx-cursor: hand;
+}
+
+.home-section-show-all:hover,
+.home-section-show-all:focused {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.mainmenu-row,
+.mainmenu-recent-grid {
+    -fx-hgap: 16;
+    -fx-vgap: 16;
+    -fx-padding: 4 0 0 0;
+}
+
+.mainmenu-empty-state {
+    -fx-font-size: 13px;
+    -fx-text-fill: #B3B3B3;
+    -fx-padding: 10 0 8 0;
+}
+
+.home-discovery-prompt {
+    -fx-padding: 42 28 42 28;
+    -fx-background-color: #222222;
+    -fx-background-radius: 8;
+    -fx-border-color: #3A3A3A;
+    -fx-border-radius: 8;
+    -fx-border-width: 1;
+}
+
+.home-discovery-prompt-title-row {
+    -fx-alignment: center;
+}
+
+.home-discovery-prompt-title,
+.home-discovery-prompt-link {
+    -fx-font-family: "Archivo";
+    -fx-font-size: 25px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #FAFAFA;
+}
+
+.home-discovery-prompt-link {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-underline: true;
+    -fx-cursor: hand;
+}
+
+.home-discovery-prompt-link:hover,
+.home-discovery-prompt-link:focused {
+    -fx-text-fill: #0077B6;
+    -fx-underline: true;
+}
+
+.home-discovery-prompt-subtitle {
+    -fx-font-family: "Inter";
+    -fx-font-size: 17px;
+    -fx-text-fill: #B3B3B3;
+    -fx-text-alignment: center;
+    -fx-alignment: center;
+}
+
+.home-featured-carousel {
+    -fx-padding: 8 0 0 0;
+    -fx-background-color: transparent;
+    -fx-background-radius: 24;
+    -fx-border-color: transparent;
+    -fx-border-radius: 24;
+    -fx-border-width: 0;
+}
+
+.recently-played-card,
+.recently-played-glass-card {
+    -fx-alignment: center-left;
+    -fx-background-color:
+        linear-gradient(from 0% 0% to 100% 100%, rgba(255,255,255,0.16), rgba(255,255,255,0.04)),
+        rgba(34,34,34,0.92);
+    -fx-background-insets: 0, 1;
+    -fx-background-radius: 12, 11;
+    -fx-border-color: rgba(255,255,255,0.18);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.30), 16, 0.18, 0, 4);
+}
+
+.recently-played-card:hover,
+.recently-played-glass-card:hover {
+    -fx-background-color:
+        linear-gradient(from 0% 0% to 100% 100%, rgba(255,255,255,0.20), rgba(255,255,255,0.06)),
+        rgba(48,48,48,0.96);
+    -fx-border-color: rgba(255,255,255,0.28);
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.38), 18, 0.20, 0, 5);
+}
+
+.recently-played-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFFFFF;
+}
+
+.mainmenu-scroll .scroll-bar:vertical,
+.mainmenu-scroll .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+}
+
+.mainmenu-scroll .scroll-bar:vertical .thumb,
+.mainmenu-scroll .scroll-bar:horizontal .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.18);
+    -fx-background-radius: 8;
+}
+
+.mainmenu-scroll .scroll-bar:vertical .thumb:hover,
+.mainmenu-scroll .scroll-bar:horizontal .thumb:hover {
+    -fx-background-color: rgba(10, 203, 242, 0.46);
+}
+
+.mainmenu-scroll .scroll-bar:vertical .track,
+.mainmenu-scroll .scroll-bar:horizontal .track {
+    -fx-background-color: transparent;
+}

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Text?>
+<?import javafx.scene.text.TextFlow?>
+
+<ScrollPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.SideBarNavigationMenu"
+            fitToWidth="true"
+            hbarPolicy="NEVER"
+            vbarPolicy="AS_NEEDED"
+            pannable="true"
+            minWidth="236"
+            prefWidth="236"
+            maxWidth="236"
+            maxHeight="Infinity"
+            styleClass="left-menu-scroll"
+            stylesheets="@side-bar-navigation-menu.css">
+
+    <VBox spacing="12"
+          minWidth="0"
+          maxWidth="Infinity"
+          maxHeight="Infinity"
+          styleClass="left-menu">
+
+        <HBox alignment="CENTER_LEFT" spacing="10" styleClass="left-menu-brand">
+            <ImageView fx:id="appIcon"
+                       fitWidth="40"
+                       fitHeight="40"
+                       pickOnBounds="true"
+                       preserveRatio="true"
+                       styleClass="left-menu-logo"/>
+            <StackPane alignment="CENTER" minHeight="58" prefHeight="58" maxHeight="58">
+                <TextFlow minHeight="22"
+                          prefHeight="22"
+                          maxHeight="22"
+                          textAlignment="CENTER"
+                          styleClass="left-menu-title">
+                    <Text text="GHD" styleClass="left-menu-title-brand"/>
+                    <Text text="Music" styleClass="left-menu-title-name"/>
+                </TextFlow>
+            </StackPane>
+        </HBox>
+
+        <Button fx:id="btnHome" text="HOME" maxWidth="Infinity"/>
+        <Button fx:id="btnDiscover" text="DISCOVER" maxWidth="Infinity"/>
+        <Button fx:id="btnCreatePlaylist" text="CREATE PLAYLIST" maxWidth="Infinity"/>
+
+        <Label text="Your library" styleClass="left-menu-library-label" />
+
+        <Button fx:id="btnShowAllPlaylists" text="PLAYLISTS" maxWidth="Infinity"/>
+        <Button fx:id="btnShowAllAlbums" text="ALBUMS" maxWidth="Infinity"/>
+        <Button fx:id="btnShowAllSingles" text="SINGLES" maxWidth="Infinity"/>
+        <Button fx:id="btnShowAllArtists" text="ARTISTS" maxWidth="Infinity"/>
+    </VBox>
+</ScrollPane>

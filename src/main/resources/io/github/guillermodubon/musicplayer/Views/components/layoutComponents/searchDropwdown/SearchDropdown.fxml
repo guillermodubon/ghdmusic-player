@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns="http://javafx.com/javafx"
+      xmlns:fx="http://javafx.com/fxml"
+      fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.searchDropdown.SearchDropdownController"
+      fx:id="root"
+      spacing="6"
+      fillWidth="true"
+      stylesheets="@search-dropdown.css">
+    <padding>
+        <Insets top="8" right="8" bottom="8" left="8"/>
+    </padding>
+
+    <ScrollPane fx:id="resultsScrollPane"
+                fitToWidth="true"
+                hbarPolicy="NEVER"
+                vbarPolicy="AS_NEEDED"
+                pannable="true"
+                maxHeight="420">
+        <content>
+            <VBox fx:id="searchResultsBox" spacing="6" fillWidth="true"/>
+        </content>
+    </ScrollPane>
+</VBox>

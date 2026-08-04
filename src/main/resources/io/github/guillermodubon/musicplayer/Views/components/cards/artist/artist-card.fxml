@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.image.ImageView?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+
+<StackPane fx:id="rootPane"
+           xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.cards.ArtistCard"
+           minWidth="156"
+           prefWidth="156"
+           maxWidth="156"
+           minHeight="176"
+           prefHeight="176"
+           maxHeight="176"
+           stylesheets="@artist-card.css"
+           styleClass="artist-card card-root"
+           onMouseEntered="#onHoverEnter"
+           onMouseExited="#onHoverExit">
+
+    <VBox alignment="TOP_CENTER"
+          spacing="8"
+          prefWidth="156"
+          prefHeight="176"
+          maxWidth="Infinity"
+          maxHeight="Infinity"
+          styleClass="artist-card-body">
+        <StackPane fx:id="imageContainer"
+                   alignment="CENTER"
+                   prefWidth="120"
+                   prefHeight="120"
+                   styleClass="artist-image-container">
+            <ImageView fx:id="coverImage"
+                       fitWidth="120"
+                       fitHeight="120"
+                       preserveRatio="true"
+                       pickOnBounds="true" />
+        </StackPane>
+
+        <StackPane fx:id="labelBackground"
+                   alignment="CENTER"
+                   prefWidth="136"
+                   prefHeight="28"
+                   styleClass="artist-label-background">
+            <Label fx:id="nameLabel"
+                   wrapText="true"
+                   maxWidth="132"
+                   styleClass="artist-name-label"/>
+        </StackPane>
+    </VBox>
+</StackPane>

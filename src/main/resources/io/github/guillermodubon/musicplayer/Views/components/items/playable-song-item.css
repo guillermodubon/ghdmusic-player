@@ -1,0 +1,40 @@
+@import "queue-song-item.css";
+
+.playable-song-item {
+    -fx-padding: 8 10 8 10;
+    -fx-background-color: transparent;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent;
+    -fx-border-radius: 8;
+    -fx-min-height: 58;
+    -fx-pref-height: 58;
+    -fx-max-height: 58;
+}
+
+.playable-song-item .queue-song-cover {
+    -fx-opacity: 1.0;
+}
+
+.playable-song-title-row {
+    -fx-min-width: 0;
+}
+
+.song-item-artist-viewport {
+    -fx-min-width: 0;
+    -fx-max-height: 20;
+    -fx-alignment: center-left;
+}
+
+/* Drop marker is declared in the row stylesheet so it wins over the
+   playable-row hover/background rules while a drag is in progress. */
+.queue-song-item.queue-reorder-drop-before {
+    -fx-border-color: #0077B6 transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+    -fx-border-radius: 0;
+}
+
+.queue-song-item.queue-reorder-drop-after {
+    -fx-border-color: transparent transparent #0077B6 transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-border-radius: 0;
+}
