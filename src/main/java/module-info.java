@@ -101,4 +101,3 @@ module io.github.guillermodubon.musicplayer {
 
     opens io.github.guillermodubon.musicplayer.controllers.ui.components.items.musicItems.base to javafx.fxml;
 }
-
