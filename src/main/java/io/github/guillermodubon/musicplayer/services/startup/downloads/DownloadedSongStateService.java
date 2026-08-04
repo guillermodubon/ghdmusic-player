@@ -320,6 +320,34 @@ public final class DownloadedSongStateService {
             albumArtistNames.add(name);
             albumArtistIds.add(id);
         }
+
+        // Keep singles with track id 0 discoverable when the source song still
+        // carries artist data from the screen that initiated the download.
+        boolean hasRealAlbumArtist = albumArtistNames.stream()
+                .filter(name -> name != null && !name.isBlank())
+                .map(name -> name.trim().toLowerCase(Locale.ROOT))
+                .anyMatch(name -> !name.equals("unknown")
+                        && !name.equals("unknown artist")
+                        && !name.equals("desconocido"));
+
+        if (!hasRealAlbumArtist && sourceSong.getArtist() != null) {
+            for (Artist artist : sourceSong.getArtist()) {
+                if (artist == null || artist.getName() == null || artist.getName().isBlank()) {
+                    continue;
+                }
+
+                String name = artist.getName().trim();
+                long id = Math.max(0L, artist.getArtistID());
+                String identityKey = id > 0
+                        ? "id:" + id
+                        : "name:" + name.toLowerCase(Locale.ROOT);
+                if (!albumArtistIdentityKeys.add(identityKey)) continue;
+
+                albumArtistNames.add(name);
+                albumArtistIds.add(id);
+            }
+        }
+
         List<String> contributorNames = artistNames(sourceSong);
         List<Long> contributorIds = artistIds(sourceSong);
 
@@ -363,9 +391,7 @@ public final class DownloadedSongStateService {
         if (song.getArtist() == null) return List.of();
         return song.getArtist().stream()
                 .filter(Objects::nonNull)
-                .map(Artist::getArtistID)
-                .filter(id -> id != null && id > 0)
-                .distinct()
+                .map(artist -> Math.max(0L, artist.getArtistID()))
                 .toList();
     }
 

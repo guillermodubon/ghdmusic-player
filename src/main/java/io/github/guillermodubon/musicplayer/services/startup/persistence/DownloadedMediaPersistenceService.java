@@ -4,9 +4,11 @@ import javafx.util.Pair;
 import io.github.guillermodubon.musicplayer.repository.DbConnectionManager;
 import io.github.guillermodubon.musicplayer.models.Album;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
+import io.github.guillermodubon.musicplayer.models.Playlist;
 import io.github.guillermodubon.musicplayer.models.Song;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 import io.github.guillermodubon.musicplayer.services.startup.hydration.ModelHydrationService;
+import io.github.guillermodubon.musicplayer.services.api.DeezerHttpClient;
 import io.github.guillermodubon.musicplayer.services.startup.persistence.RemoteAlbumPromotionService;
 import io.github.guillermodubon.musicplayer.utils.ArtistIdentity;
 
@@ -45,6 +47,14 @@ public final class DownloadedMediaPersistenceService {
 
     public void persist(DeezerApiMetaData metadata, File file) {
         if (metadata == null || file == null) return;
+
+        /*
+         * A fallback single can have no Deezer track id while still carrying
+         * the cover URL that was rendered in PlayerMenu. Resolve that cover
+         * before entering the transaction so the durable AlbumImage is never
+         * dependent on the screen remaining open after the download.
+         */
+        ensureFallbackCoverBytes(metadata);
 
         long albumId = metadata.getAlbumId();
         boolean albumAlreadyPrepared = albumId > 0 && preparedAlbumIds.contains(albumId);
@@ -150,6 +160,7 @@ public final class DownloadedMediaPersistenceService {
             for (String artist : allArtistNames(metadata)) {
                 owner.putTitleToPath(artist + " " + metadata.getSongName(), file.getAbsolutePath());
             }
+            replaceLegacyPlaceholderReferences(ids, metadata, file);
             if (!hydrateAlbum) {
                 markCanonicalSongLocal(ids, metadata, file);
             }
@@ -329,6 +340,7 @@ public final class DownloadedMediaPersistenceService {
                 ps.setLong(5, songId);
                 ps.executeUpdate();
             }
+            migrateLegacyPlaceholderSong(conn, metadata, albumId, songId);
             return songId;
         }
 
@@ -342,6 +354,7 @@ public final class DownloadedMediaPersistenceService {
                 ps.setString(5, file.getAbsolutePath());
                 ps.executeUpdate();
             }
+            migrateLegacyPlaceholderSong(conn, metadata, albumId, metadata.getTrackId());
             return metadata.getTrackId();
         }
 
@@ -354,10 +367,124 @@ public final class DownloadedMediaPersistenceService {
             ps.setString(4, file.getAbsolutePath());
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
-                if (rs.next()) return rs.getLong(1);
+                if (rs.next()) {
+                    long generatedId = rs.getLong(1);
+                    migrateLegacyPlaceholderSong(conn, metadata, albumId, generatedId);
+                    return generatedId;
+                }
             }
         }
         throw new IllegalStateException("Could not create local song row for " + metadata.getSongName());
+    }
+
+    /**
+     * Older scans can leave one placeholder row with SongID=0. Promote its
+     * relations to the generated local id before removing it, otherwise the
+     * incomplete row can win the next in-memory deduplication pass.
+     */
+    private void migrateLegacyPlaceholderSong(
+            Connection conn,
+            DeezerApiMetaData metadata,
+            long albumId,
+            long generatedId
+    ) throws Exception {
+        if (conn == null || metadata == null || generatedId <= 0) return;
+
+        String title = metadata.getSongName();
+        if (title == null || title.isBlank()) return;
+
+        try (PreparedStatement exists = conn.prepareStatement(
+                "SELECT 1 FROM Song WHERE SongID = 0 AND Album = ? AND lower(Title) = lower(?) LIMIT 1")) {
+            exists.setLong(1, albumId);
+            exists.setString(2, title);
+            try (ResultSet rs = exists.executeQuery()) {
+                if (!rs.next()) return;
+            }
+        }
+
+        try (PreparedStatement copyArtists = conn.prepareStatement(
+                "INSERT OR IGNORE INTO SongArtist(SongID, ArtistID) SELECT ?, ArtistID FROM SongArtist WHERE SongID = 0")) {
+            copyArtists.setLong(1, generatedId);
+            copyArtists.executeUpdate();
+        }
+        try (PreparedStatement copyPlaylistLinks = conn.prepareStatement(
+                "INSERT OR IGNORE INTO SongsPlaylists(SongID, PlaylistID, Position, CustomPosition, CreatedAt) "
+                        + "SELECT ?, PlaylistID, Position, CustomPosition, CreatedAt FROM SongsPlaylists WHERE SongID = 0")) {
+            copyPlaylistLinks.setLong(1, generatedId);
+            copyPlaylistLinks.executeUpdate();
+        }
+        try (Statement statement = conn.createStatement()) {
+            statement.executeUpdate("DELETE FROM SongArtist WHERE SongID = 0");
+            statement.executeUpdate("DELETE FROM SongsPlaylists WHERE SongID = 0");
+        }
+        try (PreparedStatement deleteSong = conn.prepareStatement(
+                "DELETE FROM Song WHERE SongID = 0 AND Album = ? AND lower(Title) = lower(?)")) {
+            deleteSong.setLong(1, albumId);
+            deleteSong.setString(2, title);
+            deleteSong.executeUpdate();
+        }
+    }
+
+    private void replaceLegacyPlaceholderReferences(
+            PersistedIds ids,
+            DeezerApiMetaData metadata,
+            File file
+    ) {
+        if (ids == null || ids.songId() <= 0 || metadata == null) return;
+
+        Song canonical = null;
+        synchronized (owner.getSongs()) {
+            for (Song song : owner.getSongs()) {
+                if (song != null && song.getSongID() == ids.songId()) {
+                    song.setLocal(true);
+                    if (file != null) song.setFilePath(file.getAbsolutePath());
+                    canonical = song;
+                    break;
+                }
+            }
+
+            if (canonical == null) return;
+
+            owner.getSongs().removeIf(song -> isLegacyPlaceholder(song, ids, metadata));
+        }
+
+        synchronized (owner.getAlbums()) {
+            for (Album album : owner.getAlbums()) {
+                if (album == null || album.getSongList() == null) continue;
+                for (int index = 0; index < album.getSongList().size(); index++) {
+                    Song song = album.getSongList().get(index);
+                    if (isLegacyPlaceholder(song, ids, metadata)) {
+                        album.getSongList().set(index, canonical);
+                    }
+                }
+            }
+        }
+
+        synchronized (owner.getPlaylists()) {
+            for (Playlist playlist : owner.getPlaylists()) {
+                if (playlist == null || playlist.getSongList() == null) continue;
+                for (int index = 0; index < playlist.getSongList().size(); index++) {
+                    Song song = playlist.getSongList().get(index);
+                    if (isLegacyPlaceholder(song, ids, metadata)) {
+                        playlist.getSongList().set(index, canonical);
+                    }
+                }
+            }
+        }
+    }
+
+    private boolean isLegacyPlaceholder(
+            Song song,
+            PersistedIds ids,
+            DeezerApiMetaData metadata
+    ) {
+        if (song == null || song.getSongID() != 0 || song.getTitle() == null || metadata.getSongName() == null) {
+            return false;
+        }
+        if (!song.getTitle().equalsIgnoreCase(metadata.getSongName())) return false;
+        return song.getAlbum() == null
+                || song.getAlbum().getAlbumID() <= 0
+                || song.getAlbum().getAlbumID() == ids.albumId();
     }
 
     private long findExistingSong(Connection conn, DeezerApiMetaData metadata, long albumId, File file) throws Exception {
@@ -422,6 +549,29 @@ public final class DownloadedMediaPersistenceService {
                 insert.executeUpdate();
             }
         }
+    }
+
+    private void ensureFallbackCoverBytes(DeezerApiMetaData metadata) {
+        if (metadata == null
+                || metadata.getTrackId() > 0
+                || hasImageBytes(metadata.getAlbumCoverBytesList())) return;
+
+        String coverUrl = metadata.getAlbumCoverUrl();
+        if (coverUrl == null || coverUrl.isBlank()) return;
+
+        try {
+            byte[] cover = DeezerHttpClient.downloadUrlToBytesStatic(coverUrl.trim());
+            if (cover != null && cover.length > 0) {
+                metadata.setAlbumCoverBytesList(List.of(cover));
+            }
+        } catch (Exception ignored) {
+            // A missing cover must never prevent persistence of the song itself.
+        }
+    }
+
+    private boolean hasImageBytes(List<byte[]> images) {
+        if (images == null || images.isEmpty()) return false;
+        return images.stream().anyMatch(image -> image != null && image.length > 0);
     }
 
     private void insertArtistImages(
