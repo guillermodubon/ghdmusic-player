@@ -9,6 +9,8 @@ import javafx.scene.Scene;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
+import javafx.geometry.Rectangle2D;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 
 import java.util.Objects;
@@ -17,8 +19,8 @@ import java.util.function.BiConsumer;
 /** Owns the fixed, non-interactive splash window and its temporary stage policy. */
 public final class SplashWindowLauncher {
 
-    private static final double SPLASH_WIDTH = 560;
-    private static final double SPLASH_HEIGHT = 400;
+    private static final double MIN_SPLASH_SIZE = 320;
+    private static final double MAX_SPLASH_SIZE = 500;
     private static final String SPLASH_VIEW =
             "/io/github/guillermodubon/musicplayer/Views/screens/splashScreen/SplashScreen.fxml";
 
@@ -83,12 +85,21 @@ public final class SplashWindowLauncher {
             }
         });
 
-        stage.setMinWidth(SPLASH_WIDTH);
-        stage.setMaxWidth(SPLASH_WIDTH);
-        stage.setMinHeight(SPLASH_HEIGHT);
-        stage.setMaxHeight(SPLASH_HEIGHT);
-        stage.setWidth(SPLASH_WIDTH);
-        stage.setHeight(SPLASH_HEIGHT);
+        double splashSize = resolveSplashSize();
+        stage.setMinWidth(splashSize);
+        stage.setMaxWidth(splashSize);
+        stage.setMinHeight(splashSize);
+        stage.setMaxHeight(splashSize);
+        stage.setWidth(splashSize);
+        stage.setHeight(splashSize);
         stage.centerOnScreen();
+    }
+
+    private double resolveSplashSize() {
+        Rectangle2D visualBounds = Screen.getPrimary().getVisualBounds();
+        double availableWidth = visualBounds.getWidth() * 0.80;
+        double availableHeight = visualBounds.getHeight() * 0.86;
+        double available = Math.min(availableWidth, availableHeight);
+        return Math.max(MIN_SPLASH_SIZE, Math.min(MAX_SPLASH_SIZE, available));
     }
 }
