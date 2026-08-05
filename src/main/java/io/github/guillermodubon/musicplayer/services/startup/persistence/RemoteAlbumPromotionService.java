@@ -293,7 +293,6 @@ public class RemoteAlbumPromotionService {
 
                     try (Statement st = conn.createStatement()) {
                         try { st.execute("PRAGMA busy_timeout = 5000"); } catch (Exception ignore) {}
-                        try { st.execute("PRAGMA journal_mode = WAL"); } catch (Exception ignore) {}
                     } catch (Exception ignore) {
                     }
 
