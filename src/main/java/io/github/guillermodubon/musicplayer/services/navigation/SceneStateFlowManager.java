@@ -30,6 +30,7 @@ public class SceneStateFlowManager {
     public static final String NAVIGATION_FACTORY_KEY = "navigationFactory";
     public static final String SCREEN_KEY_PROPERTY = "screenKey";
     public static final String TRANSIENT_SCREEN_PROPERTY = "navigationTransient";
+    public static final String NAVIGATION_IDENTITY_PROPERTY = "navigationIdentity";
 
     public static SceneStateFlowManager getInstance() {
         return INSTANCE;
@@ -101,13 +102,20 @@ public class SceneStateFlowManager {
                     if (snap == null) snap = tryCaptureStateFromController(current);
                 } catch (Exception ignored) {}
 
-                if (!isDuplicateOfLast(current, snap)) {
+                String currentIdentity = navigationIdentity(current);
+                if (!isDuplicateOfLast(current, snap, currentIdentity)) {
                     BiConsumer<Parent, Map<String, Object>> restore =
                             restoreAction != null ? restoreAction : createRestoreActionFromController(current);
 
                     Supplier<Parent> factory = navigationFactory(current);
                     if (factory != null) {
-                        backStack.addLast(new SceneHistoryEntry(factory, snap, restore, controllerClassName(current)));
+                        backStack.addLast(new SceneHistoryEntry(
+                                factory,
+                                snap,
+                                restore,
+                                controllerClassName(current),
+                                currentIdentity
+                        ));
                     }
                     while (backStack.size() > MAX_HISTORY) backStack.removeFirst();
                     forwardStack.clear();
@@ -129,10 +137,18 @@ public class SceneStateFlowManager {
 
             Map<String, Object> curSnap = tryCaptureStateFromController(current);
             BiConsumer<Parent, Map<String, Object>> curRestore = createRestoreActionFromController(current);
-            if (current != null && !isTransientScreen(current) && !isDuplicateOfLast(current, curSnap)) {
+            String currentIdentity = navigationIdentity(current);
+            if (current != null && !isTransientScreen(current)
+                    && !isDuplicateOfLast(current, curSnap, currentIdentity)) {
                 Supplier<Parent> currentFactory = navigationFactory(current);
                 if (currentFactory != null) {
-                    forwardStack.addLast(new SceneHistoryEntry(currentFactory, curSnap, curRestore, controllerClassName(current)));
+                    forwardStack.addLast(new SceneHistoryEntry(
+                            currentFactory,
+                            curSnap,
+                            curRestore,
+                            controllerClassName(current),
+                            currentIdentity
+                    ));
                 }
                 while (forwardStack.size() > MAX_HISTORY) forwardStack.removeFirst();
             }
@@ -194,10 +210,18 @@ public class SceneStateFlowManager {
 
             Map<String, Object> curSnap = tryCaptureStateFromController(current);
             BiConsumer<Parent, Map<String, Object>> curRestore = createRestoreActionFromController(current);
-            if (current != null && !isTransientScreen(current) && !isDuplicateOfLast(current, curSnap)) {
+            String currentIdentity = navigationIdentity(current);
+            if (current != null && !isTransientScreen(current)
+                    && !isDuplicateOfLast(current, curSnap, currentIdentity)) {
                 Supplier<Parent> currentFactory = navigationFactory(current);
                 if (currentFactory != null) {
-                    backStack.addLast(new SceneHistoryEntry(currentFactory, curSnap, curRestore, controllerClassName(current)));
+                    backStack.addLast(new SceneHistoryEntry(
+                            currentFactory,
+                            curSnap,
+                            curRestore,
+                            controllerClassName(current),
+                            currentIdentity
+                    ));
                 }
                 while (backStack.size() > MAX_HISTORY) backStack.removeFirst();
             }
@@ -244,9 +268,13 @@ public class SceneStateFlowManager {
         else Platform.runLater(update);
     }
 
-    private boolean isDuplicateOfLast(Parent current, Map<String, Object> snap) {
+    private boolean isDuplicateOfLast(Parent current, Map<String, Object> snap, String currentIdentity) {
         SceneHistoryEntry last = backStack.peekLast();
         if (last == null) return false;
+
+        if (currentIdentity != null && !currentIdentity.isBlank()) {
+            return Objects.equals(last.navigationIdentity(), currentIdentity);
+        }
 
         String currClass = controllerClassName(current);
         if (!Objects.equals(last.controllerClassName(), currClass)) return false;
@@ -259,6 +287,12 @@ public class SceneStateFlowManager {
         }
 
         return false;
+    }
+
+    private String navigationIdentity(Parent view) {
+        if (view == null) return null;
+        Object value = safeGet(() -> view.getProperties().get(NAVIGATION_IDENTITY_PROPERTY));
+        return value instanceof String identity && !identity.isBlank() ? identity : null;
     }
 
     private boolean isTransientScreen(Parent view) {

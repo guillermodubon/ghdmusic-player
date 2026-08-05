@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
 
 public class PlayerMenuNavigator {
 
+    private static final String PLAYER_MENU_IDENTITY_PREFIX = "player-menu:";
+
     private final StartUpService svc;
     private MusicCardActionManager musicCardActionManager;
     private final AtomicLong openRequestSequence = new AtomicLong();
@@ -97,6 +99,13 @@ public class PlayerMenuNavigator {
         if (!isOpenRequestCurrent(requestId)) return;
         if (!isSourceStillAttached(probe)) return;
 
+        /*
+         * Album metadata can arrive in two phases: a fast local view followed
+         * by the complete Deezer track list. Update that visible controller in
+         * place instead of creating a second history entry for the same view.
+         */
+        if (updateVisiblePlayerMenuIfSameSource(pl, type, requestId)) return;
+
         try {
             if (!isOpenRequestCurrent(requestId)) return;
             if (!isSourceStillAttached(probe)) return;
@@ -134,6 +143,7 @@ public class PlayerMenuNavigator {
             Parent view = loader.load();
             Object controllerObj = loader.getController();
             if (view != null && controllerObj != null) view.getProperties().put("controller", controllerObj);
+            markPlayerMenuIdentity(view, pl, type);
             if (view != null && isLoadingRemotePlaylist(pl)) {
                 SceneStateFlowManager.markTransient(view, true);
             }
@@ -408,6 +418,7 @@ public class PlayerMenuNavigator {
             if (!(controllerObj instanceof PlayerMenuController ctrl)) return null;
 
             view.getProperties().put("controller", ctrl);
+            markPlayerMenuIdentity(view, playlist, type);
             if (isLoadingRemotePlaylist(playlist)) {
                 SceneStateFlowManager.markTransient(view, true);
             }
@@ -427,6 +438,46 @@ public class PlayerMenuNavigator {
             t.printStackTrace();
             return null;
         }
+    }
+
+    private boolean updateVisiblePlayerMenuIfSameSource(
+            Playlist playlist,
+            PlayerMenuContext.ContentType type,
+            long requestId
+    ) {
+        if (playlist == null || type == null || !Platform.isFxApplicationThread()) return false;
+
+        PlayerMenuController visible = PlaybackManager.getInstance().getMenuController();
+        if (visible == null
+                || !visible.isCurrentCenterViewVisible()
+                || visible.getCurrentPlaylistInViewId() != playlist.getId()
+                || visible.getCurrentContentTypeInView() != type) {
+            return false;
+        }
+
+        Platform.runLater(() -> {
+            if (!isOpenRequestCurrent(requestId)) return;
+            PlayerMenuController current = PlaybackManager.getInstance().getMenuController();
+            if (current == visible
+                    && current.isCurrentCenterViewVisible()
+                    && current.getCurrentPlaylistInViewId() == playlist.getId()
+                    && current.getCurrentContentTypeInView() == type) {
+                current.updatePlaylistContent(playlist);
+            }
+        });
+        return true;
+    }
+
+    private void markPlayerMenuIdentity(
+            Parent view,
+            Playlist playlist,
+            PlayerMenuContext.ContentType type
+    ) {
+        if (view == null || playlist == null || type == null) return;
+        view.getProperties().put(
+                SceneStateFlowManager.NAVIGATION_IDENTITY_PROPERTY,
+                PLAYER_MENU_IDENTITY_PREFIX + type.name() + ":" + playlist.getId()
+        );
     }
 
     private boolean isLoadingRemotePlaylist(Playlist playlist) {
