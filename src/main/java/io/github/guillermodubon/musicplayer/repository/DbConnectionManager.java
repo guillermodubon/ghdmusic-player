@@ -3,6 +3,7 @@ package io.github.guillermodubon.musicplayer.repository;
 import io.github.guillermodubon.musicplayer.repository.userData.UserDataPaths;
 
 import java.sql.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 public class DbConnectionManager {
@@ -12,6 +13,8 @@ public class DbConnectionManager {
     private static final int MAX_RETRIES = 6;
     private static volatile DbConnectionManager instance;
     private final String dbUrl;
+    private final Object transactionLock = new Object();
+    private final AtomicBoolean walModeConfigured = new AtomicBoolean(false);
 
     private DbConnectionManager(String dbFile) {
         this.dbUrl = JDBC_PREFIX + dbFile;
@@ -42,12 +45,28 @@ public class DbConnectionManager {
         if (conn == null) return;
         try (Statement st = conn.createStatement()) {
             st.execute("PRAGMA foreign_keys = ON");
-            st.execute("PRAGMA journal_mode = WAL"); // WAL gives better concurrency for reads/writes
             st.execute("PRAGMA synchronous = NORMAL"); // trade durability for speed
             st.execute("PRAGMA busy_timeout = " + DEFAULT_BUSY_TIMEOUT_MS);
-            // other optional pragmas...
         } catch (SQLException ex) {
-            System.err.println("DbConnectionManager.configureConnection: warn - could not set PRAGMAs -> " + ex.getMessage());
+            System.err.println("DbConnectionManager.configureConnection: warn - could not set connection PRAGMAs -> " + ex.getMessage());
+        }
+
+        /*
+         * journal_mode is persistent for the database file. Reapplying it on
+         * every connection can itself request a locking transition, especially
+         * while another screen is writing. Configure it once and never from a
+         * connection that is already inside a transaction.
+         */
+        try {
+            if (conn.getAutoCommit() && walModeConfigured.compareAndSet(false, true)) {
+                try (Statement st = conn.createStatement()) {
+                    st.execute("PRAGMA journal_mode = WAL");
+                } catch (SQLException ex) {
+                    walModeConfigured.set(false);
+                    System.err.println("DbConnectionManager.configureConnection: warn - could not enable WAL -> " + ex.getMessage());
+                }
+            }
+        } catch (SQLException ignored) {
         }
     }
 
@@ -64,20 +83,50 @@ public class DbConnectionManager {
                 return fn.apply(c);
             } catch (SQLException ex) {
                 lastEx = ex;
-                String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase() : "";
-                System.out.println("DbConnectionManager.runWithRetries: attempt " + attempt + " failed -> " + msg);
-                if (msg.contains("database is locked") || msg.contains("busy") || isSqliteBusy(ex)) {
-                    try {
-                        long sleep = Math.min(base * (1L << (attempt-1)), 5000);
-                        Thread.sleep(sleep);
-                    } catch (InterruptedException ie) { Thread.currentThread().interrupt(); throw new SQLException("Interrupted while retrying DB operation", ie); }
-                    continue;
-                } else {
-                    throw ex;
-                }
+                if (shouldRetry(ex, attempt, base)) continue;
+                throw ex;
+            } catch (RuntimeException ex) {
+                /*
+                 * Function cannot declare checked SQLExceptions, so
+                 * transactional callers commonly wrap them in RuntimeException.
+                 * Unwrap those here so SQLITE_BUSY receives the same retry path.
+                 */
+                SQLException sqlException = findSQLException(ex);
+                if (sqlException == null) throw ex;
+
+                lastEx = sqlException;
+                if (shouldRetry(sqlException, attempt, base)) continue;
+                throw sqlException;
             }
         }
         throw lastEx != null ? lastEx : new SQLException("Unknown DB error after retries");
+    }
+
+    private boolean shouldRetry(SQLException ex, int attempt, long base) throws SQLException {
+        String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase() : "";
+        System.out.println("DbConnectionManager.runWithRetries: attempt " + attempt + " failed -> " + msg);
+        if (!(msg.contains("database is locked") || msg.contains("busy") || isSqliteBusy(ex))) {
+            return false;
+        }
+        if (attempt >= MAX_RETRIES) return false;
+
+        try {
+            long sleep = Math.min(base * (1L << (attempt - 1)), 5000);
+            Thread.sleep(sleep);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new SQLException("Interrupted while retrying DB operation", interrupted);
+        }
+        return true;
+    }
+
+    private SQLException findSQLException(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof SQLException sqlException) return sqlException;
+            current = current.getCause();
+        }
+        return null;
     }
 
     private boolean isSqliteBusy(SQLException ex) {
@@ -89,31 +138,24 @@ public class DbConnectionManager {
 
     /** Helper to run a transactional unit of work with commit/rollback and retries on busy. */
     public <T> T runInTransaction(Function<Connection,T> unit) throws SQLException {
-        return runWithRetries(conn -> {
-            try {
-                boolean prevAuto = conn.getAutoCommit();
-                conn.setAutoCommit(false);
+        synchronized (transactionLock) {
+            return runWithRetries(conn -> {
                 try {
-                    T res = unit.apply(conn);
+                    conn.setAutoCommit(false);
+                    T result = unit.apply(conn);
                     conn.commit();
-                    return res;
-                } catch (RuntimeException | SQLException e) {
-                    try { conn.rollback(); } catch (Exception ignore) {}
-                    throw e;
+                    return result;
+                } catch (RuntimeException error) {
+                    try { conn.rollback(); } catch (Exception ignored) {}
+                    throw error;
+                } catch (SQLException error) {
+                    try { conn.rollback(); } catch (Exception ignored) {}
+                    throw new RuntimeException(error);
                 } finally {
-                    try { conn.setAutoCommit(true); } catch (Exception ignore) {}
+                    try { conn.setAutoCommit(true); } catch (Exception ignored) {}
                 }
-            } catch (RuntimeException rte) {
-                if (rte.getCause() instanceof SQLException) try {
-                    throw (SQLException) rte.getCause();
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
-                throw rte;
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
-        });
+            });
+        }
     }
 
 }
