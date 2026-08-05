@@ -12,6 +12,7 @@ public final class SceneHistoryEntry {
     private final Map<String, Object> state;
     private final BiConsumer<Parent, Map<String, Object>> restoreAction;
     private final String controllerClassName;
+    private final String navigationIdentity;
 
     public SceneHistoryEntry(
             Supplier<Parent> viewFactory,
@@ -19,10 +20,21 @@ public final class SceneHistoryEntry {
             BiConsumer<Parent, Map<String, Object>> restoreAction,
             String controllerClassName
     ) {
+        this(viewFactory, state, restoreAction, controllerClassName, null);
+    }
+
+    public SceneHistoryEntry(
+            Supplier<Parent> viewFactory,
+            Map<String, Object> state,
+            BiConsumer<Parent, Map<String, Object>> restoreAction,
+            String controllerClassName,
+            String navigationIdentity
+    ) {
         this.viewFactory = viewFactory;
         this.state = state;
         this.restoreAction = restoreAction;
         this.controllerClassName = controllerClassName;
+        this.navigationIdentity = navigationIdentity;
     }
 
     public Parent createView() {
@@ -43,5 +55,9 @@ public final class SceneHistoryEntry {
 
     public String controllerClassName() {
         return controllerClassName;
+    }
+
+    public String navigationIdentity() {
+        return navigationIdentity;
     }
 }
