@@ -73,5 +73,4 @@ The following files are intentionally not tracked:
 - Environment files, credentials, private keys, and local secrets.
 
 The FFmpeg and yt-dlp executables are kept in the source tree because the
-application and packaging scripts require them. Do not remove their license
-notices when distributing the application.
+application and packaging scripts require them.
