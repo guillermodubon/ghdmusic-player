@@ -45,7 +45,6 @@ public class ModelHydrationService {
         // Apply per-connection PRAGMAs to reduce SQLITE_BUSY windows
         try (Statement st = conn.createStatement()) {
             try { st.execute("PRAGMA busy_timeout = 5000"); } catch (Exception ignore) {}
-            try { st.execute("PRAGMA journal_mode = WAL"); } catch (Exception ignore) {}
         } catch (SQLException e) {
             System.out.println("loadModels: warning applying PRAGMA -> " + Optional.ofNullable(e.getMessage()).orElse("null"));
         }
