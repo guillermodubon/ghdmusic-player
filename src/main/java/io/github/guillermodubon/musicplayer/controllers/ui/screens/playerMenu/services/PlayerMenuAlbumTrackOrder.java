@@ -20,18 +20,35 @@ public final class PlayerMenuAlbumTrackOrder {
             return songs == null ? List.of() : new ArrayList<>(songs);
         }
 
-        // If no track position is available, preserve the source sequence.
-        // That sequence may already be the one returned by Deezer, and there
-        // is no safe metadata-based order to derive from zero-valued tracks.
-        boolean hasTrackOrder = songs.stream()
-                .filter(song -> song != null)
-                .anyMatch(song -> song.getTrackOrder() > 0);
-        if (!hasTrackOrder) {
+        /*
+         * A partially downloaded album can contain local songs beside remote
+         * visual songs. Local metadata may carry a normalized/default track
+         * position, so sorting that mixed snapshot can move only the playable
+         * rows even though the source list is already in Deezer's order.
+         * Keep that source sequence stable while the album has both states.
+         */
+        boolean hasLocalSongs = songs.stream().anyMatch(song -> song != null && song.isLocal());
+        boolean hasRemoteSongs = songs.stream().anyMatch(song -> song != null && !song.isLocal());
+        if (hasLocalSongs && hasRemoteSongs) {
             return new ArrayList<>(songs);
         }
 
-        // List.sort is stable: equal/unknown positions keep the source order
-        // while known Deezer positions are placed before missing metadata.
+        /*
+         * A download can enrich only part of an album with track positions.
+         * Sorting at that point would move the enriched tracks ahead of the
+         * remaining visual tracks and would destroy Deezer's original order.
+         * Until every row has a valid position, the source sequence is the
+         * only complete and stable order available.
+         */
+        boolean hasCompleteTrackOrder = songs.stream()
+                .allMatch(song -> song != null && song.getTrackOrder() > 0);
+        if (!hasCompleteTrackOrder) {
+            return new ArrayList<>(songs);
+        }
+
+        // Once the complete album metadata is available, use Deezer's track
+        // positions. List.sort remains stable if an upstream source repeats a
+        // position, preserving the existing sequence for that tie.
         List<Song> ordered = new ArrayList<>(songs);
         ordered.sort(Comparator.comparingInt(PlayerMenuAlbumTrackOrder::sortTrackOrder));
         return ordered;
