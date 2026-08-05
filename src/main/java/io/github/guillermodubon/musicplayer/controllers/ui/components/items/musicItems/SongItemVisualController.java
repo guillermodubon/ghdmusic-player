@@ -107,8 +107,8 @@ public class SongItemVisualController extends BaseSongCellController {
     }
 
     public void init(Song s) {
+        long expectedGeneration = beginSongRender(s);
         this.currentSong = s;
-        this.song = s;
 
         displayedArtists.clear();
 
@@ -136,7 +136,7 @@ public class SongItemVisualController extends BaseSongCellController {
 
         notifyLoadedIfAny();
 
-        loadAsyncArtistsIfNeeded();
+        loadAsyncArtistsIfNeeded(expectedGeneration, s);
         bindPreviewAction();
         bindDownloadAction();
         bindAddToPlaylistAction();
@@ -146,7 +146,7 @@ public class SongItemVisualController extends BaseSongCellController {
         return SongArtistResolver.resolveParticipants(s);
     }
 
-    private void loadAsyncArtistsIfNeeded() {
+    private void loadAsyncArtistsIfNeeded(long expectedGeneration, Song expectedSong) {
         if (artistHydrationDelegated
                 || svc == null
                 || currentSong == null
@@ -156,19 +156,26 @@ public class SongItemVisualController extends BaseSongCellController {
         List<Artist> cached = svc.getCachedTrackArtists(tid);
 
         if (cached != null && !cached.isEmpty()) {
-            mergeArtistsAndRefresh(cached);
+            mergeArtistsAndRefresh(cached, expectedGeneration, expectedSong);
             return;
         }
 
-        svc.ensureTrackArtistsLoadedAsync(tid, currentSong, () -> {
-            if (currentSong == null || currentSong.getSongID() != tid) return;
-            List<Artist> got = svc.getCachedTrackArtists(tid);
-            mergeArtistsAndRefresh(got);
-        });
+        svc.ensureTrackArtistsLoadedAsync(tid, expectedSong, () ->
+                Platform.runLater(() -> {
+                    if (!isCurrentRender(expectedGeneration)
+                            || !isCurrentSong(expectedSong)
+                            || currentSong == null
+                            || currentSong.getSongID() != tid) return;
+                    List<Artist> got = svc.getCachedTrackArtists(tid);
+                    mergeArtistsAndRefresh(got, expectedGeneration, expectedSong);
+                }));
     }
 
-    private void mergeArtistsAndRefresh(List<Artist> extra) {
+    private void mergeArtistsAndRefresh(List<Artist> extra,
+                                        long expectedGeneration,
+                                        Song expectedSong) {
         if (extra == null || extra.isEmpty()) return;
+        if (!isCurrentRender(expectedGeneration) || !isCurrentSong(expectedSong)) return;
 
         List<Artist> merged = SongArtistResolver.merge(displayedArtists, extra);
 
@@ -176,9 +183,8 @@ public class SongItemVisualController extends BaseSongCellController {
         displayedArtists.addAll(merged);
 
         List<Artist> finalMerged = merged;
-        long expectedSongId = currentSong == null ? -1L : currentSong.getSongID();
         Platform.runLater(() -> {
-            if (currentSong == null || currentSong.getSongID() != expectedSongId) return;
+            if (!isCurrentRender(expectedGeneration) || !isCurrentSong(expectedSong)) return;
             renderArtistLinks(finalMerged);
             notifyLoadedIfAny();
         });

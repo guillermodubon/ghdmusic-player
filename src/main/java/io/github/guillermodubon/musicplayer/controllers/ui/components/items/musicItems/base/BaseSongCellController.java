@@ -51,6 +51,7 @@ public abstract class BaseSongCellController {
     protected double coverDecodeWidth = 72;
     protected double coverDecodeHeight = 72;
     private boolean deferCoverResolution;
+    private long renderGeneration;
 
     public void setStartUpService(StartUpService svc) {
         this.svc = svc;
@@ -87,11 +88,26 @@ public abstract class BaseSongCellController {
     }
 
     protected void bindSongBasics(Song song) {
-        this.song = song;
+        beginSongRender(song);
         titleLabel.setText(resolveTitle(song));
         refreshTitleMarquee();
         coverView.setImage(resolveInitialCover(song));
         renderArtists(resolveArtists(song));
+    }
+
+    /** Starts a new render so late async work cannot update a reused cell. */
+    protected long beginSongRender(Song song) {
+        renderGeneration++;
+        this.song = song;
+        return renderGeneration;
+    }
+
+    protected boolean isCurrentRender(long expectedGeneration) {
+        return renderGeneration == expectedGeneration;
+    }
+
+    protected long currentRenderGeneration() {
+        return renderGeneration;
     }
 
     protected String resolveTitle(Song song) {
@@ -130,6 +146,8 @@ public abstract class BaseSongCellController {
     public void loadCoverAsync(Song expectedSong) {
         if (!deferCoverResolution || expectedSong == null || coverView == null) return;
 
+        long expectedGeneration = renderGeneration;
+
         Image cached = MediaImageResolver.cachedSongAlbumCover(
                 expectedSong,
                 coverPreferredType,
@@ -143,7 +161,9 @@ public abstract class BaseSongCellController {
                 .thenAccept(resolved -> {
                     if (!isUsableImage(resolved)) return;
                     Platform.runLater(() -> {
-                        if (isCurrentSong(expectedSong) && coverView != null) {
+                        if (isCurrentRender(expectedGeneration)
+                                && isCurrentSong(expectedSong)
+                                && coverView != null) {
                             coverView.setImage(resolved);
                         }
                     });
@@ -151,12 +171,27 @@ public abstract class BaseSongCellController {
                 .exceptionally(ignored -> null);
     }
 
-    private boolean isCurrentSong(Song expectedSong) {
+    protected boolean isCurrentSong(Song expectedSong) {
         if (expectedSong == null || song == null) return false;
         if (song == expectedSong) return true;
-        return song.getSongID() > 0
-                && expectedSong.getSongID() > 0
-                && song.getSongID() == expectedSong.getSongID();
+
+        if (song.getSongID() <= 0
+                || expectedSong.getSongID() <= 0
+                || song.getSongID() != expectedSong.getSongID()) {
+            return false;
+        }
+
+        long currentAlbumId = song.getAlbum() == null ? 0L : song.getAlbum().getAlbumID();
+        long expectedAlbumId = expectedSong.getAlbum() == null ? 0L : expectedSong.getAlbum().getAlbumID();
+        if (currentAlbumId > 0 && expectedAlbumId > 0 && currentAlbumId != expectedAlbumId) {
+            return false;
+        }
+
+        int currentTrackOrder = song.getTrackOrder();
+        int expectedTrackOrder = expectedSong.getTrackOrder();
+        return currentTrackOrder <= 0
+                || expectedTrackOrder <= 0
+                || currentTrackOrder == expectedTrackOrder;
     }
 
     private boolean isUsableImage(Image image) {

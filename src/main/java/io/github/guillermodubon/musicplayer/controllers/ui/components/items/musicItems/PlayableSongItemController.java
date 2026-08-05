@@ -196,31 +196,38 @@ public class PlayableSongItemController extends BaseSongCellController {
         } catch (Exception ignored) {}
     }
 
-    private void loadCachedOrAsyncArtists(Song song) {
-        if (song == null || svc == null || song.getSongID() <= 0) return;
+    private void loadCachedOrAsyncArtists(Song expectedSong) {
+        if (expectedSong == null || svc == null || expectedSong.getSongID() <= 0) return;
 
-        long requestedTrackId = song.getSongID();
+        long requestedTrackId = expectedSong.getSongID();
+        long expectedGeneration = currentRenderGeneration();
         List<Artist> cached = svc.getCachedTrackArtists(requestedTrackId);
         if (cached != null && !cached.isEmpty()) {
-            mergeArtists(cached);
+            mergeArtists(cached, expectedGeneration, expectedSong);
             return;
         }
 
-        svc.ensureTrackArtistsLoadedAsync(requestedTrackId, song, () -> {
-            if (this.song == null || this.song.getSongID() != requestedTrackId) return;
-            List<Artist> fresh = svc.getCachedTrackArtists(requestedTrackId);
-            mergeArtists(fresh);
-        });
+        svc.ensureTrackArtistsLoadedAsync(requestedTrackId, expectedSong, () ->
+                Platform.runLater(() -> {
+                    if (!isCurrentRender(expectedGeneration)
+                            || !isCurrentSong(expectedSong)
+                            || this.song == null
+                            || this.song.getSongID() != requestedTrackId) return;
+                    List<Artist> fresh = svc.getCachedTrackArtists(requestedTrackId);
+                    mergeArtists(fresh, expectedGeneration, expectedSong);
+                }));
     }
 
-    private void mergeArtists(List<Artist> extra) {
+    private void mergeArtists(List<Artist> extra,
+                              long expectedGeneration,
+                              Song expectedSong) {
         if (song == null || extra == null || extra.isEmpty()) return;
+        if (!isCurrentRender(expectedGeneration) || !isCurrentSong(expectedSong)) return;
 
         List<Artist> merged = SongArtistResolver.merge(song.getArtist(), extra);
         song.setArtist(merged);
-        long expectedSongId = song.getSongID();
         Platform.runLater(() -> {
-            if (song == null || song.getSongID() != expectedSongId) return;
+            if (!isCurrentRender(expectedGeneration) || !isCurrentSong(expectedSong)) return;
             renderArtists(SongArtistResolver.resolveParticipants(song));
         });
     }
