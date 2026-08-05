@@ -94,7 +94,6 @@ public abstract class JdbcDaoSupport {
 
         try (Statement statement = connection.createStatement()) {
             statement.execute("PRAGMA busy_timeout = 5000");
-            statement.execute("PRAGMA journal_mode = WAL");
         } catch (SQLException ignored) {
             // Connection creation remains usable even when a PRAGMA is unavailable.
         }

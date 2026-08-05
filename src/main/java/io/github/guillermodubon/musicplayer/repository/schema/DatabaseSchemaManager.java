@@ -46,7 +46,6 @@ public final class DatabaseSchemaManager {
     private static void createTables(Connection connection) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             statement.execute("PRAGMA foreign_keys = ON");
-            statement.execute("PRAGMA journal_mode = WAL");
             statement.execute("PRAGMA busy_timeout = 5000");
 
             statement.execute("""
