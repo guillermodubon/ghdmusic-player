@@ -279,8 +279,8 @@ final class PlayerMenuDownloadViewCoordinator {
                     && !PlayerMenuDownloadSongMatcher.matchesSong(existing, localSong)) {
                 continue;
             }
-            PlayerMenuDownloadSongMatcher.preserveViewSpecificData(existing, localSong);
-            songs.set(index, localSong);
+            Song localViewSong = PlayerMenuDownloadSongMatcher.copyForView(existing, localSong);
+            songs.set(index, localViewSong == null ? localSong : localViewSong);
             changed = true;
         }
         return changed;

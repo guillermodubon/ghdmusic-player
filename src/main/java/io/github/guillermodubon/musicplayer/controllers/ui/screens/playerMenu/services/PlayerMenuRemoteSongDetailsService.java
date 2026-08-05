@@ -241,16 +241,20 @@ public class PlayerMenuRemoteSongDetailsService {
                 changed = true;
             }
 
-            if (albumDetails.albumId() > 0 && album.getAlbumID() != albumDetails.albumId()) {
+            // The PlayerMenu album is the selected release. A track endpoint
+            // may point to another edition, so only fill missing identity data
+            // and never replace a valid view-specific album identity.
+            if (album.getAlbumID() <= 0 && albumDetails.albumId() > 0) {
                 album.setAlbumID(albumDetails.albumId());
                 changed = true;
             }
-            if (albumDetails.title() != null && !albumDetails.title().isBlank()
-                    && !albumDetails.title().equals(album.getName())) {
+            if ((album.getName() == null || album.getName().isBlank())
+                    && albumDetails.title() != null && !albumDetails.title().isBlank()) {
                 album.setName(albumDetails.title());
                 changed = true;
             }
-            if (!albumDetails.coverUrl().equals(album.getCoverUrl())) {
+            if ((album.getCoverUrl() == null || album.getCoverUrl().isBlank())
+                    && !albumDetails.coverUrl().equals(album.getCoverUrl())) {
                 album.setCoverUrl(albumDetails.coverUrl());
                 changed = true;
             }

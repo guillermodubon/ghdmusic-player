@@ -37,10 +37,15 @@ final class PlayerMenuDownloadPlaybackCoordinator {
         if (localSong == null || !PlayerMenuDownloadSongMatcher.isPlayableLocalSong(localSong)) {
             return false;
         }
+        Song viewSong = viewCoordinator.findSongInCurrentView(remoteSong, localSong);
+        Song localViewSong = PlayerMenuDownloadSongMatcher.copyForView(viewSong, localSong);
+        if (!PlayerMenuDownloadSongMatcher.isPlayableLocalSong(localViewSong)) {
+            localViewSong = localSong;
+        }
         try {
             playbackManager.integrateDownloadedSongIntoCurrentFlow(
                     remoteSong != null ? remoteSong : localSong,
-                    localSong,
+                    localViewSong,
                     sourceId
             );
             return true;
@@ -83,9 +88,8 @@ final class PlayerMenuDownloadPlaybackCoordinator {
                 }
 
                 Song viewReference = viewCoordinator.findSongInCurrentView(remoteSong, localSong);
-                PlayerMenuDownloadSongMatcher.preserveViewSpecificData(viewReference, localSong);
-                PlayerMenuDownloadSongMatcher.preserveViewSpecificData(remoteSong, localSong);
-                upsertSongKeepingViewOrder(updatedSource, remoteSong, localSong);
+                Song localViewSong = PlayerMenuDownloadSongMatcher.copyForView(viewReference, localSong);
+                upsertSongKeepingViewOrder(updatedSource, remoteSong, localViewSong);
             }
         }
 
@@ -136,10 +140,10 @@ final class PlayerMenuDownloadPlaybackCoordinator {
             downloadedSongBelongsToView = true;
 
             Song currentViewSong = context.getMasterSongList().get(masterIndex);
-            PlayerMenuDownloadSongMatcher.preserveViewSpecificData(currentViewSong, localSong);
-            PlayerMenuDownloadSongMatcher.preserveViewSpecificData(remoteSong, localSong);
-            context.getMasterSongList().set(masterIndex, localSong);
-            viewCoordinator.replaceInVisibleLists(remoteSong, localSong);
+            Song localViewSong = PlayerMenuDownloadSongMatcher.copyForView(currentViewSong, localSong);
+            Song replacement = localViewSong == null ? localSong : localViewSong;
+            context.getMasterSongList().set(masterIndex, replacement);
+            viewCoordinator.replaceInVisibleLists(remoteSong, replacement);
         }
 
         if (!downloadedSongBelongsToView) {

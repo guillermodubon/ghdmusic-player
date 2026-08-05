@@ -248,11 +248,6 @@ public class PlayerMenuDownloadSyncService implements PlayerMenuDownloadBridge {
              * Conserva orden, Ã¡lbum, artistas, portada y demÃ¡s metadata
              * especÃ­fica del Song utilizado originalmente por la vista.
              */
-            PlayerMenuDownloadSongMatcher.preserveViewSpecificData(
-                    remoteSong,
-                    localSong
-            );
-
             /*
              * Immediately updates the corresponding Song within
              * masterSongList.
