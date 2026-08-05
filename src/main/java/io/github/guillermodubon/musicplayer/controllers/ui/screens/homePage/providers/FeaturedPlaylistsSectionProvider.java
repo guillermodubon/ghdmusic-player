@@ -23,6 +23,8 @@ import java.util.stream.Collectors;
 
 public class FeaturedPlaylistsSectionProvider extends BaseHomePageSectionProvider {
 
+    private static final String SECTION_TITLE = "Playlists based on your favorite genres";
+
     public FeaturedPlaylistsSectionProvider(HomePageContext context) {
         super(context);
     }
@@ -31,8 +33,8 @@ public class FeaturedPlaylistsSectionProvider extends BaseHomePageSectionProvide
     public CompletableFuture<Void> render(VBox container, String filter, long renderId) {
         if (!isRenderActive(renderId)) return CompletableFuture.completedFuture(null);
 
-        VBox section = sectionBlock(container, "Featured Playlists");
-        setSectionContent(section, emptyState("Loading featured playlists..."));
+        VBox section = sectionBlock(container, SECTION_TITLE);
+        setSectionContent(section, emptyState("Loading playlists based on your favorite genres..."));
 
         List<Genre> genres = new ArrayList<>(context.memory().genres());
         List<Integer> genreIds = genres.stream()
