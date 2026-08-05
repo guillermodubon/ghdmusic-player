@@ -128,7 +128,8 @@ public class YtDlpRunner {
                 searchQuery,
                 context.getTargetDir(),
                 candidateIndex,
-                context.getDownloadToken()
+                context.getDownloadToken(),
+                context.getAudioPreset()
         );
 
         DownloadLog.info(

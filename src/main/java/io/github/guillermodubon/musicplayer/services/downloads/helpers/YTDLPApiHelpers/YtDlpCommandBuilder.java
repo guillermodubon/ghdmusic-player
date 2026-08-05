@@ -1,6 +1,8 @@
 package io.github.guillermodubon.musicplayer.services.downloads.helpers.YTDLPApiHelpers;
 
 import io.github.guillermodubon.musicplayer.services.downloads.helpers.DownloadFileNameHelper;
+import io.github.guillermodubon.musicplayer.services.downloads.preferences.DownloadAudioPreset;
+import io.github.guillermodubon.musicplayer.services.downloads.preferences.DownloadPreferences;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -18,10 +20,29 @@ public final class YtDlpCommandBuilder {
 
 
     public static List<String> buildBaseArgs(String query, File targetDir, int candidateIndex, String downloadToken) {
+        return buildBaseArgs(
+                query,
+                targetDir,
+                candidateIndex,
+                downloadToken,
+                DownloadPreferences.loadAudioPreset()
+        );
+    }
+
+    public static List<String> buildBaseArgs(
+            String query,
+            File targetDir,
+            int candidateIndex,
+            String downloadToken,
+            DownloadAudioPreset audioPreset
+    ) {
         String raw = query == null ? "" : query.trim();
         String sanitizedQuery = DownloadFileNameHelper.sanitizeSearchQuery(raw);
         boolean queryLooksLikeUrl = DownloadFileNameHelper.looksLikeUrl(raw);
         int selectedCandidate = YtDlpDownloadOptions.clampCandidateIndex(candidateIndex);
+        DownloadAudioPreset selectedPreset = audioPreset == null
+                ? DownloadAudioPreset.BEST_AVAILABLE
+                : audioPreset;
 
         String sourceArg;
         if (queryLooksLikeUrl) {
@@ -53,9 +74,9 @@ public final class YtDlpCommandBuilder {
         args.add(YtDlpDownloadOptions.FORMAT_SORT);
         args.add("-x");
         args.add("--audio-format");
-        args.add("mp3");
+        args.add(selectedPreset.getAudioFormat());
         args.add("--audio-quality");
-        args.add("0");
+        args.add(selectedPreset.getAudioQuality());
         args.add("-o");
         args.add(buildOutputTemplate(targetDir, downloadToken));
         args.add("--retries");

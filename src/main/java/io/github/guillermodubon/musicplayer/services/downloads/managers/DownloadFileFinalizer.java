@@ -7,6 +7,7 @@ import io.github.guillermodubon.musicplayer.services.downloads.services.Download
 import io.github.guillermodubon.musicplayer.services.downloads.services.DownloadMetadataNormalizer;
 import io.github.guillermodubon.musicplayer.services.downloads.services.DownloadPipelineExecutors;
 import io.github.guillermodubon.musicplayer.services.downloads.services.DownloadPostProcessorService;
+import io.github.guillermodubon.musicplayer.services.downloads.preferences.DownloadAudioPreset;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 
 import java.io.File;
@@ -38,7 +39,8 @@ public class DownloadFileFinalizer {
             return null;
         }
 
-        return new File(context.getTargetDir(), desiredBase + ".mp3");
+        DownloadAudioPreset preset = context.getAudioPreset();
+        return new File(context.getTargetDir(), desiredBase + "." + preset.getFileExtension());
     }
 
     public boolean alreadyExists(DownloadTaskContext context, String desiredBase) {

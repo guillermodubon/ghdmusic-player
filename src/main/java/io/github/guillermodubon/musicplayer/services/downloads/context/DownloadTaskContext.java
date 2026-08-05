@@ -11,6 +11,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import io.github.guillermodubon.musicplayer.models.Playlist;
 import io.github.guillermodubon.musicplayer.models.Song;
+import io.github.guillermodubon.musicplayer.services.downloads.preferences.DownloadAudioPreset;
+import io.github.guillermodubon.musicplayer.services.downloads.preferences.DownloadPreferences;
 
 public class DownloadTaskContext {
 
@@ -26,6 +28,8 @@ public class DownloadTaskContext {
     private int maxAttempts = 3;
     private DeezerApiMetaData metadataHint;
     private Image coverImage;
+    /* Captured per task so changing the preference never mutates an active task. */
+    private DownloadAudioPreset audioPreset;
 
     /*
      * Publication is the last UI-facing step of a download. It must be
@@ -87,6 +91,7 @@ public class DownloadTaskContext {
         this.downloadToken = downloadToken == null || downloadToken.isBlank()
                 ? createDownloadToken()
                 : downloadToken;
+        this.audioPreset = DownloadPreferences.loadAudioPreset();
     }
 
     public String getQuery() {
@@ -165,6 +170,18 @@ public class DownloadTaskContext {
 
     public void setCoverImage(Image coverImage) {
         this.coverImage = coverImage;
+    }
+
+    public DownloadAudioPreset getAudioPreset() {
+        return audioPreset == null
+                ? DownloadAudioPreset.BEST_AVAILABLE
+                : audioPreset;
+    }
+
+    public void setAudioPreset(DownloadAudioPreset audioPreset) {
+        this.audioPreset = audioPreset == null
+                ? DownloadAudioPreset.BEST_AVAILABLE
+                : audioPreset;
     }
 
     public boolean isSourceIsSongItem() {
@@ -262,6 +279,7 @@ public class DownloadTaskContext {
         copy.setMaxAttempts(maxAttempts);
         copy.setMetadataHint(metadataHint);
         copy.setCoverImage(coverImage);
+        copy.setAudioPreset(audioPreset);
 
         copy.setSourceSong(sourceSong);
         copy.setSourceCollectionId(sourceCollectionId);
