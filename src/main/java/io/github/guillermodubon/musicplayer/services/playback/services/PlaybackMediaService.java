@@ -29,6 +29,8 @@ public class PlaybackMediaService {
     private final PlaybackEventBus events;
     private final PlaybackMediaResolver resolver;
     private final ScheduledExecutorService executor;
+    private final PlaybackAudioCompatibilityService audioCompatibilityService =
+            new PlaybackAudioCompatibilityService();
 
     private PlayerMenuController playerMenuController;
     private PlayerMenuBarController playerMenuBarController;
@@ -111,12 +113,75 @@ public class PlaybackMediaService {
         state.setLastPlayedSong(song);
 
         Path mediaPath = Path.of(resolved.get());
-        String uri = mediaPath.toUri().toString();
+        if (audioCompatibilityService.isFlac(mediaPath)) {
+            executor.execute(() -> prepareFlacPlayback(
+                    song,
+                    onAdvance,
+                    onUnavailable,
+                    unavailableHandled,
+                    token,
+                    mediaPath
+            ));
+            return;
+        }
+
+        createAndPlayMediaPlayer(
+                song,
+                onAdvance,
+                onUnavailable,
+                unavailableHandled,
+                token,
+                mediaPath,
+                mediaPath
+        );
+    }
+
+    private void prepareFlacPlayback(
+            Song song,
+            Runnable onAdvance,
+            Consumer<Song> onUnavailable,
+            AtomicBoolean unavailableHandled,
+            long token,
+            Path sourcePath
+    ) {
+        try {
+            Path compatiblePath = audioCompatibilityService.resolvePlayablePath(sourcePath);
+            if (!isCurrentPlaybackToken(token)) return;
+
+            createAndPlayMediaPlayer(
+                    song,
+                    onAdvance,
+                    onUnavailable,
+                    unavailableHandled,
+                    token,
+                    sourcePath,
+                    compatiblePath
+            );
+        } catch (Exception error) {
+            if (!isCurrentPlaybackToken(token)) return;
+            System.err.println(
+                    "PlaybackMediaService: could not prepare FLAC playback for "
+                            + sourcePath + " (" + error.getMessage() + ")"
+            );
+            scheduleAdvance(onAdvance);
+        }
+    }
+
+    private void createAndPlayMediaPlayer(
+            Song song,
+            Runnable onAdvance,
+            Consumer<Song> onUnavailable,
+            AtomicBoolean unavailableHandled,
+            long token,
+            Path sourcePath,
+            Path playbackPath
+    ) {
+        String uri = playbackPath.toUri().toString();
 
         Platform.runLater(() -> {
             if (!isCurrentPlaybackToken(token)) return;
 
-            if (!isReadableMediaFile(mediaPath)) {
+            if (!isReadableMediaFile(sourcePath) || !isReadableMediaFile(playbackPath)) {
                 handleMissingLocalFile(song, onUnavailable, unavailableHandled);
                 return;
             }
@@ -158,18 +223,16 @@ public class PlaybackMediaService {
 
                 mediaPlayer.setOnEndOfMedia(() -> {
                     if (!isCurrentPlaybackToken(token)) return;
-                    if (onAdvance != null) {
-                        executor.schedule(onAdvance, 0, TimeUnit.MILLISECONDS);
-                    }
+                    scheduleAdvance(onAdvance);
                 });
 
                 mediaPlayer.setOnError(() -> {
                     if (!isCurrentPlaybackToken(token)) return;
 
-                    if (!isReadableMediaFile(mediaPath)) {
+                    if (!isReadableMediaFile(sourcePath)) {
                         handleMissingLocalFile(song, onUnavailable, unavailableHandled);
-                    } else if (onAdvance != null) {
-                        executor.schedule(onAdvance, 0, TimeUnit.MILLISECONDS);
+                    } else {
+                        scheduleAdvance(onAdvance);
                     }
                 });
 
@@ -179,13 +242,19 @@ public class PlaybackMediaService {
             } catch (Exception ex) {
                 if (!isCurrentPlaybackToken(token)) return;
 
-                if (!isReadableMediaFile(mediaPath)) {
+                if (!isReadableMediaFile(sourcePath)) {
                     handleMissingLocalFile(song, onUnavailable, unavailableHandled);
-                } else if (onAdvance != null) {
-                    executor.schedule(onAdvance, 0, TimeUnit.MILLISECONDS);
+                } else {
+                    scheduleAdvance(onAdvance);
                 }
             }
         });
+    }
+
+    private void scheduleAdvance(Runnable onAdvance) {
+        if (onAdvance != null) {
+            executor.schedule(onAdvance, 0, TimeUnit.MILLISECONDS);
+        }
     }
 
     private boolean isCurrentPlaybackToken(long token) {
@@ -255,7 +324,14 @@ public class PlaybackMediaService {
                 }
 
                 String newUri = Path.of(filePath).toUri().toString();
-                if (!Objects.equals(currentSource, newUri)) {
+                Path currentSourcePath = Path.of(filePath);
+                Path cachedCompatiblePath = audioCompatibilityService
+                        .cachedPlayablePathIfPresent(currentSourcePath);
+                String expectedUri = cachedCompatiblePath == null
+                        ? newUri
+                        : cachedCompatiblePath.toUri().toString();
+
+                if (!Objects.equals(currentSource, expectedUri)) {
                     stopCurrent();
                     executor.schedule(() -> playSong(current, null), 50, TimeUnit.MILLISECONDS);
                 }
