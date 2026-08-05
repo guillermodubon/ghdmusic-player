@@ -22,6 +22,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 public class ArtistBiographyService {
@@ -33,6 +35,19 @@ public class ArtistBiographyService {
         thread.setDaemon(true);
         return thread;
     });
+
+    /**
+     * SQLite biography writes are deliberately serialized. Biography lookup
+     * is started by several visible song cells at once, so a fixed pool can
+     * otherwise create several writers for the same database file.
+     */
+    private static final ExecutorService BIOGRAPHY_DB_EXECUTOR = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "artist-biography-db");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    private final ConcurrentMap<String, CompletableFuture<Void>> pendingBiographyWrites = new ConcurrentHashMap<>();
 
     public ArtistBiographyService(WikipediaApiService wikipediaService) {
         this.wikipediaService = Objects.requireNonNull(wikipediaService, "wikipediaService");
@@ -80,10 +95,67 @@ public class ArtistBiographyService {
     }
 
     private void persistBiographyAsync(long artistId, String artistName, String biography) {
-        CompletableFuture.runAsync(
-                () -> persistBiography(artistId, artistName, biography),
-                BIOGRAPHY_EXECUTOR
+        String key = biographyKey(artistId, artistName);
+        pendingBiographyWrites.computeIfAbsent(key, ignored ->
+                CompletableFuture.runAsync(
+                        () -> persistBiography(artistId, artistName, biography),
+                        BIOGRAPHY_DB_EXECUTOR
+                ).whenComplete((result, error) -> pendingBiographyWrites.remove(key))
         );
+    }
+
+    /**
+     * Hydrates biographies without holding a write transaction while the
+     * Wikipedia request is running. The single DB executor also prevents
+     * multiple cell hydration callbacks from writing concurrently.
+     */
+    public CompletableFuture<Void> hydrateMissingBiographiesAsync(Collection<String> candidateNames) {
+        if (candidateNames == null || candidateNames.isEmpty()) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        return CompletableFuture.runAsync(() -> {
+            try {
+                Set<String> candidateKeys = normalizeNameSet(candidateNames);
+                if (candidateKeys.isEmpty()) return;
+
+                /* Read and resolve biographies without keeping any SQLite
+                 * connection open during the remote Wikipedia request. */
+                List<Artist> missing;
+                try (Connection conn = DbConnectionManager.getInstance().openConnection()) {
+                    missing = new ArtistDaoImpl(conn).findAll().stream()
+                            .filter(Objects::nonNull)
+                            .filter(artist -> !hasText(artist.getBiography()))
+                            .filter(artist -> hasText(artist.getName()))
+                            .filter(artist -> candidateKeys.contains(normalizeKey(artist.getName())))
+                            .toList();
+                }
+
+                if (missing.isEmpty()) return;
+                Map<String, String> biographies = fetchBiographiesByName(
+                        missing.stream().map(Artist::getName).toList()
+                );
+                if (biographies.isEmpty()) return;
+
+                /* Only the short final update is transactional and therefore
+                 * coordinated with all other application DB writers. */
+                DbConnectionManager.getInstance().runInTransaction(conn -> {
+                    ArtistDaoImpl artistDao = new ArtistDaoImpl(conn);
+                    for (Artist artist : missing) {
+                        String biography = biographies.get(normalizeKey(artist.getName()));
+                        if (!hasText(biography) || artist.getArtistID() <= 0) continue;
+                        try {
+                            artistDao.updateBiography(artist.getArtistID(), biography);
+                        } catch (SQLException error) {
+                            throw new RuntimeException(error);
+                        }
+                    }
+                    return null;
+                });
+            } catch (Exception ex) {
+                System.out.println("hydrateMissingBiographiesAsync: failed -> " + ex.getMessage());
+            }
+        }, BIOGRAPHY_DB_EXECUTOR);
     }
 
     public void hydrateMissingBiographies(
@@ -198,7 +270,7 @@ public class ArtistBiographyService {
 
     public CompletableFuture<Void> hydrateMetadataArtistBiographiesAsync(DeezerApiMetaData meta) {
         if (meta == null) return CompletableFuture.completedFuture(null);
-        return CompletableFuture.runAsync(() -> hydrateMetadataArtistBiographies(meta), BIOGRAPHY_EXECUTOR);
+        return CompletableFuture.runAsync(() -> hydrateMetadataArtistBiographies(meta), BIOGRAPHY_DB_EXECUTOR);
     }
 
     public Set<String> collectArtistNames(Collection<DeezerApiMetaData> metas) {
@@ -301,6 +373,11 @@ public class ArtistBiographyService {
         }
     }
 
+    private String biographyKey(long artistId, String artistName) {
+        if (artistId > 0) return "id:" + artistId;
+        return "name:" + normalizeKey(artistName);
+    }
+
     private String findBiographyInMemory(List<Artist> artists, long artistId, String artistName) {
         if (artists == null) return null;
         String key = normalizeKey(artistName);
@@ -394,7 +471,6 @@ public class ArtistBiographyService {
         if (conn == null) return;
         try (Statement st = conn.createStatement()) {
             try { st.execute("PRAGMA busy_timeout = 5000"); } catch (Exception ignored) {}
-            try { st.execute("PRAGMA journal_mode = WAL"); } catch (Exception ignored) {}
         } catch (Exception ignored) {
         }
     }
