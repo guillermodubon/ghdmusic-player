@@ -14,6 +14,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
 import javafx.scene.layout.AnchorPane;
@@ -38,6 +39,7 @@ import io.github.guillermodubon.musicplayer.controllers.ui.components.downloadCo
 import io.github.guillermodubon.musicplayer.services.downloads.DownloadManager;
 import io.github.guillermodubon.musicplayer.services.downloads.context.DownloadTaskContext;
 import io.github.guillermodubon.musicplayer.services.downloads.preferences.DownloadPreferences;
+import io.github.guillermodubon.musicplayer.services.downloads.preferences.DownloadAudioPreset;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.popups.SmallPopupTooltip;
 import io.github.guillermodubon.musicplayer.services.navigation.PlayerMenuNavigator;
 import io.github.guillermodubon.musicplayer.services.playback.PlaybackManager;
@@ -77,6 +79,7 @@ public class DownloadSidebarMenuController {
     @FXML private Button choosePathButton;
     @FXML private Button clearAllButton;
     @FXML private Label selectedPathLabel;
+    @FXML private ComboBox<DownloadAudioPreset> audioPresetComboBox;
     @FXML private Button closeButton;
     @FXML private ListView<DownloadTask> downloadsListView;
 
@@ -115,6 +118,7 @@ public class DownloadSidebarMenuController {
         DownloadManager.getInstance().setSidebarController(this);
         selectedDirectory = DownloadPreferences.loadDownloadDirectory();
         updateSelectedPathLabel();
+        installAudioPreference();
         installIconButtons();
         bindPathLabelWidth();
         installResizeBehavior();
@@ -153,6 +157,37 @@ public class DownloadSidebarMenuController {
         installEmptyDownloadsPlaceholder();
         clearAllButton.setOnAction(event -> clearTerminalDownloads());
         installClearAllTracking();
+    }
+
+    private void installAudioPreference() {
+        if (audioPresetComboBox == null) return;
+
+        audioPresetComboBox.getItems().setAll(DownloadAudioPreset.values());
+        audioPresetComboBox.setValue(DownloadPreferences.loadAudioPreset());
+        audioPresetComboBox.setMaxWidth(Region.USE_PREF_SIZE);
+        audioPresetComboBox.setAccessibleText("Audio format and quality");
+        audioPresetComboBox.valueProperty().addListener((observable, oldPreset, newPreset) -> {
+            if (newPreset == null) return;
+            DownloadPreferences.saveAudioPreset(newPreset);
+        });
+
+        if (downloadSidebarPane != null) {
+            downloadSidebarPane.widthProperty().addListener((observable, oldWidth, newWidth) ->
+                    updateAudioPresetWidth());
+            Platform.runLater(this::updateAudioPresetWidth);
+        }
+    }
+
+    private void updateAudioPresetWidth() {
+        if (audioPresetComboBox == null || downloadSidebarPane == null) return;
+
+        double availableWidth = downloadSidebarPane.getWidth() - 32;
+        double preferredWidth = audioPresetComboBox.prefWidth(-1);
+        audioPresetComboBox.setMaxWidth(
+                availableWidth > 0 && preferredWidth > availableWidth
+                        ? Double.MAX_VALUE
+                        : Region.USE_PREF_SIZE
+        );
     }
 
     private void installEmptyDownloadsPlaceholder() {
@@ -271,6 +306,7 @@ public class DownloadSidebarMenuController {
         SmallPopupTooltip.install(closeButton, "Close Menu");
 
         folderIcon = installIconOnlyButton(choosePathButton, ICON_FOLDER, "Change download folder", 19);
+        SmallPopupTooltip.install(choosePathButton, "Change the current download path");
         choosePathButton.setOnMouseEntered(event -> {
             if (!Boolean.TRUE.equals(choosePathButton.getProperties().get("folderChoosing"))) {
                 swapFolderIcon(true);
