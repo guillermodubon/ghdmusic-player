@@ -4,6 +4,7 @@ import io.github.guillermodubon.musicplayer.models.Album;
 import io.github.guillermodubon.musicplayer.models.Artist;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 import io.github.guillermodubon.musicplayer.models.Song;
+import io.github.guillermodubon.musicplayer.controllers.ui.components.items.musicItems.services.SongArtistResolver;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -136,6 +137,46 @@ final class PlayerMenuDownloadSongMatcher {
             }
         } catch (Exception ignored) {
         }
+    }
+
+    /**
+     * Creates a local wrapper for the current PlayerMenu view. The downloaded
+     * Song is canonical, but the visible Album and track order belong to the
+     * selected edition and must not be replaced by the edition stored in the
+     * global startup model.
+     */
+    static Song copyForView(Song viewSong, Song localSong) {
+        if (localSong == null) {
+            return null;
+        }
+
+        long songId = localSong.getSongID() > 0
+                ? localSong.getSongID()
+                : viewSong == null ? 0L : viewSong.getSongID();
+        String title = viewSong != null && viewSong.getTitle() != null
+                && !viewSong.getTitle().isBlank()
+                ? viewSong.getTitle()
+                : localSong.getTitle();
+        Album album = viewSong != null && viewSong.getAlbum() != null
+                ? viewSong.getAlbum()
+                : localSong.getAlbum();
+        int trackOrder = viewSong != null && viewSong.getTrackOrder() > 0
+                ? viewSong.getTrackOrder()
+                : localSong.getTrackOrder();
+        List<Artist> artists = SongArtistResolver.merge(
+                localSong.getArtist(),
+                viewSong == null ? null : viewSong.getArtist()
+        );
+
+        return new Song(
+                songId,
+                title,
+                artists,
+                album,
+                localSong.getFilePath(),
+                trackOrder,
+                true
+        );
     }
 
     static boolean hasUsableArtists(List<Artist> artists) {
