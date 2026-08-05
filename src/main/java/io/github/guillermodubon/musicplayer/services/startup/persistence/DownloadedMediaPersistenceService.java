@@ -671,7 +671,6 @@ public final class DownloadedMediaPersistenceService {
     private static void applyPragmas(Connection conn) {
         try (Statement st = conn.createStatement()) {
             st.execute("PRAGMA busy_timeout = 5000");
-            st.execute("PRAGMA journal_mode = WAL");
         } catch (Exception ignored) {
         }
     }

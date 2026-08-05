@@ -2,7 +2,6 @@ package io.github.guillermodubon.musicplayer.services.startup.downloads;
 
 import javafx.application.Platform;
 import io.github.guillermodubon.musicplayer.repository.DbConnectionManager;
-import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.SongArtistDao;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.SongArtistDaoImpl;
 import io.github.guillermodubon.musicplayer.models.Artist;
@@ -158,34 +157,46 @@ public final class DownloadedTrackArtistService {
     }
 
     private void persistArtists(long trackId, List<Artist> artists) {
-        try {
-            DbConnectionManager.getInstance().runInTransaction(connection -> {
-                try {
-                    new SongArtistDaoImpl(connection).persistArtistsForSong(trackId, artists);
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
+        List<String> artistNames = artists.stream()
+                .map(Artist::getName)
+                .filter(Objects::nonNull)
+                .filter(name -> !name.isBlank())
+                .toList();
 
-                owner.getArtistBiographyService().hydrateMissingBiographies(
-                        connection,
-                        new ArtistDaoImpl(connection),
-                        artists.stream()
-                                .map(Artist::getName)
-                                .filter(Objects::nonNull)
-                                .toList()
-                );
-                try {
-                    new SongArtistDaoImpl(connection).refreshBiographies(artists);
-                } catch (SQLException e) {
-                    throw new RuntimeException(e);
-                }
-                return null;
-            });
+        try {
+            /*
+             * Artist hydration is triggered by several visible cells at once.
+             * Use the same application DB lock as startup/download persistence
+             * so these small writes cannot overlap a library transaction.
+             */
+            synchronized (owner.getDbLock()) {
+                DbConnectionManager.getInstance().runInTransaction(connection -> {
+                    try {
+                        new SongArtistDaoImpl(connection).persistArtistsForSong(trackId, artists);
+                    } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                    }
+                    try {
+                        new SongArtistDaoImpl(connection).refreshBiographies(artists);
+                    } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return null;
+                });
+            }
         } catch (Exception error) {
             System.out.println("ensureTrackArtistsLoadedAsync: persist artists failed -> "
                     + Optional.ofNullable(error.getMessage()).orElse("null"));
             error.printStackTrace();
+            return;
         }
+
+        /*
+         * Do not keep the SongArtist transaction open while Wikipedia is
+         * queried. The lookup is serialized and runs after the relation has
+         * been committed, so it cannot block the album/song persistence path.
+         */
+        owner.getArtistBiographyService().hydrateMissingBiographiesAsync(artistNames);
     }
 
     private void addArtistsToOwner(long trackId, List<Artist> artists) {
