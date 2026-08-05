@@ -520,7 +520,10 @@ public class PlayerMenuController implements PlayerMenuActionHost {
         if (currentContentTypeInView == ContentType.SINGLE) return List.of();
         return actionAllSongs().stream()
                 .filter(Objects::nonNull)
-                .filter(song -> !song.isLocal())
+                // A database row can exist for a remote track without a
+                // playable local file. Download All must use the same
+                // effective local state as the list cells.
+                .filter(song -> !isSongImmediatelyPlayable(song))
                 .distinct()
                 .toList();
     }
