@@ -20,6 +20,7 @@ import io.github.guillermodubon.musicplayer.services.api.DeezerApiService;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 import io.github.guillermodubon.musicplayer.utils.AlbumArtistResolver;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -178,11 +179,15 @@ public class AlbumPlaybackCoordinator {
                 List<Song> songSnapshot = snapshot(svc == null ? List.of() : svc.getSongs());
                 Map<Long, Song> localSongById = songSnapshot.stream()
                         .filter(Objects::nonNull)
+                        // Remote tracks persisted to complete an album are
+                        // not downloaded local files.
+                        .filter(this::isPlayableLocalSong)
                         .filter(s -> s.getSongID() > 0)
                         .collect(Collectors.toMap(Song::getSongID, Function.identity(), (a, b) -> a));
                 Map<String, Song> localSongByTitleArtist = new HashMap<>();
                 for (Song song : songSnapshot) {
-                    if (song == null || !song.isLocal() || song.getTitle() == null || song.getArtist() == null) continue;
+                    if (song == null || !isPlayableLocalSong(song)
+                            || song.getTitle() == null || song.getArtist() == null) continue;
                     for (Artist artist : song.getArtist()) {
                         if (artist == null || artist.getName() == null || artist.getName().isBlank()) continue;
                         localSongByTitleArtist.putIfAbsent(songTitleArtistKey(song.getTitle(), artist.getName()), song);
@@ -203,7 +208,11 @@ public class AlbumPlaybackCoordinator {
                     }
 
                     String firstArtistName = tempAlbum.getArtist().isEmpty() ? "" : tempAlbum.getArtist().get(0).getName();
-                    Song maybeByTitle = localSongByTitleArtist.get(songTitleArtistKey(title, firstArtistName));
+                    // A positive Deezer ID identifies the exact track. A
+                    // title fallback must never join different album editions.
+                    Song maybeByTitle = tid <= 0
+                            ? localSongByTitleArtist.get(songTitleArtistKey(title, firstArtistName))
+                            : null;
                     if (maybeByTitle != null) {
                         Song orig = maybeByTitle;
                         Song s = new Song(orig.getSongID(), orig.getTitle(), orig.getArtist(), tempAlbum, orig.getFilePath(), info.getTrackOrder(), true);
@@ -274,7 +283,30 @@ public class AlbumPlaybackCoordinator {
                 );
                 pl.setCoverUrl(displayAlbum.getCoverUrl());
 
-                Platform.runLater(() -> navigator.openPlayerMenuIfCurrent(pl, ContentType.ALBUM, probe, requestId));
+                Platform.runLater(() -> {
+                    if (!navigator.isOpenRequestCurrent(requestId)) return;
+
+                    /*
+                     * A mixed album already opened a fast local PlayerMenu.
+                     * The Deezer result enriches that controller in place. If
+                     * the user has already navigated away, discard this late
+                     * enrichment instead of reopening the album and adding a
+                     * second history entry.
+                     */
+                    if (hasLocalFallback.get()) {
+                        PlayerMenuController active = PlaybackManager.getInstance().getMenuController();
+                        if (active == null
+                                || !active.isCurrentCenterViewVisible()
+                                || active.getCurrentPlaylistInViewId() != displayAlbum.getAlbumID()
+                                || active.getCurrentContentTypeInView() != ContentType.ALBUM) {
+                            return;
+                        }
+                        active.updatePlaylistContent(pl);
+                        return;
+                    }
+
+                    navigator.openPlayerMenuIfCurrent(pl, ContentType.ALBUM, probe, requestId);
+                });
 
                 IO_POOL.submit(() -> {
                     try {
@@ -529,10 +561,16 @@ public class AlbumPlaybackCoordinator {
     }
 
     private boolean isPlayableLocalSong(Song song) {
-        return song != null
-                && song.isLocal()
-                && song.getFilePath() != null
-                && !song.getFilePath().isBlank();
+        if (song == null || !song.isLocal()
+                || song.getFilePath() == null || song.getFilePath().isBlank()) {
+            return false;
+        }
+        try {
+            File file = new File(song.getFilePath());
+            return file.isFile() && file.canRead();
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static <T> List<T> snapshot(List<T> list) {
