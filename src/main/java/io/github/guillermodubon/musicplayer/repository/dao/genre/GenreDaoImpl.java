@@ -28,7 +28,6 @@ public class GenreDaoImpl implements GenreDao {
         if (conn == null) return;
         try (Statement st = conn.createStatement()) {
             try { st.execute("PRAGMA busy_timeout = 5000"); } catch (Exception ignored) {}
-            try { st.execute("PRAGMA journal_mode = WAL"); } catch (Exception ignored) {}
         } catch (SQLException e) {
             System.out.println("GenreDaoImpl: warning setting pragmas -> " + Optional.ofNullable(e.getMessage()).orElse("null"));
         }

@@ -38,7 +38,6 @@ public class PlaybackHistoryDaoImpl implements PlaybackHistoryDao {
     private void applyPragmas(Connection c) {
         try (Statement st = c.createStatement()) {
             try { st.execute("PRAGMA busy_timeout = 5000"); } catch (Exception ignored) {}
-            try { st.execute("PRAGMA journal_mode = WAL"); } catch (Exception ignored) {}
         } catch (SQLException e) {
             System.out.println("PlaybackHistoryDaoImpl.applyPragmas: warning -> " + e.getMessage());
         }
