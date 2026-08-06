@@ -20,6 +20,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
@@ -31,9 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvider {
 
     private static final int RECOMMENDATION_MAX = MAX_CARDS_PER_SECTION;
-    private static final int ARTIST_SEED_LIMIT = 6;
-    private static final int RELATED_PER_SEED_LIMIT = 4;
-    private static final int GENRE_ARTISTS_PER_LOOKUP = 5;
+    private static final int ARTIST_SEED_LIMIT = 8;
+    private static final int RELATED_PER_SEED_LIMIT = 12;
+    private static final int GENRE_ARTISTS_PER_LOOKUP = 12;
     private static final AtomicInteger LOOKUP_THREAD_ID = new AtomicInteger();
     private static final ExecutorService LOOKUP_POOL = Executors.newFixedThreadPool(4, runnable -> {
         Thread thread = new Thread(runnable, "home-artist-recommendations-" + LOOKUP_THREAD_ID.incrementAndGet());
@@ -81,13 +82,26 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
         if (!hasLibraryArtists()) return List.of();
 
         Set<Long> existingArtistIds = existingArtistIds();
+        Set<String> existingArtistNames = existingArtistNames();
         LinkedHashMap<Long, ArtistCandidate> candidates = new LinkedHashMap<>();
-        mergeCandidates(candidates, loadRelatedCandidates(seedArtistIds(), existingArtistIds, renderId), existingArtistIds);
+        mergeCandidates(
+                candidates,
+                loadRelatedCandidates(seedArtistIds(), existingArtistIds, existingArtistNames, renderId),
+                existingArtistIds,
+                existingArtistNames
+        );
 
         if (candidates.size() < RECOMMENDATION_MAX && isRenderActive(renderId)) {
             Set<Long> blocked = new HashSet<>(existingArtistIds);
             blocked.addAll(candidates.keySet());
-            mergeCandidates(candidates, loadGenreFallbackCandidates(blocked, renderId), existingArtistIds);
+            Set<String> blockedNames = new HashSet<>(existingArtistNames);
+            blockedNames.addAll(candidateNames(candidates));
+            mergeCandidates(
+                    candidates,
+                    loadGenreFallbackCandidates(blocked, blockedNames, renderId),
+                    existingArtistIds,
+                    existingArtistNames
+            );
         }
 
         /*
@@ -102,7 +116,14 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
                 && isRenderActive(renderId)) {
             Set<Long> blocked = new HashSet<>(existingArtistIds);
             blocked.addAll(candidates.keySet());
-            mergeCandidates(candidates, loadChartFallbackCandidates(blocked, renderId), existingArtistIds);
+            Set<String> blockedNames = new HashSet<>(existingArtistNames);
+            blockedNames.addAll(candidateNames(candidates));
+            mergeCandidates(
+                    candidates,
+                    loadChartFallbackCandidates(blocked, blockedNames, renderId),
+                    existingArtistIds,
+                    existingArtistNames
+            );
         }
 
         return candidates.values().stream().limit(RECOMMENDATION_MAX).toList();
@@ -129,6 +150,19 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
         return ids;
     }
 
+    private Set<String> existingArtistNames() {
+        Set<String> names = new HashSet<>();
+        try {
+            for (Artist artist : context.memory().artists()) {
+                if (artist == null || artist.getName() == null) continue;
+                String name = normalizeArtistName(artist.getName());
+                if (!name.isBlank()) names.add(name);
+            }
+        } catch (Exception ignored) {
+        }
+        return names;
+    }
+
     private List<Long> seedArtistIds() {
         List<Long> ids = new ArrayList<>();
         Set<Long> seen = new HashSet<>();
@@ -145,16 +179,23 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
 
     private List<ArtistCandidate> loadRelatedCandidates(List<Long> seedIds,
                                                           Set<Long> existingArtistIds,
+                                                          Set<String> existingArtistNames,
                                                           long renderId) {
         if (seedIds == null || seedIds.isEmpty()) return List.of();
         List<Callable<List<ArtistCandidate>>> tasks = seedIds.stream()
-                .<Callable<List<ArtistCandidate>>>map(seedId -> () -> loadRelatedArtists(seedId, existingArtistIds, renderId))
+                .<Callable<List<ArtistCandidate>>>map(seedId -> () -> loadRelatedArtists(
+                        seedId,
+                        existingArtistIds,
+                        existingArtistNames,
+                        renderId
+                ))
                 .toList();
         return flatten(loadConcurrently(tasks));
     }
 
     private List<ArtistCandidate> loadRelatedArtists(long seedId,
                                                        Set<Long> existingArtistIds,
+                                                       Set<String> existingArtistNames,
                                                        long renderId) {
         if (seedId <= 0 || !isRenderActive(renderId)) return List.of();
         JsonObject root = getJson(context.endpoints().artistRelated(seedId, RELATED_PER_SEED_LIMIT));
@@ -164,20 +205,25 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
         for (JsonElement element : root.getAsJsonArray("data")) {
             if (!isRenderActive(renderId)) return List.of();
             ArtistCandidate candidate = candidateFromJson(element);
-            if (candidate == null || candidate.id() == seedId || existingArtistIds.contains(candidate.id())) continue;
+            if (candidate == null
+                    || candidate.id() == seedId
+                    || existingArtistIds.contains(candidate.id())
+                    || existingArtistNames.contains(normalizeArtistName(candidate.name()))) continue;
             candidates.add(candidate);
             if (candidates.size() >= RELATED_PER_SEED_LIMIT) break;
         }
         return candidates;
     }
 
-    private List<ArtistCandidate> loadGenreFallbackCandidates(Set<Long> blockedIds, long renderId) {
+    private List<ArtistCandidate> loadGenreFallbackCandidates(Set<Long> blockedIds,
+                                                                Set<String> blockedNames,
+                                                                long renderId) {
         List<Callable<List<ArtistCandidate>>> tasks = new ArrayList<>();
         try {
             for (Genre genre : context.memory().genres()) {
                 if (genre == null || genre.getGenreID() <= 0) continue;
                 int genreId = genre.getGenreID();
-                tasks.add(() -> loadArtistsForGenre(genreId, blockedIds, renderId));
+                tasks.add(() -> loadArtistsForGenre(genreId, blockedIds, blockedNames, renderId));
                 if (tasks.size() >= MAX_GENRES_TO_QUERY) break;
             }
         } catch (Exception ignored) {
@@ -187,6 +233,7 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
 
     private List<ArtistCandidate> loadArtistsForGenre(int genreId,
                                                         Set<Long> blockedIds,
+                                                        Set<String> blockedNames,
                                                         long renderId) {
         if (genreId <= 0 || !isRenderActive(renderId)) return List.of();
         JsonObject root = getJson(context.endpoints().genreArtists(genreId));
@@ -196,7 +243,9 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
         for (JsonElement element : root.getAsJsonArray("data")) {
             if (!isRenderActive(renderId)) return List.of();
             ArtistCandidate candidate = candidateFromJson(element);
-            if (candidate == null || blockedIds.contains(candidate.id())) continue;
+            if (candidate == null
+                    || blockedIds.contains(candidate.id())
+                    || blockedNames.contains(normalizeArtistName(candidate.name()))) continue;
             candidates.add(candidate);
             if (candidates.size() >= GENRE_ARTISTS_PER_LOOKUP) break;
         }
@@ -205,6 +254,7 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
 
     private List<ArtistCandidate> loadChartFallbackCandidates(
             Set<Long> blockedIds,
+            Set<String> blockedNames,
             long renderId
     ) {
         if (!isRenderActive(renderId) || context.endpoints() == null) return List.of();
@@ -219,7 +269,9 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
         for (JsonElement element : root.getAsJsonArray("data")) {
             if (!isRenderActive(renderId)) return List.of();
             ArtistCandidate candidate = candidateFromJson(element);
-            if (candidate == null || blockedIds.contains(candidate.id())) continue;
+            if (candidate == null
+                    || blockedIds.contains(candidate.id())
+                    || blockedNames.contains(normalizeArtistName(candidate.name()))) continue;
             candidates.add(candidate);
             if (candidates.size() >= RECOMMENDATION_MAX) break;
         }
@@ -253,13 +305,34 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
 
     private void mergeCandidates(LinkedHashMap<Long, ArtistCandidate> target,
                                  Collection<ArtistCandidate> incoming,
-                                 Set<Long> existingArtistIds) {
+                                 Set<Long> existingArtistIds,
+                                 Set<String> existingArtistNames) {
         if (incoming == null) return;
         for (ArtistCandidate candidate : incoming) {
             if (candidate == null || candidate.id() <= 0 || existingArtistIds.contains(candidate.id())) continue;
+            String name = normalizeArtistName(candidate.name());
+            if (name.isBlank() || existingArtistNames.contains(name) || candidateNames(target).contains(name)) continue;
             target.putIfAbsent(candidate.id(), candidate);
             if (target.size() >= RECOMMENDATION_MAX) return;
         }
+    }
+
+    private Set<String> candidateNames(LinkedHashMap<Long, ArtistCandidate> candidates) {
+        Set<String> names = new HashSet<>();
+        if (candidates == null) return names;
+        for (ArtistCandidate candidate : candidates.values()) {
+            if (candidate != null) {
+                String name = normalizeArtistName(candidate.name());
+                if (!name.isBlank()) names.add(name);
+            }
+        }
+        return names;
+    }
+
+    private String normalizeArtistName(String name) {
+        return name == null
+                ? ""
+                : name.trim().replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
     }
 
     private ArtistCandidate candidateFromJson(JsonElement element) {
