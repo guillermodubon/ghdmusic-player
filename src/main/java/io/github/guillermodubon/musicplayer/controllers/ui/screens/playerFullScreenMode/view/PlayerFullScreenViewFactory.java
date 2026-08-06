@@ -47,7 +47,10 @@ public final class PlayerFullScreenViewFactory {
         titleViewport.getChildren().setAll(titleTrack);
 
         HBox artistsContainer = createArtistsContainer();
-        VBox copy = new VBox(8, titleViewport, artistsContainer);
+        StackPane artistsViewport = createArtistsViewport();
+        artistsViewport.getChildren().setAll(artistsContainer);
+
+        VBox copy = new VBox(8, titleViewport, artistsViewport);
         copy.setAlignment(Pos.CENTER_LEFT);
         copy.setMinWidth(0);
         // Reserve a lane for the actions button so text can never render
@@ -70,13 +73,14 @@ public final class PlayerFullScreenViewFactory {
         StackPane.setMargin(actionsMenuButton, new Insets(0, 0, 2, 0));
 
         MarqueeTextSupport titleMarquee = new MarqueeTextSupport(
-                titleViewport, titleTrack, title, null, null
+                titleViewport, titleTrack, title, artistsViewport, artistsContainer
         );
-        titleMarquee.installHover(titleViewport);
+        titleMarquee.setPixelsPerSecond(42.0);
+        titleMarquee.activateAlways();
         titleViewport.widthProperty().addListener((obs, oldWidth, newWidth) ->
                 titleMarquee.refresh()
         );
-        title.textProperty().addListener((obs, oldText, newText) ->
+        artistsViewport.widthProperty().addListener((obs, oldWidth, newWidth) ->
                 titleMarquee.refresh()
         );
 
@@ -109,6 +113,7 @@ public final class PlayerFullScreenViewFactory {
                 cover,
                 title,
                 artistsContainer,
+                titleMarquee,
                 actionsMenuButton,
                 closeButton,
                 coverClip
@@ -181,6 +186,14 @@ public final class PlayerFullScreenViewFactory {
     }
 
     private StackPane createTitleViewport() {
+        return createMetadataViewport("player-fullscreen-song-title-viewport");
+    }
+
+    private StackPane createArtistsViewport() {
+        return createMetadataViewport("player-fullscreen-song-artists-viewport");
+    }
+
+    private StackPane createMetadataViewport(String styleClass) {
         StackPane viewport = new StackPane();
         viewport.setAlignment(Pos.CENTER_LEFT);
         viewport.setMinWidth(0);
@@ -189,7 +202,7 @@ public final class PlayerFullScreenViewFactory {
         viewport.setMinHeight(28);
         viewport.setPrefHeight(28);
         viewport.setMaxHeight(28);
-        viewport.getStyleClass().add("player-fullscreen-song-title-viewport");
+        viewport.getStyleClass().add(styleClass);
         return viewport;
     }
 
@@ -197,8 +210,8 @@ public final class PlayerFullScreenViewFactory {
         HBox container = new HBox();
         container.setAlignment(Pos.CENTER_LEFT);
         container.setMinWidth(0);
-        container.setPrefWidth(0);
-        container.setMaxWidth(Double.MAX_VALUE);
+        container.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        container.setMaxWidth(Region.USE_PREF_SIZE);
         container.getStyleClass().add("player-fullscreen-song-artists");
         return container;
     }

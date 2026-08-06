@@ -75,6 +75,7 @@ public final class PlayerFullScreenArtworkCoordinator {
                 "player-fullscreen-artist-separator",
                 "player-fullscreen-artist-empty"
         );
+        view.metadataMarquee().refresh();
 
         Image cachedCover = MediaImageResolver.cachedSongAlbumCover(
                 song,
@@ -215,6 +216,7 @@ public final class PlayerFullScreenArtworkCoordinator {
         setOverlayVisible(false);
         view.songTitleLabel().setText("");
         view.artistsContainer().getChildren().clear();
+        view.metadataMarquee().refresh();
         view.songCoverImageView().setImage(MediaImageResolver.defaultCover(700, 700));
         backgroundStyler.clear();
         Platform.runLater(updateViewport);

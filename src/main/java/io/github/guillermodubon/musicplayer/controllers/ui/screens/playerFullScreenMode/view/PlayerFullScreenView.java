@@ -9,6 +9,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.HBox;
 import javafx.scene.shape.Rectangle;
+import io.github.guillermodubon.musicplayer.controllers.ui.components.effects.MarqueeTextSupport;
 
 /** Nodes owned by the internal fullscreen presentation. */
 public record PlayerFullScreenView(
@@ -20,12 +21,16 @@ public record PlayerFullScreenView(
         ImageView songCoverImageView,
         Label songTitleLabel,
         HBox artistsContainer,
+        MarqueeTextSupport metadataMarquee,
         Button actionsMenuButton,
         Button closeButton,
         Rectangle songCoverClip
 ) {
 
     public void unbindLayoutProperties() {
+        if (metadataMarquee != null) {
+            metadataMarquee.deactivate();
+        }
         unbind(root.prefWidthProperty());
         unbind(root.prefHeightProperty());
         if (songCoverClip != null) {
