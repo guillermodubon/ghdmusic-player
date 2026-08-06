@@ -42,6 +42,7 @@ public final class MarqueeTextSupport {
     private Node hoverNode;
     private final List<Node> hoverNodes = new ArrayList<>();
     private boolean hoverActive;
+    private boolean alwaysActive;
     private Runnable beforeStart = () -> {};
 
     public MarqueeTextSupport(StackPane titleViewport,
@@ -103,7 +104,11 @@ public final class MarqueeTextSupport {
         reset();
         Platform.runLater(() -> {
             reset();
-            if (isAnyHoverTargetActive()) activateForHover();
+            if (alwaysActive) {
+                activateAlwaysInternal();
+            } else if (isAnyHoverTargetActive()) {
+                activateForHover();
+            }
         });
     }
 
@@ -111,7 +116,20 @@ public final class MarqueeTextSupport {
         activateForHover();
     }
 
+    /** Starts the marquee continuously, without requiring a hover target. */
+    public void activateAlways() {
+        alwaysActive = true;
+        activateAlwaysInternal();
+    }
+
+    private void activateAlwaysInternal() {
+        if (hoverActive) return;
+        hoverActive = true;
+        start();
+    }
+
     public void deactivate() {
+        alwaysActive = false;
         resetAfterHoverExit();
     }
 
@@ -123,6 +141,7 @@ public final class MarqueeTextSupport {
 
     private void resetAfterHoverExit() {
         Platform.runLater(() -> {
+            if (alwaysActive) return;
             if (!isAnyHoverTargetActive()) reset();
         });
     }
