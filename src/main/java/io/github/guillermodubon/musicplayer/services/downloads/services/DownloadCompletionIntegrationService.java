@@ -81,8 +81,11 @@ public final class DownloadCompletionIntegrationService {
                      *
                      * Solo se le incorpora el estado local producido por la persistencia.
                      */
+                    Song sourceSnapshot = task.getContext() == null
+                            ? null
+                            : task.getContext().getSourceSong();
                     Song uiReadySong = prepareSourceSongForUi(
-                            remoteSong,
+                            sourceSnapshot == null ? remoteSong : sourceSnapshot,
                             canonicalSong,
                             downloadedFile
                     );

@@ -172,9 +172,6 @@ public final class PlayerMenuActionCoordinator {
         }
 
         List<Song> playOrder = new ArrayList<>(playable);
-        for (int index = 0; index < playOrder.size(); index++) {
-            playOrder.get(index).setTrackOrder(index);
-        }
 
         Song first = playOrder.get(0);
         host.actionContext().ensurePlaylistNameFallback();

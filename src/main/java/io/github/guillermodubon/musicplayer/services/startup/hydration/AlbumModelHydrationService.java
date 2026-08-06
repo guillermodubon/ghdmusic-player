@@ -199,17 +199,31 @@ final class AlbumModelHydrationService {
                 Optional<Song> old = songs.stream().filter(x -> x.getSongID() == s.getSongID() && x.getSongID() > 0).findFirst();
                 if (old.isPresent()) {
                     Song o = old.get();
-                    o.setAlbum(refreshed);
                     o.setFilePath(s.getFilePath());
                     o.setLocal(s.isLocal());
-                    o.getArtist().clear();
-                    o.getArtist().addAll(s.getArtist());
+
+                    /*
+                     * A Deezer track may be present in multiple editions.
+                     * Keep the canonical cache's edition metadata stable when
+                     * this focused refresh belongs to another album; album
+                     * lists are hydrated with their own Song instances below.
+                     */
+                    Album currentAlbum = o.getAlbum();
+                    boolean sameAlbum = currentAlbum != null
+                            && currentAlbum.getAlbumID() == refreshed.getAlbumID();
+                    if (sameAlbum) {
+                        o.setAlbum(refreshed);
+                        o.setTrackOrder(s.getTrackOrder());
+                    }
+
+                    if (o.getArtist() == null) o.setArtist(new ArrayList<>());
+                    if (s.getArtist() != null && !s.getArtist().isEmpty()) {
+                        o.getArtist().clear();
+                        o.getArtist().addAll(s.getArtist());
+                    }
                 } else {
                     songs.add(s);
                 }
-            }
-            for (Song so : songs) {
-                if (so.getAlbum() != null && so.getAlbum().getAlbumID() == refreshed.getAlbumID()) so.setAlbum(refreshed);
             }
         }
 
@@ -266,37 +280,48 @@ final class AlbumModelHydrationService {
         }
 
         if (refreshed.getSongList() != null && !refreshed.getSongList().isEmpty()) {
-            if (existing.getSongList() == null || existing.getSongList().isEmpty()) {
-                existing.setSongList(new ArrayList<>(refreshed.getSongList()));
-            } else {
-                Map<Integer, Song> byOrder = existing.getSongList().stream()
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toMap(Song::getTrackOrder, s -> s, (a, b) -> a));
-                for (Song sRef : refreshed.getSongList()) {
-                    Song existSong = byOrder.get(sRef.getTrackOrder());
-                    if (existSong == null) {
-                        // try to find by normalized title if trackOrder didn't match
-                        Optional<Song> byTitle = existing.getSongList().stream()
-                                .filter(x -> x.getTitle() != null && sRef.getTitle() != null
-                                        && x.getTitle().trim().equalsIgnoreCase(sRef.getTitle().trim()))
-                                .findFirst();
-                        if (byTitle.isPresent()) {
-                            Song found = byTitle.get();
-                            if (found.getAlbum() == null || found.getAlbum().getAlbumID() != refreshed.getAlbumID()) {
-                                found.setAlbum(existing);
-                            }
-                        } else {
-                            existing.getSongList().add(sRef);
-                        }
-                    } else {
-                        if (existSong.getAlbum() == null || existSong.getAlbum().getAlbumID() != refreshed.getAlbumID()) {
-                            existSong.setAlbum(existing);
-                        }
-                    }
-                }
-                existing.getSongList().sort(Comparator.comparingInt(Song::getTrackOrder));
+            existing.setSongList(copyAlbumSongs(existing, refreshed));
+        }
+    }
+
+    private static List<Song> copyAlbumSongs(Album existing, Album refreshed) {
+        Map<Long, Song> previousById = new HashMap<>();
+        Map<String, Song> previousByTitle = new HashMap<>();
+        if (existing.getSongList() != null) {
+            for (Song song : existing.getSongList()) {
+                if (song == null) continue;
+                if (song.getSongID() > 0) previousById.putIfAbsent(song.getSongID(), song);
+                String title = normalizeTitleForMatch(song.getTitle());
+                if (!title.isBlank()) previousByTitle.putIfAbsent(title, song);
             }
         }
+
+        List<Song> result = new ArrayList<>(refreshed.getSongList().size());
+        for (Song source : refreshed.getSongList()) {
+            if (source == null) continue;
+            Song previous = source.getSongID() > 0
+                    ? previousById.get(source.getSongID())
+                    : previousByTitle.get(normalizeTitleForMatch(source.getTitle()));
+            Song copy = new Song(
+                    source.getSongID(),
+                    source.getTitle(),
+                    source.getArtist() == null ? new ArrayList<>() : new ArrayList<>(source.getArtist()),
+                    existing,
+                    source.getFilePath(),
+                    source.getTrackOrder(),
+                    source.isLocal()
+            );
+
+            // A focused DB refresh must not discard a file state already
+            // published to this album while the download pipeline completes.
+            if (previous != null && previous.isLocal()
+                    && previous.getFilePath() != null && !previous.getFilePath().isBlank()) {
+                copy.setLocal(true);
+                copy.setFilePath(previous.getFilePath());
+            }
+            result.add(copy);
+        }
+        return result;
     }
 
     static String normalizeTitleForMatch(String t) {

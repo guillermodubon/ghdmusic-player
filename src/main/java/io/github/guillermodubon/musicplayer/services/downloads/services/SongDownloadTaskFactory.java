@@ -155,13 +155,13 @@ public final class SongDownloadTaskFactory {
         context.setMetadataHint(buildMetadataHint(song));
 
         /*
-         * Preserves the exact Song object represented by SongItemVisual.
-         *
-         * Post-download integration uses this reference to replace the remote
-         * song with its local version inside PlayerMenuController, its visible
-         * lists and the active playback flow.
+         * Keep a view-specific snapshot instead of retaining the mutable
+         * global Song instance. The same Deezer track can be rendered in a
+         * single and in several album editions, each with its own Album and
+         * trackOrder. Download persistence may refresh the canonical cache,
+         * but it must never rewrite the edition from which this task started.
          */
-        context.setSourceSong(song);
+        context.setSourceSong(snapshotSourceSong(song));
 
         /*
          * Basic identity of the album, playlist or single from which the
@@ -189,6 +189,41 @@ public final class SongDownloadTaskFactory {
         );
 
         return new DownloadTask(context);
+    }
+
+    private static Song snapshotSourceSong(Song source) {
+        if (source == null) return null;
+
+        Album sourceAlbum = source.getAlbum();
+        Album albumSnapshot = null;
+        if (sourceAlbum != null) {
+            albumSnapshot = new Album(
+                    sourceAlbum.getAlbumID(),
+                    sourceAlbum.getName(),
+                    sourceAlbum.getArtist() == null
+                            ? new ArrayList<>()
+                            : new ArrayList<>(sourceAlbum.getArtist()),
+                    sourceAlbum.getGenre(),
+                    sourceAlbum.getRecordType(),
+                    sourceAlbum.getReleaseDate(),
+                    new ArrayList<>(),
+                    new ArrayList<>(),
+                    sourceAlbum.getNumberOfTracks()
+            );
+            albumSnapshot.setCoverUrl(sourceAlbum.getCoverUrl());
+        }
+
+        return new Song(
+                source.getSongID(),
+                source.getTitle(),
+                source.getArtist() == null
+                        ? new ArrayList<>()
+                        : new ArrayList<>(source.getArtist()),
+                albumSnapshot,
+                source.getFilePath(),
+                source.getTrackOrder(),
+                source.isLocal()
+        );
     }
 
     /**

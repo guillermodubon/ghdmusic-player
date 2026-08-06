@@ -483,13 +483,37 @@ public class AlbumPlaybackCoordinator {
         int expected = album.getNumberOfTracks();
         if (expected <= 0) return false;
 
-        long actual = Optional.ofNullable(songs).orElse(List.of()).stream()
+        List<Song> safeSongs = Optional.ofNullable(songs).orElse(List.of());
+        long actual = safeSongs.stream()
                 .filter(Objects::nonNull)
                 .map(Song::getSongID)
                 .filter(id -> id > 0)
                 .distinct()
                 .count();
-        return actual >= expected;
+
+        if (actual < expected) return false;
+
+        /*
+         * A Song row is shared by Deezer editions in the local database. After
+         * downloading a track from a single, its persisted TrackOrder can
+         * temporarily describe that single instead of this album. Counting
+         * rows alone would incorrectly mark this view as complete and skip the
+         * fresh Deezer track list, leaving the local track at the wrong index.
+         * Require the album positions to be a complete 1..N sequence before
+         * using the fast in-memory path.
+         */
+        Set<Integer> trackOrders = safeSongs.stream()
+                .filter(Objects::nonNull)
+                .map(Song::getTrackOrder)
+                .filter(order -> order > 0)
+                .collect(Collectors.toSet());
+
+        if (trackOrders.size() < expected) return false;
+        for (int order = 1; order <= expected; order++) {
+            if (!trackOrders.contains(order)) return false;
+        }
+
+        return true;
     }
 
     private Artist resolveArtistFromMemory(long artistId, String artistName) {
