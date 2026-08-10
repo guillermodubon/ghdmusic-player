@@ -14,6 +14,7 @@
     -fx-border-color: transparent;
     -fx-border-width: 0;
     -fx-padding: 8 12 8 10;
+    -fx-cursor: hand;
 }
 
 .app-action-context-menu .menu-item:focused,
