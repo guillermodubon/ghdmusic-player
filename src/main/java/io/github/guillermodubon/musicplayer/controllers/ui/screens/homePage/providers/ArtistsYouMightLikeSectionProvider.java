@@ -2,15 +2,20 @@ package io.github.guillermodubon.musicplayer.controllers.ui.screens.homePage.pro
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.Parent;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.cards.data.ArtistCardData;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.cards.factory.CardFactory;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.homePage.context.HomePageContext;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.homePage.providers.base.BaseHomePageSectionProvider;
 import io.github.guillermodubon.musicplayer.models.Artist;
 import io.github.guillermodubon.musicplayer.models.Genre;
+import io.github.guillermodubon.musicplayer.models.Song;
+import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDao;
+import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDaoImpl;
 import io.github.guillermodubon.musicplayer.services.api.DeezerArtistMetadataResolver;
 import io.github.guillermodubon.musicplayer.services.api.DeezerApiService;
 
@@ -35,6 +40,13 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
     private static final int ARTIST_SEED_LIMIT = 8;
     private static final int RELATED_PER_SEED_LIMIT = 12;
     private static final int GENRE_ARTISTS_PER_LOOKUP = 12;
+    private static final Duration EMPTY_RESULT_RETRY_DELAY = Duration.millis(420);
+    private static final AtomicInteger RENDER_THREAD_ID = new AtomicInteger();
+    private static final ExecutorService RENDER_POOL = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable, "home-artist-section-" + RENDER_THREAD_ID.incrementAndGet());
+        thread.setDaemon(true);
+        return thread;
+    });
     private static final AtomicInteger LOOKUP_THREAD_ID = new AtomicInteger();
     private static final ExecutorService LOOKUP_POOL = Executors.newFixedThreadPool(4, runnable -> {
         Thread thread = new Thread(runnable, "home-artist-recommendations-" + LOOKUP_THREAD_ID.incrementAndGet());
@@ -52,41 +64,77 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
         setSectionContent(section, emptyState("Finding artists you might like..."));
 
         CompletableFuture<Void> completion = new CompletableFuture<>();
-        supplyAsync(() -> loadArtistCandidates(renderId))
-                .whenComplete((candidates, error) -> Platform.runLater(() -> {
-                    try {
-                        if (!isRenderActive(renderId)) return;
-                        List<Parent> cards = new ArrayList<>();
-                        String normalizedFilter = norm(filter);
-                        for (ArtistCandidate candidate : candidates == null ? List.<ArtistCandidate>of() : candidates) {
-                            if (candidate == null || !matchesFilter(candidate.name(), List.of(), normalizedFilter)) continue;
-                            Parent card = createArtistCard(candidate);
-                            if (card != null) cards.add(card);
-                            if (cards.size() >= RECOMMENDATION_MAX) break;
-                        }
-
-                        if (cards.isEmpty()) {
-                            removeSection(section);
-                        } else {
-                            setSectionContent(section, createMusicCarousel(cards));
-                        }
-                    } finally {
-                        completion.complete(null);
-                    }
-                }));
+        loadAndRender(section, filter, renderId, 0, completion);
         return completion;
+    }
+
+    /**
+     * The startup cache can still be catching up with SQLite during the first
+     * Home render. Keep the slot pending for one short retry rather than
+     * permanently removing a valid personalized section because of that
+     * transient state or a one-off Deezer response failure.
+     */
+    private void loadAndRender(VBox section,
+                               String filter,
+                               long renderId,
+                               int attempt,
+                               CompletableFuture<Void> completion) {
+        supplyAsync(() -> loadArtistCandidates(renderId), RENDER_POOL)
+                .exceptionally(ignored -> List.of())
+                .whenComplete((candidates, error) -> Platform.runLater(() -> {
+                    if (!isRenderActive(renderId)) {
+                        completion.complete(null);
+                        return;
+                    }
+
+                    List<Parent> cards = createArtistCards(candidates, filter);
+                    if (!cards.isEmpty()) {
+                        setSectionContent(section, createMusicCarousel(cards));
+                        completion.complete(null);
+                        return;
+                    }
+
+                    if (attempt == 0 && hasPotentialArtistSeeds()) {
+                        PauseTransition retry = new PauseTransition(EMPTY_RESULT_RETRY_DELAY);
+                        retry.setOnFinished(event -> loadAndRender(
+                                section,
+                                filter,
+                                renderId,
+                                attempt + 1,
+                                completion
+                        ));
+                        retry.playFromStart();
+                        return;
+                    }
+
+                    removeSection(section);
+                    completion.complete(null);
+                }));
+    }
+
+    private List<Parent> createArtistCards(List<ArtistCandidate> candidates, String filter) {
+        List<Parent> cards = new ArrayList<>();
+        String normalizedFilter = norm(filter);
+        for (ArtistCandidate candidate : candidates == null ? List.<ArtistCandidate>of() : candidates) {
+            if (candidate == null || !matchesFilter(candidate.name(), List.of(), normalizedFilter)) continue;
+            Parent card = createArtistCard(candidate);
+            if (card != null) cards.add(card);
+            if (cards.size() >= RECOMMENDATION_MAX) break;
+        }
+        return cards;
     }
 
     private List<ArtistCandidate> loadArtistCandidates(long renderId) {
         if (!isRenderActive(renderId) || context.endpoints() == null) return List.of();
-        if (!hasLibraryArtists()) return List.of();
+        LibraryArtistState libraryArtists = libraryArtistState();
+        if (libraryArtists.isEmpty()) return List.of();
 
-        Set<Long> existingArtistIds = existingArtistIds();
-        Set<String> existingArtistNames = existingArtistNames();
+        Set<Long> existingArtistIds = libraryArtists.ids();
+        Set<String> existingArtistNames = libraryArtists.names();
         LinkedHashMap<Long, ArtistCandidate> candidates = new LinkedHashMap<>();
         mergeCandidates(
                 candidates,
-                loadRelatedCandidates(seedArtistIds(), existingArtistIds, existingArtistNames, renderId),
+                loadRelatedCandidates(libraryArtists.seedIds(), existingArtistIds, existingArtistNames, renderId),
                 existingArtistIds,
                 existingArtistNames
         );
@@ -112,7 +160,7 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
          * when the existing sources did not provide enough candidates.
          */
         if (candidates.size() < RECOMMENDATION_MAX
-                && hasLibraryArtists()
+                && !libraryArtists.isEmpty()
                 && isRenderActive(renderId)) {
             Set<Long> blocked = new HashSet<>(existingArtistIds);
             blocked.addAll(candidates.keySet());
@@ -129,52 +177,79 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
         return candidates.values().stream().limit(RECOMMENDATION_MAX).toList();
     }
 
-    private boolean hasLibraryArtists() {
-        try {
-            return context.memory() != null
-                    && context.memory().artists() != null
-                    && !context.memory().artists().isEmpty();
-        } catch (Exception ignored) {
-            return false;
-        }
+    private boolean hasPotentialArtistSeeds() {
+        return !libraryArtistState().isEmpty() && context.endpoints() != null;
     }
 
-    private Set<Long> existingArtistIds() {
+    /**
+     * Memory is the normal fast path. If its artist cache is briefly empty,
+     * read the persisted artist rows once; if that is also still unavailable,
+     * use the already loaded songs as a final bounded in-memory fallback.
+     */
+    private LibraryArtistState libraryArtistState() {
+        LinkedHashMap<String, Artist> artistsByName = new LinkedHashMap<>();
+        try {
+            if (context.memory() != null && context.memory().artists() != null) {
+                for (Artist artist : context.memory().artists()) {
+                    addLibraryArtist(artistsByName, artist);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (artistsByName.isEmpty()) {
+            try {
+                ArtistDao dao = new ArtistDaoImpl(null);
+                for (Artist artist : dao.findAll()) {
+                    addLibraryArtist(artistsByName, artist);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        if (artistsByName.isEmpty()) {
+            collectArtistsFromLoadedSongs(artistsByName);
+        }
+
         Set<Long> ids = new HashSet<>();
-        try {
-            for (Artist artist : context.memory().artists()) {
-                if (artist != null && artist.getArtistID() > 0) ids.add(artist.getArtistID());
-            }
-        } catch (Exception ignored) {
-        }
-        return ids;
-    }
-
-    private Set<String> existingArtistNames() {
         Set<String> names = new HashSet<>();
-        try {
-            for (Artist artist : context.memory().artists()) {
-                if (artist == null || artist.getName() == null) continue;
-                String name = normalizeArtistName(artist.getName());
-                if (!name.isBlank()) names.add(name);
+        List<Long> seedIds = new ArrayList<>();
+        for (Artist artist : artistsByName.values()) {
+            if (artist == null) continue;
+            String normalizedName = normalizeArtistName(artist.getName());
+            if (normalizedName.isBlank()) continue;
+            names.add(normalizedName);
+            if (artist.getArtistID() > 0 && ids.add(artist.getArtistID())
+                    && seedIds.size() < ARTIST_SEED_LIMIT) {
+                seedIds.add(artist.getArtistID());
             }
-        } catch (Exception ignored) {
         }
-        return names;
+        return new LibraryArtistState(Set.copyOf(ids), Set.copyOf(names), List.copyOf(seedIds));
     }
 
-    private List<Long> seedArtistIds() {
-        List<Long> ids = new ArrayList<>();
-        Set<Long> seen = new HashSet<>();
+    private void collectArtistsFromLoadedSongs(LinkedHashMap<String, Artist> artistsByName) {
         try {
-            for (Artist artist : context.memory().artists()) {
-                if (artist == null || artist.getArtistID() <= 0 || !seen.add(artist.getArtistID())) continue;
-                ids.add(artist.getArtistID());
-                if (ids.size() >= ARTIST_SEED_LIMIT) break;
+            if (context.svc() == null || context.svc().getSongs() == null) return;
+            for (Song song : context.svc().getSongs()) {
+                if (song == null) continue;
+                if (song.getArtist() != null) {
+                    for (Artist artist : song.getArtist()) addLibraryArtist(artistsByName, artist);
+                }
+                if (song.getAlbum() != null && song.getAlbum().getArtist() != null) {
+                    for (Artist artist : song.getAlbum().getArtist()) addLibraryArtist(artistsByName, artist);
+                }
+                if (artistsByName.size() >= ARTIST_SEED_LIMIT) return;
             }
         } catch (Exception ignored) {
         }
-        return ids;
+    }
+
+    private void addLibraryArtist(LinkedHashMap<String, Artist> target, Artist artist) {
+        if (target == null || artist == null) return;
+        String name = normalizeArtistName(artist.getName());
+        if (name.isBlank() || name.equals("unknown") || name.equals("unknown artist")) return;
+        target.merge(name, artist, (current, incoming) ->
+                current.getArtistID() > 0 || incoming.getArtistID() <= 0 ? current : incoming);
     }
 
     private List<ArtistCandidate> loadRelatedCandidates(List<Long> seedIds,
@@ -291,13 +366,8 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
         if (tasks == null || tasks.isEmpty()) return List.of();
         List<CompletableFuture<List<ArtistCandidate>>> futures = new ArrayList<>();
         for (Callable<List<ArtistCandidate>> task : tasks) {
-            futures.add(CompletableFuture.supplyAsync(() -> {
-                try {
-                    return task.call();
-                } catch (Exception ignored) {
-                    return List.of();
-                }
-            }, LOOKUP_POOL));
+            futures.add(supplyAsync(task, LOOKUP_POOL)
+                    .exceptionally(ignored -> List.of()));
         }
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         return futures.stream().map(future -> future.getNow(List.of())).toList();
@@ -358,8 +428,14 @@ public class ArtistsYouMightLikeSectionProvider extends BaseHomePageSectionProvi
             card.getProperties().put("artistId", candidate.id());
             styleMusicCard(card);
             return card;
-        } catch (IOException ignored) {
+        } catch (IOException | RuntimeException ignored) {
             return null;
+        }
+    }
+
+    private record LibraryArtistState(Set<Long> ids, Set<String> names, List<Long> seedIds) {
+        private boolean isEmpty() {
+            return names == null || names.isEmpty();
         }
     }
 

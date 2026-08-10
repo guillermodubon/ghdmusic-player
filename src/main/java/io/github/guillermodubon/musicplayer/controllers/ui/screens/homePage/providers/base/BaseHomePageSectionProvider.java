@@ -61,8 +61,18 @@ public abstract class BaseHomePageSectionProvider implements HomePageSectionProv
     }
 
     protected <T> CompletableFuture<T> supplyAsync(Callable<T> loader) {
+        return supplyAsync(loader, IO_POOL);
+    }
+
+    /**
+     * Runs provider work in a bounded, purpose-specific executor while still
+     * honoring the active Home render scope. Providers with remote work that
+     * must not be delayed by unrelated sections can use this overload.
+     */
+    protected <T> CompletableFuture<T> supplyAsync(Callable<T> loader, ExecutorService executor) {
+        ExecutorService effectiveExecutor = executor == null ? IO_POOL : executor;
         if (context.requestScope() != null) {
-            return context.requestScope().supplyAsync(loader, IO_POOL);
+            return context.requestScope().supplyAsync(loader, effectiveExecutor);
         }
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -70,7 +80,7 @@ public abstract class BaseHomePageSectionProvider implements HomePageSectionProv
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
-        }, IO_POOL);
+        }, effectiveExecutor);
     }
 
     protected String norm(String filter) {
