@@ -52,7 +52,7 @@
                      <ImageView fx:id="headerCover"
                                 fitWidth="280"
                                 fitHeight="280"
-                                preserveRatio="false"
+                                preserveRatio="true"
                                 smooth="true"
                                 styleClass="player-menu-cover"/>
                   </StackPane>
