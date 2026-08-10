@@ -157,6 +157,10 @@
                spacing="24"
                alignment="CENTER_RIGHT"
                styleClass="player-right-controls">
+            <Button fx:id="LyricsButton"
+                    onAction="#onShowLyrics"
+                    focusTraversable="false"
+                    styleClass="player-icon-button player-lyrics-button"/>
             <ToggleButton fx:id="ReplayToggleButton"
                           focusTraversable="false"
                           styleClass="player-icon-button player-toggle"/>
@@ -176,10 +180,10 @@
                   alignment="CENTER_RIGHT"
                   styleClass="player-volume-box">
                <StackPane fx:id="VolumeIconHost"
-                          minWidth="24"
-                          prefWidth="24"
-                          maxWidth="24"
-                          styleClass="player-volume-icon-host"/>
+                           minWidth="30"
+                           prefWidth="30"
+                           maxWidth="30"
+                           styleClass="player-volume-icon-host"/>
                <StackPane fx:id="VolumeSliderShell"
                           minWidth="96"
                           prefWidth="118"

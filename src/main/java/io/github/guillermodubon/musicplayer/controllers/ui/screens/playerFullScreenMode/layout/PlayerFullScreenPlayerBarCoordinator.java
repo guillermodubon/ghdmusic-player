@@ -7,6 +7,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -79,6 +80,11 @@ public final class PlayerFullScreenPlayerBarCoordinator {
         alignInOverlay();
         fullscreenBarRoot.setManaged(true);
         fullscreenBarRoot.setVisible(true);
+        // The bar is positioned dynamically and can temporarily overlap the
+        // metadata column during a resize or first layout pulse. Only its
+        // actual controls should receive mouse events; transparent bounds
+        // must not block artist hyperlinks behind it.
+        fullscreenBarRoot.setPickOnBounds(false);
         fullscreenBarRoot.setMouseTransparent(false);
         fullscreenBarRoot.setOpacity(1.0);
         fullscreenBarRoot.toFront();
@@ -87,6 +93,42 @@ public final class PlayerFullScreenPlayerBarCoordinator {
     public void configureActionsButton(Button button) {
         if (fullscreenBarController != null) {
             fullscreenBarController.configureActionsButton(button);
+        }
+    }
+
+    /** Places the lyrics action beside the existing fullscreen actions menu. */
+    public void placeLyricsButtonNextTo(Button menuButton) {
+        if (fullscreenBarController == null || menuButton == null
+                || !(menuButton.getParent() instanceof HBox actionContainer)) {
+            return;
+        }
+
+        Button lyricsButton = fullscreenBarController.getLyricsButton();
+        if (lyricsButton == null) {
+            return;
+        }
+
+        if (lyricsButton.getParent() instanceof Pane currentParent) {
+            currentParent.getChildren().remove(lyricsButton);
+        }
+        if (!actionContainer.getChildren().contains(lyricsButton)) {
+            actionContainer.getChildren().add(lyricsButton);
+        }
+
+        // PlayerLyricsButtonSupport uses an inline transparent style for the
+        // regular player bar. In fullscreen, the shared action-button class
+        // supplies the circular surface used by the menu button.
+        lyricsButton.setStyle("");
+        if (!lyricsButton.getStyleClass().contains("player-fullscreen-actions-button")) {
+            lyricsButton.getStyleClass().add("player-fullscreen-actions-button");
+        }
+        actionContainer.setAlignment(Pos.CENTER_RIGHT);
+        actionContainer.setSpacing(10.0);
+    }
+
+    public void setLyricsButtonSuppressed(boolean suppressed) {
+        if (fullscreenBarController != null) {
+            fullscreenBarController.setLyricsButtonSuppressed(suppressed);
         }
     }
 
@@ -103,6 +145,103 @@ public final class PlayerFullScreenPlayerBarCoordinator {
         }
         alignInOverlay();
         fullscreenBarRoot.requestLayout();
+    }
+
+    /** Lays the playback bar below the left metadata column used by lyrics mode. */
+    public void layoutBelowNowPlaying(PlayerFullScreenView view) {
+        StackPane overlay = overlaySupplier.get();
+        if (fullscreenBarRoot == null || overlay == null || view == null
+                || fullscreenBarRoot.getParent() != overlay) {
+            return;
+        }
+
+        Bounds coverBounds = boundsInOverlay(overlay, view.songCoverImageView());
+        Bounds artworkBounds = boundsInOverlay(overlay, view.artworkContainer());
+        Bounds nowPlayingBounds = boundsInOverlay(overlay, view.nowPlayingOverlay());
+
+        // During a rapid open/close cycle the ImageView can still report a
+        // zero-sized scene bound for one pulse. Use the already requested fit
+        // size instead of allowing the bar to fall back to the whole overlay.
+        double coverWidth = coverBounds.getWidth();
+        if (coverWidth <= 1.0) {
+            coverWidth = view.songCoverImageView().getFitWidth();
+        }
+        if (coverWidth <= 1.0) {
+            coverWidth = artworkBounds.getWidth();
+        }
+
+        double left = coverBounds.getWidth() > 1.0
+                ? coverBounds.getMinX()
+                : artworkBounds.getWidth() > 1.0
+                ? artworkBounds.getMinX()
+                : nowPlayingBounds.getWidth() > 1.0
+                ? nowPlayingBounds.getMinX()
+                        + Math.max(0.0, (nowPlayingBounds.getWidth() - coverWidth) / 2.0)
+                : resolveCenteredCoverLeft(overlay, coverWidth);
+        left = Math.max(12.0, left);
+        double availableWidth = Math.max(0.0, overlay.getWidth() - left - 16.0);
+        double desiredWidth = coverWidth > 1.0
+                ? coverWidth
+                : Math.min(MAX_BAR_WIDTH, Math.max(320.0, availableWidth));
+        double width = Math.min(MAX_BAR_WIDTH, Math.min(availableWidth, desiredWidth));
+        if (width <= 0.0) {
+            return;
+        }
+
+        if (fullscreenBarRoot.prefWidthProperty().isBound()) {
+            fullscreenBarRoot.prefWidthProperty().unbind();
+        }
+        fullscreenBarRoot.setMinWidth(0.0);
+        fullscreenBarRoot.setPrefWidth(width);
+        fullscreenBarRoot.setMaxWidth(width);
+        fullscreenBarRoot.setMinHeight(0.0);
+        fullscreenBarRoot.setMaxHeight(Region.USE_PREF_SIZE);
+
+        double contentBottom = Math.max(
+                bottomInOverlay(overlay, view.artworkContainer()),
+                Math.max(
+                        bottomInOverlay(overlay, view.songTitleLabel()),
+                        Math.max(
+                                bottomInOverlay(overlay, view.artistsContainer()),
+                                bottomInOverlay(overlay, view.actionsMenuButton())
+                        )
+                )
+        );
+        double barHeight = Math.max(178.0, fullscreenBarRoot.prefHeight(width));
+        double maxTop = Math.max(0.0, overlay.getHeight() - barHeight - 14.0);
+        boolean splitComposition = coverBounds.getWidth() > 1.0
+                && coverBounds.getWidth() < overlay.getWidth() * 0.75;
+        double preferredGap = splitComposition
+                ? (overlay.getHeight() < 680.0 ? 24.0 : 32.0)
+                : (overlay.getHeight() < 680.0 ? 14.0 : 22.0);
+        double preferredTop = contentBottom + preferredGap;
+        double top = Math.min(Math.max(0.0, preferredTop), maxTop);
+        double right = Math.max(0.0, overlay.getWidth() - left - width);
+
+        StackPane.setAlignment(fullscreenBarRoot, Pos.TOP_LEFT);
+        StackPane.setMargin(fullscreenBarRoot, new Insets(top, right, 0.0, left));
+        fullscreenBarRoot.setTranslateY(0.0);
+        fullscreenBarRoot.requestLayout();
+    }
+
+    private double resolveCenteredCoverLeft(
+            StackPane overlay,
+            double coverWidth
+    ) {
+        double width = Math.max(0.0, overlay.getWidth());
+        double height = Math.max(0.0, overlay.getHeight());
+        boolean compact = width < 900.0 || height < 680.0;
+        double sideMargin = compact
+                ? Math.min(18.0, Math.max(8.0, width * 0.04))
+                : Math.max(28.0, Math.min(72.0, width * 0.04));
+        double columnGap = compact
+                ? Math.min(18.0, Math.max(8.0, width * 0.03))
+                : 34.0;
+        double columnWidth = Math.max(
+                0.0,
+                (width - (sideMargin * 2.0) - columnGap) / 2.0
+        );
+        return sideMargin + Math.max(0.0, (columnWidth - coverWidth) / 2.0);
     }
 
     public void bringToFront() {
@@ -139,6 +278,7 @@ public final class PlayerFullScreenPlayerBarCoordinator {
                     normalBar.getParentRoot()
             );
             fullscreenBarRoot = loadedRoot;
+            fullscreenBarRoot.setPickOnBounds(false);
             fullscreenBarController = loadedController;
         } catch (IOException error) {
             error.printStackTrace();
@@ -221,8 +361,14 @@ public final class PlayerFullScreenPlayerBarCoordinator {
         if (node == null || node.getScene() == null || !node.isVisible()) {
             return 0.0;
         }
-        Bounds bounds = overlay.sceneToLocal(node.localToScene(node.getBoundsInLocal()));
-        return bounds.getMaxY();
+        return boundsInOverlay(overlay, node).getMaxY();
+    }
+
+    private Bounds boundsInOverlay(StackPane overlay, Node node) {
+        if (node == null || node.getScene() == null || !node.isVisible()) {
+            return new javafx.geometry.BoundingBox(0.0, 0.0, 0.0, 0.0);
+        }
+        return overlay.sceneToLocal(node.localToScene(node.getBoundsInLocal()));
     }
 
     private void detachFullscreenBar() {
