@@ -17,6 +17,7 @@
             fx:controller="io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.playerMenuBar.PlayerFullScreenMenuBarController"
             minHeight="178"
             maxWidth="Infinity"
+            pickOnBounds="false"
             stylesheets="@player-fullscreen-menu-bar.css"
             styleClass="player-fullscreen-menu-bar">
    <center>
@@ -24,15 +25,17 @@
             alignment="CENTER"
             spacing="18"
             maxWidth="Infinity"
+            pickOnBounds="false"
             styleClass="player-fullscreen-menu-bar-content">
          <padding>
             <Insets top="10" right="0" bottom="16" left="0"/>
          </padding>
 
-         <HBox fx:id="timeRow"
+        <HBox fx:id="timeRow"
                alignment="CENTER"
                spacing="12"
                maxWidth="Infinity"
+               pickOnBounds="false"
                styleClass="player-fullscreen-time-row">
             <Label fx:id="currentMinuteLabel"
                    minWidth="48"
@@ -45,6 +48,7 @@
                        minWidth="260"
                        prefWidth="660"
                        maxWidth="900"
+                       pickOnBounds="false"
                        styleClass="player-fullscreen-slider-shell">
                <Region fx:id="songTimerSliderBase"
                        mouseTransparent="true"
@@ -71,11 +75,16 @@
                    styleClass="player-fullscreen-time-label"/>
          </HBox>
 
-         <HBox fx:id="transportRow"
+        <HBox fx:id="transportRow"
                alignment="CENTER"
                spacing="16"
                maxWidth="Infinity"
+               pickOnBounds="false"
                styleClass="player-fullscreen-transport-row">
+            <Button fx:id="lyricsButton"
+                    onAction="#showLyrics"
+                    focusTraversable="false"
+                    styleClass="player-fullscreen-control-button player-fullscreen-lyrics-button"/>
             <ToggleButton fx:id="randomToggleButton"
                           focusTraversable="false"
                           styleClass="player-fullscreen-control-button"/>
@@ -96,21 +105,24 @@
                           styleClass="player-fullscreen-control-button"/>
          </HBox>
 
-         <HBox fx:id="volumeRow"
+        <HBox fx:id="volumeRow"
                alignment="CENTER"
                spacing="12"
                maxWidth="Infinity"
+               pickOnBounds="false"
                styleClass="player-fullscreen-volume-row">
             <StackPane fx:id="volumeIconHost"
                        minWidth="24"
                        prefWidth="24"
                        maxWidth="24"
+                       pickOnBounds="false"
                        styleClass="player-fullscreen-volume-icon-host"/>
             <StackPane fx:id="volumeSliderShell"
                        HBox.hgrow="ALWAYS"
                        minWidth="140"
                        prefWidth="420"
                        maxWidth="720"
+                       pickOnBounds="false"
                        styleClass="player-fullscreen-slider-shell">
                <Region fx:id="volumeSliderBase"
                        mouseTransparent="true"
