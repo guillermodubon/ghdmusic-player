@@ -3,6 +3,7 @@ package io.github.guillermodubon.musicplayer.services.startup.downloads;
 
 import javafx.application.Platform;
 import io.github.guillermodubon.musicplayer.utils.SongDataHelper;
+import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 import io.github.guillermodubon.musicplayer.utils.FileNameUtils;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.services.manifest.ManifestSyncService;
@@ -206,6 +207,7 @@ public class DownloadLifecycleService {
                 ? meta.getSongName().trim()
                 : FileNameUtils.withoutExtension(finalFile.getName());
         owner.putTitleToPath(title, finalFile.getAbsolutePath());
+        owner.putSongToPath(meta, finalFile.getAbsolutePath());
 
         if (meta == null || meta.getAlbumArtistNames() == null) return;
         for (String artistName : meta.getAlbumArtistNames()) {
@@ -220,21 +222,29 @@ public class DownloadLifecycleService {
         if (meta == null || finalFile == null) return;
 
         long trackId = meta.getTrackId();
-        String title = meta.getSongName();
         String absolutePath = finalFile.getAbsolutePath();
+        Song downloadedSong = null;
 
         synchronized (owner.getSongs()) {
             for (Song song : owner.getSongs()) {
                 if (song == null) continue;
-                boolean matches = trackId > 0 && song.getSongID() == trackId;
-                if (!matches && title != null && song.getTitle() != null) {
-                    matches = title.equalsIgnoreCase(song.getTitle());
+                boolean matchesExactTrack = trackId > 0 && song.getSongID() == trackId;
+                boolean matches = matchesExactTrack;
+                if (!matches) {
+                    matches = SongAudioIdentity.matches(song, meta);
                 }
                 if (!matches) continue;
 
                 song.setLocal(true);
                 song.setFilePath(absolutePath);
+                if (matchesExactTrack) {
+                    downloadedSong = song;
+                }
             }
+        }
+
+        if (downloadedSong != null) {
+            trackArtistService.refreshDownloadedTrackArtistsAsync(trackId, downloadedSong);
         }
     }
 
@@ -293,4 +303,3 @@ public class DownloadLifecycleService {
     }
 
 }
-

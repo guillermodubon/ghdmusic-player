@@ -19,12 +19,20 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /** Resolves, persists and caches the artists associated with downloaded tracks. */
 public final class DownloadedTrackArtistService {
     private final StartUpService owner;
     private final SongArtistDao songArtistDao = new SongArtistDaoImpl(null);
     private final Map<Long, List<Artist>> trackArtistsCache = new ConcurrentHashMap<>();
+    private final Map<Long, CompletableFuture<Void>> forcedDownloadRefreshes = new ConcurrentHashMap<>();
+    private final ExecutorService downloadedArtistRefreshExecutor = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable, "downloaded-track-artist-refresh");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public DownloadedTrackArtistService(StartUpService owner) {
         this.owner = Objects.requireNonNull(owner, "owner");
@@ -71,6 +79,33 @@ public final class DownloadedTrackArtistService {
         }
 
         CompletableFuture.runAsync(() -> resolveAndPersist(trackId, targetSong, onComplete));
+    }
+
+    /**
+     * Resolves the track endpoint once after a completed download. Download
+     * metadata can differ by Deezer source, while this endpoint provides the
+     * authoritative contributor list needed to safely share the local file
+     * across album editions. The bounded executor keeps bulk downloads from
+     * flooding the API or the database.
+     */
+    public void refreshDownloadedTrackArtistsAsync(long trackId, Song targetSong) {
+        if (trackId <= 0 || targetSong == null) {
+            return;
+        }
+
+        forcedDownloadRefreshes.computeIfAbsent(trackId, ignored -> {
+            CompletableFuture<Void> refresh = CompletableFuture.runAsync(() -> {
+                List<Artist> artists = normalizeArtists(fetchArtists(trackId), true);
+                if (artists.isEmpty()) {
+                    return;
+                }
+                persistArtists(trackId, artists);
+                addArtistsToOwner(trackId, artists);
+                mergeArtistsIntoSong(targetSong, artists);
+            }, downloadedArtistRefreshExecutor);
+            refresh.whenComplete((unused, error) -> forcedDownloadRefreshes.remove(trackId, refresh));
+            return refresh;
+        });
     }
 
     private void resolveAndPersist(long trackId, Song targetSong, Runnable onComplete) {
@@ -223,13 +258,20 @@ public final class DownloadedTrackArtistService {
                 }
             }
         }
+
+        List<Song> matchingSongs;
+        synchronized (owner.getSongs()) {
+            matchingSongs = owner.getSongs().stream()
+                    .filter(song -> song != null && song.getSongID() == trackId)
+                    .toList();
+        }
+        for (Song song : matchingSongs) {
+            mergeArtistsIntoSong(song, artists);
+        }
     }
 
     private void applyArtistsToSong(Song song, List<Artist> artists) {
-        if (song == null) return;
-        synchronized (song) {
-            song.setArtist(new ArrayList<>(artists));
-        }
+        mergeArtistsIntoSong(song, artists);
     }
 
     private void mergeArtistsIntoSong(Song song, List<Artist> artists) {
@@ -250,6 +292,29 @@ public final class DownloadedTrackArtistService {
                 if (!duplicate) combined.add(artist);
             }
             song.setArtist(combined);
+        }
+
+        registerLocalAudioIdentity(song);
+    }
+
+    /**
+     * The original download metadata can be incomplete for one Deezer source.
+     * Once the canonical contributor list is available, refresh the in-memory
+     * path index so every album edition with that exact artist set can resolve
+     * the same local file.
+     */
+    private void registerLocalAudioIdentity(Song song) {
+        if (song == null || !song.isLocal()) return;
+
+        String path = song.getFilePath();
+        if (path == null || path.isBlank()) return;
+
+        try {
+            java.io.File file = new java.io.File(path);
+            if (file.isFile() && file.canRead() && file.length() > 0L) {
+                owner.putSongToPath(song, file.getAbsolutePath());
+            }
+        } catch (Exception ignored) {
         }
     }
 

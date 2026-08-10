@@ -9,6 +9,7 @@ import io.github.guillermodubon.musicplayer.models.Song;
 import io.github.guillermodubon.musicplayer.utils.FileNameUtils;
 import io.github.guillermodubon.musicplayer.services.api.DeezerApiService;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
+import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -50,9 +51,19 @@ public final class DownloadedSongStateService {
 
         long sourceId = sourceSong == null ? 0L : Math.max(0L, sourceSong.getSongID());
         if (sourceId > 0) {
-            Optional<Song> local = findSongById(sourceId);
-            if (local.isPresent()) {
-                return buildMetadataFallbackFromSong(local.get(), finalFile);
+            /*
+             * The rendered source song is only a fallback. Its in-memory album
+             * can predate the album detail request and therefore carry the
+             * placeholder genre. Resolve the exact Deezer track first: the
+             * track's album endpoint is the authoritative source for Genre.
+             */
+            DeezerApiMetaData fallback = buildMetadataFallbackFromSong(sourceSong, finalFile);
+            DeezerApiMetaData exact = deezerService.getTrackMetadataById(sourceId, fallback);
+            if (exact != null) {
+                return exact;
+            }
+            if (fallback != null) {
+                return fallback;
             }
         }
 
@@ -87,6 +98,7 @@ public final class DownloadedSongStateService {
             if (meta.getSongName() != null && !meta.getSongName().isBlank()) {
                 owner.putTitleToPath(meta.getSongName(), path);
             }
+            owner.putSongToPath(meta, path);
 
             long trackId = meta.getTrackId();
             if (trackId > 0) {
@@ -164,6 +176,7 @@ public final class DownloadedSongStateService {
 
         if (missingPath != null && !missingPath.isBlank()) {
             titleToPath.entrySet().removeIf(entry -> missingPath.equals(entry.getValue()));
+            owner.removeSongPath(missingPath);
         }
     }
 
@@ -203,10 +216,11 @@ public final class DownloadedSongStateService {
         String leftPath = left.getFilePath();
         String rightPath = right.getFilePath();
         if (leftPath != null && rightPath != null && !leftPath.isBlank() && !rightPath.isBlank()) {
-            return leftPath.equalsIgnoreCase(rightPath);
+            return leftPath.equalsIgnoreCase(rightPath)
+                    && SongAudioIdentity.matches(left, right);
         }
 
-        return Objects.equals(left.getTitle(), right.getTitle());
+        return SongAudioIdentity.matches(left, right);
     }
 
     private Optional<Song> findCanonicalByTrackId(List<Song> candidates,
@@ -245,32 +259,19 @@ public final class DownloadedSongStateService {
     private Optional<Song> findCanonicalByTitle(List<Song> candidates,
                                                  DeezerApiMetaData meta,
                                                  File finalFile) {
-        String metaTitle = meta == null ? "" : normalizeTitle(meta.getSongName());
-        String fileTitle = finalFile == null ? "" : normalizeTitle(FileNameUtils.withoutExtension(finalFile.getName()));
-        if (metaTitle.isBlank() && fileTitle.isBlank()) return Optional.empty();
+        if (meta == null || SongAudioIdentity.keyFor(meta).isEmpty()) {
+            return Optional.empty();
+        }
 
         return candidates.stream()
                 .filter(Objects::nonNull)
-                .filter(song -> {
-                    String songTitle = normalizeTitle(song.getTitle());
-                    return !songTitle.isBlank() && (songTitle.equals(metaTitle) || songTitle.equals(fileTitle));
-                })
+                .filter(song -> SongAudioIdentity.matches(song, meta))
                 .sorted(Comparator.comparing(Song::isLocal).reversed())
                 .peek(song -> {
                     song.setLocal(true);
                     if (finalFile != null) song.setFilePath(finalFile.getAbsolutePath());
                 })
                 .findFirst();
-    }
-
-    private Optional<Song> findSongById(long trackId) {
-        if (trackId <= 0) return Optional.empty();
-        synchronized (songs) {
-            return songs.stream()
-                    .filter(Objects::nonNull)
-                    .filter(song -> song.getSongID() == trackId)
-                    .findFirst();
-        }
     }
 
     private String buildMetadataLookupQuery(Song sourceSong, File finalFile) {
@@ -354,7 +355,7 @@ public final class DownloadedSongStateService {
         String title = Optional.ofNullable(sourceSong.getTitle()).orElse("").trim();
         if (title.isBlank() && finalFile != null) title = FileNameUtils.withoutExtension(finalFile.getName());
 
-        return new DeezerApiMetaData(
+        DeezerApiMetaData metadata = new DeezerApiMetaData(
                 album == null ? 0L : album.getAlbumID(),
                 title,
                 albumArtistNames,
@@ -375,6 +376,8 @@ public final class DownloadedSongStateService {
                 album == null ? null : album.getCoverUrl(),
                 genre == null ? 0 : Math.max(0, genre.getGenreID())
         );
+        metadata.setDurationSeconds(sourceSong.getDurationSeconds());
+        return metadata;
     }
 
     private List<String> artistNames(Song song) {
@@ -393,10 +396,6 @@ public final class DownloadedSongStateService {
                 .filter(Objects::nonNull)
                 .map(artist -> Math.max(0L, artist.getArtistID()))
                 .toList();
-    }
-
-    private static String normalizeTitle(String value) {
-        return value == null ? "" : value.toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ");
     }
 
     private static String normalizePath(String value) {
