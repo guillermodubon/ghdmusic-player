@@ -5,6 +5,7 @@ import io.github.guillermodubon.musicplayer.services.downloads.logging.DownloadL
 import io.github.guillermodubon.musicplayer.services.api.DeezerApiService;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 
 public class DownloadMetadataService {
@@ -49,7 +50,21 @@ public class DownloadMetadataService {
                 && !hint.getAlbumName().isBlank()
                 && hint.getRecordType() != null
                 && !hint.getRecordType().isBlank()
-                && hint.getNumberOfTracks() > 0;
+                && hint.getNumberOfTracks() > 0
+                // A hint with an empty/placeholder genre is not complete:
+                // the album endpoint must be queried before persistence.
+                && hasUsableGenre(hint.getGenre());
+    }
+
+    private boolean hasUsableGenre(String genre) {
+        if (genre == null || genre.isBlank()) {
+            return false;
+        }
+
+        String normalized = genre.trim().toLowerCase(Locale.ROOT);
+        return !normalized.equals("unknown")
+                && !normalized.equals("unknown genre")
+                && !normalized.equals("desconocido");
     }
 
     /**
