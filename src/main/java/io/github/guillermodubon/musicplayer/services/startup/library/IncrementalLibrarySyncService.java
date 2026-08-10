@@ -8,7 +8,6 @@ import io.github.guillermodubon.musicplayer.repository.dao.album.AlbumDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDao;
 import io.github.guillermodubon.musicplayer.repository.dao.genre.GenreDao;
 import io.github.guillermodubon.musicplayer.repository.dao.song.SongDao;
-import io.github.guillermodubon.musicplayer.utils.SongDataHelper;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.services.api.DeezerApiService;
 import io.github.guillermodubon.musicplayer.services.manifest.ManifestService;
@@ -31,6 +30,8 @@ public class IncrementalLibrarySyncService {
     private final ManifestSyncService manifestService;
     private final ModelHydrationService modelHydrationService;
     private final ArtistBiographyService artistBiographyService;
+    private final LibraryDeletionCleanupService deletionCleanupService;
+    private Set<String> deferredBiographyCandidates = Set.of();
 
     public IncrementalLibrarySyncService(
             DeezerApiService deezerService,
@@ -42,11 +43,20 @@ public class IncrementalLibrarySyncService {
         this.manifestService = Objects.requireNonNull(manifestService, "manifestService");
         this.modelHydrationService = Objects.requireNonNull(modelHydrationService, "modelHydrationService");
         this.artistBiographyService = Objects.requireNonNull(artistBiographyService, "artistBiographyService");
+        this.deletionCleanupService = new LibraryDeletionCleanupService();
     }
 
     private void loadModels(Connection conn, Map<String, String> titleToPath) throws SQLException, IOException {
         modelHydrationService.loadModels(conn, titleToPath);
     }
+
+    /** Candidates are consumed by the coordinator after its SQLite transaction commits. */
+    public Set<String> consumeDeferredBiographyCandidates() {
+        Set<String> candidates = deferredBiographyCandidates;
+        deferredBiographyCandidates = Set.of();
+        return candidates;
+    }
+
     public void syncExistingData(
             Connection conn,
             GenreDao genreDao,
@@ -58,6 +68,7 @@ public class IncrementalLibrarySyncService {
             List<Pair<String, String>> noMetadataSongs
     ) throws SQLException, IOException {
         System.out.println("syncExistingData: starting (thread=" + Thread.currentThread().getName() + ")");
+        deferredBiographyCandidates = Set.of();
 
         // LOAD manifest
         Map<String, ManifestEntry> oldMan = manifestService.load();
@@ -169,12 +180,13 @@ public class IncrementalLibrarySyncService {
 
             // 3) Delete explicit ids first (safe, targeted)
             if (!explicitDeletes.isEmpty()) {
-                for (Long did : explicitDeletes) {
-                    try {
-                        markSongRemote(conn, did);
-                    } catch (SQLException ex) {
-                        System.err.println("syncExistingData: warning marking deleted local song as remote id=" + did + " -> " + ex.getMessage());
-                    }
+                try {
+                    markSongsRemote(conn, explicitDeletes);
+                } catch (SQLException ex) {
+                    System.err.println(
+                            "syncExistingData: warning marking deleted local songs as remote -> "
+                                    + ex.getMessage()
+                    );
                 }
             }
 
@@ -199,47 +211,21 @@ public class IncrementalLibrarySyncService {
                 }
             }
 
-            // 4) After explicit manifest deletions are done, clean albums/artists/genres.
-            // Never run a broad "DB title not in scan" cleanup here: scanned filenames often include
-            // artist prefixes while DB titles do not, so that path can mark the whole library as remote.
-            for (Album alb : albumDao.findAll()) {
-                List<Song> songs = songDao.findByAlbum(alb.getAlbumID());
-                long localCount = songs.stream().filter(Song::isLocal).count();
-                if (localCount == 0) {
-                    try { songDao.deleteByAlbum(alb.getAlbumID()); } catch (SQLException ex) { System.err.println("syncExistingData: warning deleting songs for album " + alb.getAlbumID() + " -> " + ex.getMessage()); }
-                    albumDao.deleteAlbumArtists(alb.getAlbumID());
-                    albumDao.deleteAlbumImages(alb.getAlbumID());
-                    albumDao.delete(alb.getAlbumID());
-                }
-            }
-            genreDao.deleteWithoutAlbums();
-
-            try (Statement st = conn.createStatement()) {
-                st.executeUpdate("""
-                        DELETE FROM SongArtist
-                         WHERE SongID IN (SELECT SongID FROM Song WHERE IsLocal = 0)
-                           AND ArtistID NOT IN (SELECT ArtistID FROM AlbumArtist)
-                           AND ArtistID NOT IN (
-                               SELECT sa.ArtistID
-                                 FROM SongArtist sa
-                                 JOIN Song s ON s.SongID = sa.SongID
-                                WHERE s.IsLocal = 1
-                           )
-                        """);
-            }
-
-            String findArtistsSql = "SELECT ArtistID FROM Artist WHERE ArtistID NOT IN (SELECT ArtistID FROM AlbumArtist UNION SELECT ArtistID FROM SongArtist)";
-            List<Long> artistsToDelete = new ArrayList<>();
-            try (Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(findArtistsSql)) {
-                while (rs.next()) artistsToDelete.add(rs.getLong("ArtistID"));
-            }
-            if (!artistsToDelete.isEmpty()) {
-                try (PreparedStatement psImages = conn.prepareStatement("DELETE FROM ArtistImage WHERE ArtistID = ?")) {
-                    for (long aid : artistsToDelete) { psImages.setLong(1, aid); psImages.executeUpdate(); }
-                }
-                try (PreparedStatement psA = conn.prepareStatement("DELETE FROM Artist WHERE ArtistID = ?")) {
-                    for (long aid : artistsToDelete) { psA.setLong(1, aid); psA.executeUpdate(); }
-                }
+            // 4) Clean collection metadata with set-based statements in the
+            // current transaction. This retains the existing local-song rule
+            // while avoiding one round trip per album and artist.
+            LibraryDeletionCleanupService.CleanupSummary cleanupSummary =
+                    deletionCleanupService.cleanup(conn);
+            if (cleanupSummary.removedSongs() > 0
+                    || cleanupSummary.removedAlbums() > 0
+                    || cleanupSummary.removedArtists() > 0
+                    || cleanupSummary.removedGenres() > 0) {
+                System.out.println(
+                        "syncExistingData: cleanup removed songs=" + cleanupSummary.removedSongs()
+                                + ", albums=" + cleanupSummary.removedAlbums()
+                                + ", artists=" + cleanupSummary.removedArtists()
+                                + ", genres=" + cleanupSummary.removedGenres()
+                );
             }
 
             // 7) Update manifest timestamps for modified if any
@@ -337,9 +323,7 @@ public class IncrementalLibrarySyncService {
             String originalKey = cleanedToOriginalKey.getOrDefault(nf, nf);
             boolean foundInProvided = metas.stream().anyMatch(m ->
                     m != null && (Objects.equals(m.getSongFileName(), nf)
-                            || (m.getSongName() != null && m.getSongName().equalsIgnoreCase(nf))
-                            || Objects.equals(m.getSongFileName(), originalKey)
-                            || (m.getSongName() != null && m.getSongName().equalsIgnoreCase(originalKey)))
+                            || Objects.equals(m.getSongFileName(), originalKey))
             );
             if (!foundInProvided) {
                 needFetchList.add(originalKey);
@@ -406,11 +390,10 @@ public class IncrementalLibrarySyncService {
                 }
             }
 
-            artistBiographyService.hydrateMissingBiographies(
-                    conn,
-                    artistDao,
-                    newArtistBiographyCandidates
-            );
+            // Wikipedia enrichment is queued after the SQLite transaction has
+            // committed. Keeping external calls out of this path avoids holding
+            // the library write lock while metadata is being resolved.
+            deferredBiographyCandidates = Set.copyOf(newArtistBiographyCandidates);
         }
 
         // For new metas referencing albums, fetch tracklists only for those albums and insert missing tracks
@@ -421,12 +404,6 @@ public class IncrementalLibrarySyncService {
                 .collect(Collectors.toSet());
 
         if (!albumIdsToFetch.isEmpty()) {
-            Map<String, String> normalizedTitleToPath = new HashMap<>();
-            for (Map.Entry<String, String> e : Optional.ofNullable(titleToPath).orElse(Map.of()).entrySet()) {
-                if (e.getKey() == null || e.getValue() == null) continue;
-                normalizedTitleToPath.put(e.getKey().toLowerCase(), e.getValue());
-            }
-
             int parallelism = Math.min(8, Math.max(2, Runtime.getRuntime().availableProcessors()));
             ExecutorService fetchExec = Executors.newFixedThreadPool(parallelism, r -> { Thread t = new Thread(r); t.setDaemon(true); return t; });
             List<Future<AbstractMap.SimpleEntry<Long, List<DeezerTrackInfo>>>> futures = new ArrayList<>();
@@ -470,13 +447,6 @@ public class IncrementalLibrarySyncService {
                     long deezerTrackId = info.getId();
                     boolean isLocal = deezerTrackId > 0 && localTrackIds.contains(deezerTrackId);
                     String path = null;
-                    if (!isLocal && title != null) {
-                        path = findPathForTitle(title, normalizedTitleToPath);
-                        isLocal = path != null;
-                    }
-                    if (isLocal && path == null && title != null) {
-                        path = titleToPath.get(title);
-                    }
                     long songId = deezerTrackId > 0 ? deezerTrackId : 0L;
                     pendingAlbumTracks.add(new Song(songId, title, alb.getArtist(), alb, path, pos, isLocal));
                 }
@@ -575,5 +545,3 @@ public class IncrementalLibrarySyncService {
     }
 
 }
-
-

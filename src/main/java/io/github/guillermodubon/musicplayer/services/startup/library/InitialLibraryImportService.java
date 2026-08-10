@@ -53,41 +53,6 @@ public class InitialLibraryImportService {
         }
         if (metas == null) metas = List.of();
         Set<String> originalLocalTitles = new HashSet<>(titleToPath.keySet()); // Capture originals before modifications
-        // 1) Associate paths to deezer names (in-memory normalization)
-        for (DeezerApiMetaData m : metas) {
-            String oldName = m.getSongFileName();
-            String deezerName = m.getSongName();
-            String foundPath = null;
-            List<String> candidates = Arrays.asList(
-                    oldName,
-                    SongDataHelper.sanitizeForFileKey(oldName),
-                    SongDataHelper.sanitizeForFileKey(deezerName),
-                    SongDataHelper.fallbackKey(deezerName),
-                    deezerName,
-                    deezerName != null ? deezerName.toLowerCase() : null
-            );
-            for (String key : candidates) {
-                if (key == null) continue;
-                String p = titleToPath.get(key);
-                if (p != null) {
-                    foundPath = p;
-                    break;
-                }
-            }
-            if (foundPath != null && deezerName != null) {
-                titleToPath.put(deezerName, foundPath);
-                titleToPath.put(SongDataHelper.sanitizeForFileKey(deezerName), foundPath);
-                if (m.getAlbumArtistNames() != null) {
-                    for (String an : m.getAlbumArtistNames()) {
-                        if (an == null || an.isBlank()) continue;
-                        String combo = an + " " + deezerName;
-                        titleToPath.put(combo, foundPath);
-                        titleToPath.put(SongDataHelper.sanitizeForFileKey(combo), foundPath);
-                        titleToPath.put(combo.toLowerCase(), foundPath);
-                    }
-                }
-            }
-        }
         System.out.println("createAndFetchInitialData: calling DAOs upsert/insert (in transaction)");
         // Upsert genres/artists/albums/songs using DAOs bound to 'conn'
         genreDao.upsertAll(metas);
@@ -115,17 +80,24 @@ public class InitialLibraryImportService {
             if (e.getKey() == null || e.getValue() == null) continue;
             normalizedTitleToPath.put(e.getKey().toLowerCase(), e.getValue());
         }
+        Map<Long, String> localTrackPaths = new LinkedHashMap<>();
         for (DeezerApiMetaData meta : metas) {
             if (meta == null || meta.getTrackId() <= 0) continue;
             String path = findLocalPathForMeta(meta, normalizedTitleToPath);
-            if (path != null) markSongLocal(conn, meta.getTrackId(), path);
+            if (path != null) localTrackPaths.put(meta.getTrackId(), path);
         }
+        markSongsLocal(conn, localTrackPaths);
         // Fetch only albums introduced by this import. Existing remote album rows
         // are unrelated to the local scan and used to trigger unnecessary requests.
         Set<Long> importedAlbumIds = new HashSet<>();
+        Set<String> importedAlbumNames = new LinkedHashSet<>();
         for (DeezerApiMetaData meta : metas) {
-            if (meta == null || meta.getAlbumName() == null || meta.getAlbumName().isBlank()) continue;
-            Long persistedAlbumId = albumDao.findIdByName(meta.getAlbumName());
+            if (meta != null && meta.getAlbumName() != null && !meta.getAlbumName().isBlank()) {
+                importedAlbumNames.add(meta.getAlbumName());
+            }
+        }
+        for (String albumName : importedAlbumNames) {
+            Long persistedAlbumId = albumDao.findIdByName(albumName);
             if (persistedAlbumId != null && persistedAlbumId > 0) {
                 importedAlbumIds.add(persistedAlbumId);
             }
@@ -174,23 +146,18 @@ public class InitialLibraryImportService {
                 int pos = info.getTrackOrder();
                 if (existingTrackOrders.contains(pos)) continue;
 
-                String title = info.getTitle();
-                long deezerTrackId = info.getId();
-                boolean isLocal = deezerTrackId > 0 && localTrackIds.contains(deezerTrackId);
-                String path = null;
-                if (!isLocal && title != null) {
-                    path = findPathForTitle(title, normalizedTitleToPath);
-                    isLocal = path != null;
-                }
-                if (isLocal && path == null && title != null) {
-                    path = titleToPath.get(title);
-                }
-                long songId = deezerTrackId > 0 ? deezerTrackId : 0L;
-                pendingAlbumTracks.add(new Song(songId, title, alb.getArtist(), alb, path, pos, isLocal));
+                    String title = info.getTitle();
+                    long deezerTrackId = info.getId();
+                    boolean isLocal = deezerTrackId > 0 && localTrackIds.contains(deezerTrackId);
+                    String path = isLocal ? localTrackPaths.get(deezerTrackId) : null;
+                    long songId = deezerTrackId > 0 ? deezerTrackId : 0L;
+                    pendingAlbumTracks.add(new Song(songId, title, alb.getArtist(), alb, path, pos, isLocal));
             }
         }
         songDao.insertOrUpdateAllWithIds(pendingAlbumTracks);
-        artistBiographyService.hydrateMissingBiographies(conn, artistDao, null);
+        // Biographies are enriched after the library transaction commits.
+        // They never alter the song/album import, so keeping the remote lookup
+        // out of this critical path releases the application much sooner.
         // Deduplicate visual songs
         songDao.deleteVisualDuplicates();
         // Build the manifest after inserts (from DB local songs + no-metadata)
@@ -198,19 +165,7 @@ public class InitialLibraryImportService {
         for (Song localSong : songDao.findAll().stream().filter(Song::isLocal).toList()) {
             String title = localSong.getTitle();
             if (title == null) continue;
-            String path = titleToPath.get(title);
-            if (path == null) {
-                String low = title.toLowerCase();
-                path = normalizedTitleToPath.get(low);
-            }
-            if (path == null) {
-                String san = SongDataHelper.sanitizeForFileKey(title);
-                path = titleToPath.get(san);
-            }
-            if (path == null) {
-                String fb = SongDataHelper.fallbackKey(title);
-                path = titleToPath.get(fb);
-            }
+            String path = localTrackPaths.get(localSong.getSongID());
             if (path == null) continue;
             File f = new File(path);
             String fileName = f.getName();
@@ -244,12 +199,6 @@ public class InitialLibraryImportService {
         if (meta == null || normalizedTitleToPath == null || normalizedTitleToPath.isEmpty()) return null;
         List<String> candidates = new ArrayList<>();
         candidates.add(meta.getSongFileName());
-        candidates.add(meta.getSongName());
-        if (meta.getAlbumArtistNames() != null && meta.getSongName() != null) {
-            for (String artist : meta.getAlbumArtistNames()) {
-                if (artist != null && !artist.isBlank()) candidates.add(artist + " " + meta.getSongName());
-            }
-        }
         for (String candidate : candidates) {
             if (candidate == null || candidate.isBlank()) continue;
             String path = normalizedTitleToPath.get(candidate.toLowerCase(Locale.ROOT));
@@ -277,16 +226,6 @@ public class InitialLibraryImportService {
         );
     }
 
-    private static String findPathForTitle(String title, Map<String, String> normalizedTitleToPath) {
-        if (title == null || normalizedTitleToPath == null) return null;
-        String path = normalizedTitleToPath.get(title.toLowerCase(Locale.ROOT));
-        if (path != null) return path;
-        path = normalizedTitleToPath.get(SongDataHelper.sanitizeForFileKey(title).toLowerCase(Locale.ROOT));
-        return path != null
-                ? path
-                : normalizedTitleToPath.get(SongDataHelper.fallbackKey(title).toLowerCase(Locale.ROOT));
-    }
-
     private static void markSongLocal(Connection conn, long songId, String path) throws SQLException {
         if (conn == null || songId <= 0) return;
         try (var ps = conn.prepareStatement("UPDATE Song SET IsLocal = 1, FilePath = ? WHERE SongID = ?")) {
@@ -301,6 +240,37 @@ public class InitialLibraryImportService {
         }
     }
 
+    private static void markSongsLocal(Connection conn, Map<Long, String> localTrackPaths) throws SQLException {
+        if (conn == null || localTrackPaths == null || localTrackPaths.isEmpty()) return;
+
+        try {
+            updateLocalSongPaths(conn, localTrackPaths, true);
+        } catch (SQLException missingFilePath) {
+            updateLocalSongPaths(conn, localTrackPaths, false);
+        }
+    }
+
+    private static void updateLocalSongPaths(
+            Connection conn,
+            Map<Long, String> localTrackPaths,
+            boolean includeFilePath
+    ) throws SQLException {
+        String sql = includeFilePath
+                ? "UPDATE Song SET IsLocal = 1, FilePath = ? WHERE SongID = ?"
+                : "UPDATE Song SET IsLocal = 1 WHERE SongID = ?";
+        try (var statement = conn.prepareStatement(sql)) {
+            int pending = 0;
+            for (Map.Entry<Long, String> entry : localTrackPaths.entrySet()) {
+                Long songId = entry.getKey();
+                if (songId == null || songId <= 0) continue;
+                if (includeFilePath) statement.setString(1, entry.getValue());
+                statement.setLong(includeFilePath ? 2 : 1, songId);
+                statement.addBatch();
+                pending++;
+                if (pending % 250 == 0) statement.executeBatch();
+            }
+            if (pending % 250 != 0) statement.executeBatch();
+        }
+    }
+
 }
-
-
