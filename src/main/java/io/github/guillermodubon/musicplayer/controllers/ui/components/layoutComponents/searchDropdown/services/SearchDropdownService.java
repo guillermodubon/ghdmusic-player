@@ -34,7 +34,10 @@ import java.util.concurrent.TimeUnit;
 
 public class SearchDropdownService {
 
-    private static final int MAX_ARTIST_RESULTS = 3;
+    private static final int MAX_TOTAL_RESULTS = 15;
+    private static final int MAX_ARTIST_RESULTS = 2;
+    private static final int TARGET_GENERAL_RESULTS = 11;
+    private static final int TARGET_ALBUM_RESULTS = 2;
     private static final double SEARCH_IMAGE_SIZE = 160;
 
     private final SearchDropdownContext context;
@@ -57,7 +60,10 @@ public class SearchDropdownService {
          * early return made a local-only result hide the artist section and
          * made the number of music cards depend on the local library size.
          */
-        int localPoolSize = Math.max(maxResults * 2, maxResults + MAX_ARTIST_RESULTS);
+        int localPoolSize = Math.max(
+                maxResults * 2,
+                maxResults + MAX_ARTIST_RESULTS + TARGET_ALBUM_RESULTS
+        );
         List<SearchCandidate> localCandidates = buildLocalCandidates(normalizedQuery, localPoolSize);
 
         CompletableFuture<JsonArray> artistsFuture = CompletableFuture.supplyAsync(() -> {
@@ -76,18 +82,33 @@ public class SearchDropdownService {
             }
         });
 
+        CompletableFuture<JsonArray> albumsFuture = CompletableFuture.supplyAsync(() -> {
+            try {
+                return context.deezer().searchAlbums(normalizedQuery);
+            } catch (Exception ignored) {
+                return new JsonArray();
+            }
+        });
+
         JsonArray artistsJson = await(artistsFuture, new JsonArray(), 900);
         JsonObject generalJson = await(generalFuture, null, 1400);
+        JsonArray albumsJson = await(albumsFuture, new JsonArray(), 1000);
 
         LinkedHashMap<String, SearchCandidate> artistsByIdentity = new LinkedHashMap<>();
-        LinkedHashMap<String, SearchCandidate> musicByIdentity = new LinkedHashMap<>();
+        LinkedHashMap<String, SearchCandidate> generalByIdentity = new LinkedHashMap<>();
+        LinkedHashMap<String, SearchCandidate> albumByIdentity = new LinkedHashMap<>();
+        LinkedHashMap<String, SearchCandidate> generalFillByIdentity = new LinkedHashMap<>();
 
         for (SearchCandidate candidate : localCandidates) {
             if (candidate == null) continue;
             if ("artist".equalsIgnoreCase(candidate.type())) {
                 addUniqueCandidate(artistsByIdentity, candidate);
+            } else if ("album".equalsIgnoreCase(candidate.type())) {
+                addUniqueCandidate(albumByIdentity, candidate);
+                addUniqueCandidate(generalFillByIdentity, candidate);
             } else {
-                addUniqueCandidate(musicByIdentity, candidate);
+                addUniqueCandidate(generalByIdentity, candidate);
+                addUniqueCandidate(generalFillByIdentity, candidate);
             }
         }
 
@@ -103,7 +124,7 @@ public class SearchDropdownService {
 
         /* The general endpoint can also contain artist entries. They are a
          * fallback when the dedicated artist request is slow or unavailable,
-         * and must be present before the three-artist ranking is calculated. */
+         * and must be present before the two-artist ranking is calculated. */
         if (generalJson != null && generalJson.has("data") && generalJson.get("data").isJsonArray()) {
             for (JsonElement element : generalJson.getAsJsonArray("data")) {
                 if (!element.isJsonObject()) continue;
@@ -113,9 +134,23 @@ public class SearchDropdownService {
                     if (score(normalizedQuery, candidate.title()) >= 0) {
                         addUniqueCandidate(artistsByIdentity, candidate);
                     }
+                } else if ("album".equalsIgnoreCase(candidate.type())) {
+                    addUniqueCandidate(generalFillByIdentity, candidate);
+                    addUniqueCandidate(albumByIdentity, candidate);
                 } else {
-                    addUniqueCandidate(musicByIdentity, candidate);
+                    addUniqueCandidate(generalByIdentity, candidate);
+                    addUniqueCandidate(generalFillByIdentity, candidate);
                 }
+            }
+        }
+
+        if (albumsJson != null) {
+            for (JsonElement element : albumsJson) {
+                if (!element.isJsonObject()) continue;
+                SearchCandidate candidate = candidateFromDeezerJson(element.getAsJsonObject());
+                if (candidate == null || !"album".equalsIgnoreCase(candidate.type())) continue;
+                addUniqueCandidate(albumByIdentity, candidate);
+                addUniqueCandidate(generalFillByIdentity, candidate);
             }
         }
 
@@ -130,21 +165,60 @@ public class SearchDropdownService {
                         .thenComparing(candidate -> safeLower(candidate.title())))
                 .toList();
 
-        List<SearchCandidate> selected = new ArrayList<>(Math.min(maxResults, 15));
+        int totalLimit = Math.min(maxResults, MAX_TOTAL_RESULTS);
+        int artistLimit = Math.min(MAX_ARTIST_RESULTS, totalLimit);
+        int albumLimit = Math.min(
+                TARGET_ALBUM_RESULTS,
+                Math.max(0, totalLimit - artistLimit)
+        );
+        int generalLimit = Math.min(
+                TARGET_GENERAL_RESULTS,
+                Math.max(0, totalLimit - artistLimit - albumLimit)
+        );
+
+        List<SearchCandidate> selected = new ArrayList<>(totalLimit);
         LinkedHashSet<String> selectedIdentities = new LinkedHashSet<>();
-        int artistCount = Math.min(MAX_ARTIST_RESULTS, rankedArtists.size());
+        int artistCount = Math.min(artistLimit, rankedArtists.size());
         for (int i = 0; i < artistCount; i++) {
-            addSelected(selected, selectedIdentities, rankedArtists.get(i), maxResults);
+            addSelected(selected, selectedIdentities, rankedArtists.get(i), totalLimit);
         }
 
-        /* Fill the remaining slots with music. Local candidates were inserted
-         * first, so a matching item already in the library remains preferred. */
-        for (SearchCandidate candidate : musicByIdentity.values()) {
-            if (selected.size() >= maxResults) break;
-            addSelected(selected, selectedIdentities, candidate, maxResults);
-        }
+        /* General results occupy their own quota. Album candidates are kept
+         * out of this first pass so the dedicated album endpoint can contribute
+         * its two requested cards. */
+        addUpTo(selected, selectedIdentities, generalByIdentity.values(), generalLimit, totalLimit);
+
+        /* Album results come from the dedicated album endpoint, while local
+         * albums remain eligible when they match the query. */
+        addUpTo(selected, selectedIdentities, albumByIdentity.values(), albumLimit, totalLimit);
+
+        /* If one category returned fewer results, complete the total from the
+         * already requested general data. No additional source is introduced. */
+        addUpTo(
+                selected,
+                selectedIdentities,
+                generalFillByIdentity.values(),
+                totalLimit - selected.size(),
+                totalLimit
+        );
 
         return selected;
+    }
+
+    private void addUpTo(List<SearchCandidate> selected,
+                         Set<String> selectedIdentities,
+                         Iterable<SearchCandidate> candidates,
+                         int amount,
+                         int totalLimit) {
+        if (selected == null || selectedIdentities == null || candidates == null || amount <= 0) return;
+
+        int added = 0;
+        for (SearchCandidate candidate : candidates) {
+            if (selected.size() >= totalLimit || added >= amount) break;
+            int before = selected.size();
+            addSelected(selected, selectedIdentities, candidate, totalLimit);
+            if (selected.size() > before) added++;
+        }
     }
 
     private <T> T await(CompletableFuture<T> future, T fallback, long timeoutMillis) {
