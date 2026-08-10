@@ -1,6 +1,5 @@
 package io.github.guillermodubon.musicplayer.controllers.ui.screens.playerFullScreenMode.layout;
 
-import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -73,13 +72,13 @@ public final class PlayerFullScreenOverlayCoordinator {
         widthListener = (obs, oldValue, newValue) -> {
             resize();
             if (this.updateViewport != null) {
-                Platform.runLater(this.updateViewport);
+                this.updateViewport.run();
             }
         };
         heightListener = (obs, oldValue, newValue) -> {
             resize();
             if (this.updateViewport != null) {
-                Platform.runLater(this.updateViewport);
+                this.updateViewport.run();
             }
         };
         host.widthProperty().addListener(widthListener);

@@ -22,6 +22,8 @@ public final class PlayerFullScreenWindowTracker {
     private javafx.beans.value.ChangeListener<Number> sceneHeightListener;
     private boolean synchronizationScheduled;
     private boolean settleScheduled;
+    private PauseTransition nativeSettleFirstPass;
+    private PauseTransition nativeSettleFinalPass;
 
     public PlayerFullScreenWindowTracker(BooleanSupplier active, Runnable synchronize) {
         this.active = active;
@@ -80,6 +82,14 @@ public final class PlayerFullScreenWindowTracker {
         sceneHeightListener = null;
         synchronizationScheduled = false;
         settleScheduled = false;
+        if (nativeSettleFirstPass != null) {
+            nativeSettleFirstPass.stop();
+            nativeSettleFirstPass = null;
+        }
+        if (nativeSettleFinalPass != null) {
+            nativeSettleFinalPass.stop();
+            nativeSettleFinalPass = null;
+        }
     }
 
     public void scheduleSynchronization() {
@@ -89,6 +99,9 @@ public final class PlayerFullScreenWindowTracker {
         synchronizationScheduled = true;
         Platform.runLater(() -> Platform.runLater(() -> {
             synchronizationScheduled = false;
+            if (!isTracking()) {
+                return;
+            }
             synchronize.run();
         }));
     }
@@ -102,16 +115,31 @@ public final class PlayerFullScreenWindowTracker {
             return;
         }
         settleScheduled = true;
-        PauseTransition firstPass = new PauseTransition(Duration.millis(180));
-        firstPass.setOnFinished(event -> {
+        nativeSettleFirstPass = new PauseTransition(Duration.millis(180));
+        nativeSettleFirstPass.setOnFinished(event -> {
+            nativeSettleFirstPass = null;
+            if (!isTracking()) {
+                settleScheduled = false;
+                return;
+            }
             synchronize.run();
-            PauseTransition finalPass = new PauseTransition(Duration.millis(220));
-            finalPass.setOnFinished(finalEvent -> {
-                synchronize.run();
+            nativeSettleFinalPass = new PauseTransition(Duration.millis(220));
+            nativeSettleFinalPass.setOnFinished(finalEvent -> {
+                nativeSettleFinalPass = null;
+                if (isTracking()) {
+                    synchronize.run();
+                }
                 settleScheduled = false;
             });
-            finalPass.play();
+            nativeSettleFinalPass.play();
         });
-        firstPass.play();
+        nativeSettleFirstPass.play();
+    }
+
+    private boolean isTracking() {
+        return trackedStage != null
+                && trackedScene != null
+                && active.getAsBoolean()
+                && synchronize != null;
     }
 }

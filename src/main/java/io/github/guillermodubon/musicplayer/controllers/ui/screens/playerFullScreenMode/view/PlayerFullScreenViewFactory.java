@@ -1,6 +1,5 @@
 package io.github.guillermodubon.musicplayer.controllers.ui.screens.playerFullScreenMode.view;
 
-import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
@@ -44,43 +43,61 @@ public final class PlayerFullScreenViewFactory {
         StackPane titleViewport = createTitleViewport();
         HBox titleTrack = new HBox(title);
         titleTrack.setAlignment(Pos.CENTER_LEFT);
+        // Artwork and title only present information. Marking them as fully
+        // transparent to picking leaves the artist row as the sole metadata
+        // interaction target, even when the composition is resized.
+        titleViewport.setMouseTransparent(true);
+        titleTrack.setMouseTransparent(true);
+        title.setMouseTransparent(true);
         titleViewport.getChildren().setAll(titleTrack);
 
         HBox artistsContainer = createArtistsContainer();
         StackPane artistsViewport = createArtistsViewport();
         artistsViewport.getChildren().setAll(artistsContainer);
 
-        VBox copy = new VBox(8, titleViewport, artistsViewport);
+        VBox copy = new VBox(11, titleViewport, artistsViewport);
         copy.setAlignment(Pos.CENTER_LEFT);
+        copy.setMouseTransparent(false);
+        copy.setPickOnBounds(false);
         copy.setMinWidth(0);
-        // Reserve a lane for the actions button so text can never render
-        // beneath it on long song and artist names.
-        copy.prefWidthProperty().bind(coverContainer.widthProperty().subtract(48));
-        copy.maxWidthProperty().bind(coverContainer.widthProperty().subtract(48));
+        // Reserve a lane for both action buttons so long metadata never
+        // renders beneath them after the lyrics action is added.
+        copy.prefWidthProperty().bind(coverContainer.widthProperty().subtract(88));
+        copy.maxWidthProperty().bind(coverContainer.widthProperty().subtract(88));
         copy.getStyleClass().add("player-fullscreen-song-copy");
 
         Button actionsMenuButton = new Button();
         actionsMenuButton.setFocusTraversable(false);
         actionsMenuButton.getStyleClass().add("player-fullscreen-actions-button");
 
-        StackPane copyContainer = new StackPane(copy, actionsMenuButton);
+        HBox actionButtons = new HBox(10, actionsMenuButton);
+        actionButtons.setAlignment(Pos.CENTER_RIGHT);
+        actionButtons.setMouseTransparent(false);
+        actionButtons.setPickOnBounds(false);
+        actionButtons.getStyleClass().add("player-fullscreen-action-buttons");
+
+        StackPane copyContainer = new StackPane(copy, actionButtons);
         copyContainer.setMinWidth(0);
+        copyContainer.setMouseTransparent(false);
+        copyContainer.setPickOnBounds(false);
         copyContainer.prefWidthProperty().bind(coverContainer.widthProperty());
         copyContainer.maxWidthProperty().bind(coverContainer.widthProperty());
         copyContainer.setAlignment(Pos.CENTER_LEFT);
         StackPane.setAlignment(copy, Pos.CENTER_LEFT);
-        StackPane.setAlignment(actionsMenuButton, Pos.BOTTOM_RIGHT);
-        StackPane.setMargin(actionsMenuButton, new Insets(0, 0, 2, 0));
+        StackPane.setAlignment(actionButtons, Pos.CENTER_RIGHT);
+        StackPane.setMargin(actionButtons, new Insets(0, -12, 0, 0));
 
+        // The title can safely use an always-running marquee because it is
+        // presentation-only. Artist names, on the other hand, are controls:
+        // keeping them inside the translated/unmanaged marquee track made
+        // their hit area unreliable in the two fullscreen overlays. Keep the
+        // artist row as a stable, directly pickable Hyperlink container.
         MarqueeTextSupport titleMarquee = new MarqueeTextSupport(
-                titleViewport, titleTrack, title, artistsViewport, artistsContainer
+                titleViewport, titleTrack, title, null, null
         );
         titleMarquee.setPixelsPerSecond(42.0);
         titleMarquee.activateAlways();
         titleViewport.widthProperty().addListener((obs, oldWidth, newWidth) ->
-                titleMarquee.refresh()
-        );
-        artistsViewport.widthProperty().addListener((obs, oldWidth, newWidth) ->
                 titleMarquee.refresh()
         );
 
@@ -98,10 +115,10 @@ public final class PlayerFullScreenViewFactory {
         root.getChildren().setAll(ambientBackground, nowPlaying, closeButton);
 
         root.widthProperty().addListener((obs, oldValue, newValue) -> {
-            if (active.getAsBoolean()) Platform.runLater(updateArtworkViewport);
+            if (active.getAsBoolean()) updateArtworkViewport.run();
         });
         root.heightProperty().addListener((obs, oldValue, newValue) -> {
-            if (active.getAsBoolean()) Platform.runLater(updateArtworkViewport);
+            if (active.getAsBoolean()) updateArtworkViewport.run();
         });
 
         return new PlayerFullScreenView(
@@ -151,6 +168,8 @@ public final class PlayerFullScreenViewFactory {
         container.setMinSize(0, 0);
         container.setPrefSize(Region.USE_COMPUTED_SIZE, Region.USE_COMPUTED_SIZE);
         container.setMaxSize(Double.MAX_VALUE, Double.MAX_VALUE);
+        container.setMouseTransparent(true);
+        container.setPickOnBounds(false);
         container.getStyleClass().addAll(
                 "player-fullscreen-artwork-container",
                 "player-fullscreen-song-cover-container"
@@ -190,7 +209,13 @@ public final class PlayerFullScreenViewFactory {
     }
 
     private StackPane createArtistsViewport() {
-        return createMetadataViewport("player-fullscreen-song-artists-viewport");
+        StackPane viewport = createMetadataViewport("player-fullscreen-song-artists-viewport");
+        viewport.setMouseTransparent(false);
+        // Keep this small, dedicated interaction lane pickable even when the
+        // text itself has no background. Its children remain the actual
+        // targets, while an empty portion simply absorbs no-op clicks.
+        viewport.setPickOnBounds(true);
+        return viewport;
     }
 
     private StackPane createMetadataViewport(String styleClass) {
@@ -212,6 +237,8 @@ public final class PlayerFullScreenViewFactory {
         container.setMinWidth(0);
         container.setPrefWidth(Region.USE_COMPUTED_SIZE);
         container.setMaxWidth(Region.USE_PREF_SIZE);
+        container.setMouseTransparent(false);
+        container.setPickOnBounds(false);
         container.getStyleClass().add("player-fullscreen-song-artists");
         return container;
     }

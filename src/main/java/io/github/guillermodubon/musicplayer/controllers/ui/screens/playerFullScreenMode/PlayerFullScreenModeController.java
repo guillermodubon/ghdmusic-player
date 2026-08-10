@@ -44,6 +44,9 @@ public final class PlayerFullScreenModeController {
     private PlayerFullScreenPlayerBarCoordinator playerBarCoordinator;
     private PlayerFullScreenArtworkCoordinator artworkCoordinator;
     private PlayerFullScreenWindowTracker windowTracker;
+    private long presentationToken;
+    private long scheduledLayoutToken = -1L;
+    private long scheduledArtworkViewportToken = -1L;
 
     private PlayerFullScreenModeController() {
     }
@@ -123,13 +126,10 @@ public final class PlayerFullScreenModeController {
 
     public void syncLayout(StartUpService service) {
         if (!Platform.isFxApplicationThread()) {
-            Platform.runLater(() -> syncLayout(service));
+            Platform.runLater(this::requestFullLayoutSynchronization);
             return;
         }
-        if (!active) {
-            return;
-        }
-        synchronizeFullScreenLayoutNow();
+        requestFullLayoutSynchronization();
     }
 
     private void enterFullScreenMode(StartUpService service, Song song) {
@@ -160,19 +160,21 @@ public final class PlayerFullScreenModeController {
         hostRoot = resolvedHost;
         exitingFullScreen = false;
         active = true;
+        presentationToken++;
         state.setActive(true);
 
         PlayerFullScreenView newView = new PlayerFullScreenViewFactory().create(
                 this::exitFullScreenMode,
                 () -> active,
-                this::updateArtworkViewport
+                this::requestArtworkViewportUpdate
         );
         StackPane newOverlay = newOverlayCoordinator.createOverlay(newView);
         newOverlayCoordinator.installPlayerMenuBarStylesheet(newView);
 
         if (!newOverlayCoordinator.attach(overlayHost, newView,
-                this::updateArtworkViewport)) {
+                this::requestArtworkViewportUpdate)) {
             active = false;
+            presentationToken++;
             state.setActive(false);
             return;
         }
@@ -188,6 +190,7 @@ public final class PlayerFullScreenModeController {
         );
         playerBarCoordinator.attachToOverlay(service);
         playerBarCoordinator.configureActionsButton(view.actionsMenuButton());
+        playerBarCoordinator.placeLyricsButtonNextTo(view.actionsMenuButton());
         state.bindCloseButton(view.closeButton());
         installCloseButtonActivityTracking(view);
 
@@ -195,7 +198,7 @@ public final class PlayerFullScreenModeController {
                 view,
                 () -> active,
                 () -> exitingFullScreen,
-                this::updateArtworkViewport,
+                this::requestArtworkViewportUpdate,
                 this::openArtistFromFullScreen
         );
         artworkCoordinator.updateSong(service, song);
@@ -214,7 +217,8 @@ public final class PlayerFullScreenModeController {
         }
 
         Platform.runLater(() -> {
-            if (!active || view == null || overlayCoordinator == null) {
+            if (!active || view != newView || fullScreenOverlay != newOverlay
+                    || overlayCoordinator != newOverlayCoordinator) {
                 return;
             }
             synchronizeFullScreenLayoutNow();
@@ -233,6 +237,8 @@ public final class PlayerFullScreenModeController {
 
         exitingFullScreen = true;
         active = false;
+        presentationToken++;
+        long exitToken = presentationToken;
         state.setActive(false);
 
         Pane overlayHostToRefresh = overlayCoordinator == null
@@ -279,7 +285,8 @@ public final class PlayerFullScreenModeController {
 
         Platform.runLater(() -> restoreAfterPulse(
                 overlayHostToRefresh,
-                sceneRootToRefresh
+                sceneRootToRefresh,
+                exitToken
         ));
     }
 
@@ -303,9 +310,6 @@ public final class PlayerFullScreenModeController {
         view.root().applyCss();
         view.root().requestLayout();
         view.root().layout();
-        if (playerBarCoordinator != null) {
-            playerBarCoordinator.layoutInOverlay();
-        }
         updateArtworkViewport();
         if (overlay != null) {
             overlay.toFront();
@@ -325,6 +329,48 @@ public final class PlayerFullScreenModeController {
         if (playerBarCoordinator != null) {
             playerBarCoordinator.layoutInOverlay();
         }
+    }
+
+    /** Coalesces ordinary UI refreshes while preserving full window reflows. */
+    private void requestFullLayoutSynchronization() {
+        if (!active) {
+            return;
+        }
+        long requestToken = presentationToken;
+        if (scheduledLayoutToken == requestToken) {
+            return;
+        }
+        scheduledLayoutToken = requestToken;
+        Platform.runLater(() -> {
+            if (scheduledLayoutToken == requestToken) {
+                scheduledLayoutToken = -1L;
+            }
+            if (!active || requestToken != presentationToken) {
+                return;
+            }
+            synchronizeFullScreenLayoutNow();
+        });
+    }
+
+    /** Batches resize and cover-ready callbacks into a single viewport update. */
+    private void requestArtworkViewportUpdate() {
+        if (!active) {
+            return;
+        }
+        long requestToken = presentationToken;
+        if (scheduledArtworkViewportToken == requestToken) {
+            return;
+        }
+        scheduledArtworkViewportToken = requestToken;
+        Platform.runLater(() -> {
+            if (scheduledArtworkViewportToken == requestToken) {
+                scheduledArtworkViewportToken = -1L;
+            }
+            if (!active || requestToken != presentationToken) {
+                return;
+            }
+            updateArtworkViewport();
+        });
     }
 
     private void installCloseButtonActivityTracking(PlayerFullScreenView fullScreenView) {
@@ -373,7 +419,11 @@ public final class PlayerFullScreenModeController {
     }
 
     private void restoreAfterPulse(Pane overlayHostToRefresh,
-                                   Parent sceneRootToRefresh) {
+                                   Parent sceneRootToRefresh,
+                                   long exitToken) {
+        if (active || exitToken != presentationToken) {
+            return;
+        }
         try {
             if (overlayHostToRefresh != null) {
                 overlayHostToRefresh.applyCss();
@@ -390,11 +440,14 @@ public final class PlayerFullScreenModeController {
         } catch (Exception error) {
             error.printStackTrace();
         } finally {
-            Platform.runLater(this::restoreAfterSecondPulse);
+            Platform.runLater(() -> restoreAfterSecondPulse(exitToken));
         }
     }
 
-    private void restoreAfterSecondPulse() {
+    private void restoreAfterSecondPulse(long exitToken) {
+        if (active || exitToken != presentationToken) {
+            return;
+        }
         try {
             if (hostRoot != null) {
                 hostRoot.requestLayout();
@@ -405,7 +458,9 @@ public final class PlayerFullScreenModeController {
         } catch (Exception error) {
             error.printStackTrace();
         } finally {
-            exitingFullScreen = false;
+            if (!active && exitToken == presentationToken) {
+                exitingFullScreen = false;
+            }
         }
     }
 
@@ -445,6 +500,8 @@ public final class PlayerFullScreenModeController {
     }
 
     private void clearRuntimeReferences() {
+        scheduledLayoutToken = -1L;
+        scheduledArtworkViewportToken = -1L;
         if (playerBarCoordinator != null) {
             playerBarCoordinator.dispose();
         }
