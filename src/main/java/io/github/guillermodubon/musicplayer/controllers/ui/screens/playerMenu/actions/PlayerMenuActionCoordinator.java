@@ -137,7 +137,6 @@ public final class PlayerMenuActionCoordinator {
     }
 
     public void updateActionState() {
-        refreshPlaybackObserver();
         updatePlayButtonState();
         updateDownloadButtonState();
         updateTooltips();
