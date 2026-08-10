@@ -121,11 +121,15 @@ public class PlayerMenuSongListService {
     private final AtomicBoolean listRefreshQueued = new AtomicBoolean(false);
     private final AtomicBoolean listStateRefreshQueued = new AtomicBoolean(false);
     private final AtomicBoolean searchRefreshQueued = new AtomicBoolean(false);
+    private final AtomicBoolean audioIdentityReconciliationQueued = new AtomicBoolean(false);
     private final Set<Long> visibleHydrationRequested = ConcurrentHashMap.newKeySet();
     private final Map<Long, Song> pendingVisibleHydration = new LinkedHashMap<>();
     private final AtomicBoolean remoteHydrationFlushQueued = new AtomicBoolean(false);
     private Callback<ListView<Song>, ListCell<Song>> songCellFactory;
     private int virtualWindowStart = -1;
+    private final Runnable audioIdentityChangeListener = this::queueAudioIdentityReconciliation;
+    private boolean audioIdentityListenerRegistered;
+    private volatile boolean attachedToPlayerMenu;
 
     public PlayerMenuSongListService(PlayerMenuContext context,
                                      PlaybackManager playbackManager,
@@ -177,6 +181,11 @@ public class PlayerMenuSongListService {
                              MusicCardActionManager musicActions,
                              Consumer<Song> onSongClicked,
                              Consumer<Song> onAddToQueue) {
+        attachedToPlayerMenu = true;
+        if (this.startUpService != startUpService && audioIdentityListenerRegistered && this.startUpService != null) {
+            this.startUpService.removeAudioIdentityChangeListener(audioIdentityChangeListener);
+            audioIdentityListenerRegistered = false;
+        }
         this.startUpService = startUpService;
         this.musicActions = musicActions;
         this.onSongClicked = onSongClicked == null ? song -> {} : onSongClicked;
@@ -191,6 +200,7 @@ public class PlayerMenuSongListService {
         cellFactory.setRemoteDetailsRequester(this::requestVisibleRemoteSongDetails);
         cellFactory.setDownloadCompleted(this::integrateDownloadedSongAndRefresh);
         remoteSongDetailsService.bind(startUpService);
+        registerAudioIdentityListener();
         setupSongsCellFactory();
     }
 
@@ -268,6 +278,12 @@ public class PlayerMenuSongListService {
     }
 
     public void onDetached() {
+        attachedToPlayerMenu = false;
+        if (audioIdentityListenerRegistered && startUpService != null) {
+            startUpService.removeAudioIdentityChangeListener(audioIdentityChangeListener);
+            audioIdentityListenerRegistered = false;
+        }
+        audioIdentityReconciliationQueued.set(false);
         playlistReorderSupport.activate(null, null, false);
         sortMetadataGeneration.incrementAndGet();
         sortPlaylistId = -1L;
@@ -303,6 +319,7 @@ public class PlayerMenuSongListService {
     public void refreshDownloadedSongState() {
         Runnable refresh = () -> {
             localState.clearManifestCache();
+            normalizeActiveAlbumTrackOrder();
             localState.rebuildCurrentPlayableListFromMaster();
             applySearchPredicate(searchSongField == null ? "" : searchSongField.getText());
             refreshLists();
@@ -365,6 +382,7 @@ public class PlayerMenuSongListService {
                     downloadedSong,
                     finalFile.getAbsolutePath()
             );
+            normalizeActiveAlbumTrackOrder();
             localState.clearManifestCache();
             localState.rebuildCurrentPlayableListFromMaster();
             refreshVisibleCellForSong(songsToPlayView, replacement);
@@ -959,8 +977,20 @@ public class PlayerMenuSongListService {
         remoteSongDetailsService.prefetch(
                 songs,
                 () -> context.isViewRevisionCurrent(revision),
-                this::scheduleListRefresh
+                this::refreshAfterRemoteSongDetails
         );
+    }
+
+    /**
+     * Deezer's track endpoint can supply contributors after the first visual
+     * row is already painted. Refreshing the cells alone would leave that row
+     * remote until the next navigation; reconcile once its complete identity
+     * is available so the current album state immediately reflects the local
+     * audio index.
+     */
+    private void refreshAfterRemoteSongDetails() {
+        scheduleListRefresh();
+        queueAudioIdentityReconciliation();
     }
 
     private boolean shouldDeferLocalReconciliation(List<Song> songs) {
@@ -1005,6 +1035,46 @@ public class PlayerMenuSongListService {
     }
 
     private void scheduleDeferredLocalReconciliation(List<Song> initialSongs, long viewRevision) {
+        scheduleLocalReconciliation(initialSongs, viewRevision, null);
+    }
+
+    private void registerAudioIdentityListener() {
+        if (startUpService == null || audioIdentityListenerRegistered) {
+            return;
+        }
+        startUpService.addAudioIdentityChangeListener(audioIdentityChangeListener);
+        audioIdentityListenerRegistered = true;
+    }
+
+    /**
+     * A downloaded song can receive its complete Deezer contributor list a
+     * moment after the first list paint. Reconcile the visible collection once
+     * that strict identity is available, so an equivalent album edition turns
+     * into a playable row without a navigation round-trip.
+     */
+    private void queueAudioIdentityReconciliation() {
+        if (!attachedToPlayerMenu || !audioIdentityReconciliationQueued.compareAndSet(false, true)) {
+            return;
+        }
+
+        Platform.runLater(() -> {
+            if (!attachedToPlayerMenu) {
+                audioIdentityReconciliationQueued.set(false);
+                return;
+            }
+            List<Song> snapshot = new ArrayList<>(context.getMasterSongList());
+            if (snapshot.isEmpty() || startUpService == null) {
+                audioIdentityReconciliationQueued.set(false);
+                return;
+            }
+            scheduleLocalReconciliation(snapshot, context.getViewRevision(),
+                    () -> audioIdentityReconciliationQueued.set(false));
+        });
+    }
+
+    private void scheduleLocalReconciliation(List<Song> initialSongs,
+                                             long viewRevision,
+                                             Runnable onFinished) {
         List<Song> snapshot = initialSongs == null ? List.of() : new ArrayList<>(initialSongs);
         CompletableFuture
                 .supplyAsync(
@@ -1012,35 +1082,73 @@ public class PlayerMenuSongListService {
                         LOCAL_RECONCILIATION_IO
                 )
                 .thenAccept(reconciled -> Platform.runLater(() -> {
-                    if (!context.isViewRevisionCurrent(viewRevision)
-                            || reconciled == null
-                            || context.getMasterSongList().isEmpty()) {
-                        return;
-                    }
+                    try {
+                        if (!attachedToPlayerMenu
+                                || !context.isViewRevisionCurrent(viewRevision)
+                                || reconciled == null
+                                || context.getMasterSongList().isEmpty()) {
+                            return;
+                        }
 
-                    List<Song> orderedReconciled = orderAlbumSongs(reconciled, activeContentType);
-                    List<Song> current = new ArrayList<>(context.getMasterSongList());
-                    if (current.size() == orderedReconciled.size()) {
-                        context.setMasterSongList(orderedReconciled);
-                    } else {
-                        mergeReconciledLocalState(current, orderedReconciled);
-                        context.setMasterSongList(orderAlbumSongs(current, activeContentType));
-                    }
+                        List<Song> orderedReconciled = orderAlbumSongs(reconciled, activeContentType);
+                        List<Song> current = new ArrayList<>(context.getMasterSongList());
+                        if (current.size() == orderedReconciled.size()) {
+                            context.setMasterSongList(orderedReconciled);
+                        } else {
+                            mergeReconciledLocalState(current, orderedReconciled);
+                            context.setMasterSongList(orderAlbumSongs(current, activeContentType));
+                        }
 
-                    visibleHydrationRequested.clear();
-                    localState.rebuildCurrentPlayableListFromMaster();
-                    applySearchPredicate(searchSongField == null ? "" : searchSongField.getText());
-                    refreshLists();
-                    updateSongCountLabel();
-                    adjustListHeight(getPrimarySongListView());
+                        visibleHydrationRequested.clear();
+                        localState.rebuildCurrentPlayableListFromMaster();
+                        applySearchPredicate(searchSongField == null ? "" : searchSongField.getText());
+                        refreshLists();
+                        updateSongCountLabel();
+                        adjustListHeight(getPrimarySongListView());
+                    } finally {
+                        if (onFinished != null) {
+                            onFinished.run();
+                        }
+                    }
                 }))
-                .exceptionally(ignored -> null);
+                .exceptionally(ignored -> {
+                    if (onFinished != null) {
+                        Platform.runLater(onFinished);
+                    }
+                    return null;
+                });
     }
 
     private List<Song> orderAlbumSongs(List<Song> songs, PlayerMenuContext.ContentType type) {
         return type == PlayerMenuContext.ContentType.ALBUM
                 ? PlayerMenuAlbumTrackOrder.order(songs)
                 : songs == null ? List.of() : songs;
+    }
+
+    /**
+     * Keeps a visible album anchored to Deezer's TrackOrder after an item is
+     * replaced or reconciled. The sort is skipped for incomplete metadata, so
+     * it never invents an order while remote details are still loading.
+     */
+    private void normalizeActiveAlbumTrackOrder() {
+        if (activeContentType != PlayerMenuContext.ContentType.ALBUM) {
+            return;
+        }
+
+        List<Song> current = new ArrayList<>(context.getMasterSongList());
+        List<Song> ordered = PlayerMenuAlbumTrackOrder.order(current);
+        if (!sameReferenceOrder(current, ordered)) {
+            context.setMasterSongList(ordered);
+        }
+    }
+
+    private boolean sameReferenceOrder(List<Song> current, List<Song> ordered) {
+        if (current == ordered) return true;
+        if (current == null || ordered == null || current.size() != ordered.size()) return false;
+        for (int index = 0; index < current.size(); index++) {
+            if (current.get(index) != ordered.get(index)) return false;
+        }
+        return true;
     }
 
     private void mergeReconciledLocalState(List<Song> current, List<Song> reconciled) {
