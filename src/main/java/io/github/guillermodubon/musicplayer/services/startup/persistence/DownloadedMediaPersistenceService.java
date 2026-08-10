@@ -11,6 +11,7 @@ import io.github.guillermodubon.musicplayer.services.startup.hydration.ModelHydr
 import io.github.guillermodubon.musicplayer.services.api.DeezerHttpClient;
 import io.github.guillermodubon.musicplayer.services.startup.persistence.RemoteAlbumPromotionService;
 import io.github.guillermodubon.musicplayer.utils.ArtistIdentity;
+import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 
 import java.io.File;
 import java.sql.Connection;
@@ -23,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -47,6 +49,15 @@ public final class DownloadedMediaPersistenceService {
 
     public void persist(DeezerApiMetaData metadata, File file) {
         if (metadata == null || file == null) return;
+
+        /*
+         * A download can arrive here from a lightweight metadata hint. If
+         * that hint was created before the album genre was hydrated, never
+         * persist its placeholder value. Resolve the missing genre at the
+         * last safe point before the transaction; metadata with a valid genre
+         * keeps the existing fast path unchanged.
+         */
+        metadata = resolveMissingGenre(metadata);
 
         /*
          * A fallback single can have no Deezer track id while still carrying
@@ -79,6 +90,54 @@ public final class DownloadedMediaPersistenceService {
         }
 
         updateNoMetadataIndex(metadata, file);
+
+        // Publish only after the transaction and in-memory album hydration
+        // have completed. The Home provider can then read the new genre
+        // immediately and rebuild its playlist distribution safely.
+        owner.notifyGenreChangeListeners();
+    }
+
+    private DeezerApiMetaData resolveMissingGenre(DeezerApiMetaData metadata) {
+        if (metadata == null || hasUsableGenre(metadata.getGenre())) {
+            return metadata;
+        }
+
+        DeezerApiMetaData resolved = metadata;
+        try {
+            if (metadata.getTrackId() > 0) {
+                DeezerApiMetaData exact = owner.deezerService().getTrackMetadataById(
+                        metadata.getTrackId(),
+                        metadata
+                );
+                if (exact != null) {
+                    resolved = exact;
+                }
+            }
+
+            if (!hasUsableGenre(resolved.getGenre()) && resolved.getAlbumId() > 0) {
+                Optional<io.github.guillermodubon.musicplayer.services.api.DeezerApiService.AlbumGenre> albumGenre =
+                        owner.deezerService().getAlbumGenreById(resolved.getAlbumId());
+                if (albumGenre.isPresent()) {
+                    resolved.setGenre(albumGenre.get().name());
+                }
+            }
+        } catch (Exception error) {
+            // The existing Unknown fallback remains valid for genuine cases
+            // without metadata or when Deezer is temporarily unavailable.
+        }
+
+        return resolved;
+    }
+
+    private boolean hasUsableGenre(String genre) {
+        if (genre == null || genre.isBlank()) {
+            return false;
+        }
+
+        String normalized = genre.trim().toLowerCase(java.util.Locale.ROOT);
+        return !normalized.equals("unknown")
+                && !normalized.equals("unknown genre")
+                && !normalized.equals("desconocido");
     }
 
     private void persistMetadataSnapshot(DeezerApiMetaData metadata, File file, boolean hydrateAlbum) {
@@ -157,6 +216,7 @@ public final class DownloadedMediaPersistenceService {
             }
 
             owner.putTitleToPath(metadata.getSongName(), file.getAbsolutePath());
+            owner.putSongToPath(metadata, file.getAbsolutePath());
             for (String artist : allArtistNames(metadata)) {
                 owner.putTitleToPath(artist + " " + metadata.getSongName(), file.getAbsolutePath());
             }
@@ -199,10 +259,7 @@ public final class DownloadedMediaPersistenceService {
         if (ids.songId() > 0 && song.getSongID() > 0) {
             return song.getSongID() == ids.songId();
         }
-        if (song.getAlbum() == null || song.getAlbum().getAlbumID() != ids.albumId()) return false;
-        return song.getTitle() != null
-                && metadata.getSongName() != null
-                && song.getTitle().equalsIgnoreCase(metadata.getSongName());
+        return SongAudioIdentity.matches(song, metadata);
     }
 
     private long ensureGenre(Connection conn, DeezerApiMetaData metadata) throws Exception {
@@ -330,14 +387,17 @@ public final class DownloadedMediaPersistenceService {
         if (songId > 0) {
             try (PreparedStatement ps = conn.prepareStatement("""
                     UPDATE Song
-                       SET Title = ?, Album = ?, TrackOrder = ?, IsLocal = 1, FilePath = ?
+                       SET Title = ?, Album = ?, TrackOrder = ?, IsLocal = 1, FilePath = ?,
+                           DurationSeconds = CASE WHEN ? > 0 THEN ? ELSE DurationSeconds END
                      WHERE SongID = ?
                     """)) {
                 ps.setString(1, metadata.getSongName());
                 ps.setLong(2, albumId);
                 ps.setInt(3, Math.max(1, metadata.getTrackOrder()));
                 ps.setString(4, file.getAbsolutePath());
-                ps.setLong(5, songId);
+                ps.setInt(5, metadata.getDurationSeconds());
+                ps.setInt(6, metadata.getDurationSeconds());
+                ps.setLong(7, songId);
                 ps.executeUpdate();
             }
             migrateLegacyPlaceholderSong(conn, metadata, albumId, songId);
@@ -346,12 +406,13 @@ public final class DownloadedMediaPersistenceService {
 
         if (metadata.getTrackId() > 0) {
             try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal, FilePath) VALUES(?, ?, ?, ?, 1, ?)")) {
+                    "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal, FilePath, DurationSeconds) VALUES(?, ?, ?, ?, 1, ?, ?)")) {
                 ps.setLong(1, metadata.getTrackId());
                 ps.setString(2, metadata.getSongName());
                 ps.setLong(3, albumId);
                 ps.setInt(4, Math.max(1, metadata.getTrackOrder()));
                 ps.setString(5, file.getAbsolutePath());
+                ps.setInt(6, metadata.getDurationSeconds());
                 ps.executeUpdate();
             }
             migrateLegacyPlaceholderSong(conn, metadata, albumId, metadata.getTrackId());
@@ -359,12 +420,13 @@ public final class DownloadedMediaPersistenceService {
         }
 
         try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO Song(Title, Album, TrackOrder, IsLocal, FilePath) VALUES(?, ?, ?, 1, ?)",
+                "INSERT INTO Song(Title, Album, TrackOrder, IsLocal, FilePath, DurationSeconds) VALUES(?, ?, ?, 1, ?, ?)",
                 Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, metadata.getSongName());
             ps.setLong(2, albumId);
             ps.setInt(3, Math.max(1, metadata.getTrackOrder()));
             ps.setString(4, file.getAbsolutePath());
+            ps.setInt(5, metadata.getDurationSeconds());
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {
                 if (rs.next()) {
@@ -482,6 +544,10 @@ public final class DownloadedMediaPersistenceService {
             return false;
         }
         if (!song.getTitle().equalsIgnoreCase(metadata.getSongName())) return false;
+        if (SongAudioIdentity.keyFor(song).isPresent()
+                || SongAudioIdentity.keyFor(metadata).isPresent()) {
+            return SongAudioIdentity.matches(song, metadata);
+        }
         return song.getAlbum() == null
                 || song.getAlbum().getAlbumID() <= 0
                 || song.getAlbum().getAlbumID() == ids.albumId();
