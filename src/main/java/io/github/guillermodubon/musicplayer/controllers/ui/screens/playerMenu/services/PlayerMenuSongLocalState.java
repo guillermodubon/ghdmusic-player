@@ -64,25 +64,25 @@ final class PlayerMenuSongLocalState {
             return true;
         }
 
-        // Never recover a missing explicit path using a similarly named file.
-        if (song.getFilePath() != null && !song.getFilePath().isBlank()) {
-            return false;
-        }
-
-        if (!matchesManifestAsPlayable(song) || startUpService == null) {
+        if (startUpService == null) {
             return false;
         }
 
         try {
             Optional<String> resolvedPath = startUpService.resolvePathForSong(song);
             if (resolvedPath.isPresent() && hasUsableAudioFile(resolvedPath.get())) {
+                song.setLocal(true);
                 song.setFilePath(resolvedPath.get());
                 return true;
             }
         } catch (Exception ignored) {
         }
 
-        return false;
+        // Keep a manifest-backed local track playable while the playback
+        // resolver searches for a file that was moved in Windows. This never
+        // uses a title-only path match: actual recovery remains strict and is
+        // performed only when the user starts playback.
+        return matchesManifestAsPlayable(song);
     }
 
     void rebuildCurrentPlayableListFromMaster() {
@@ -127,12 +127,16 @@ final class PlayerMenuSongLocalState {
 
         for (Song librarySong : librarySnapshot) {
             String playablePath = resolvePlayableLocalPath(librarySong);
-            if (playablePath == null) {
+            boolean pendingPathRecovery = playablePath == null
+                    && isRecoverableLocalSong(librarySong);
+            if (playablePath == null && !pendingPathRecovery) {
                 continue;
             }
 
-            librarySong.setLocal(true);
-            librarySong.setFilePath(playablePath);
+            if (playablePath != null) {
+                librarySong.setLocal(true);
+                librarySong.setFilePath(playablePath);
+            }
 
             if (librarySong.getSongID() > 0) {
                 localById.putIfAbsent(librarySong.getSongID(), librarySong);
@@ -142,7 +146,9 @@ final class PlayerMenuSongLocalState {
                 localByAudioIdentity
                         .computeIfAbsent(identity, ignored -> new ArrayList<>())
                         .add(librarySong);
-                localPathByAudioIdentity.putIfAbsent(identity, playablePath);
+                if (playablePath != null) {
+                    localPathByAudioIdentity.putIfAbsent(identity, playablePath);
+                }
             });
         }
 
@@ -157,6 +163,15 @@ final class PlayerMenuSongLocalState {
                 playablePath = resolvePlayableLocalPath(localSong);
             }
             if (playablePath == null) {
+                if (localSong != null && isRecoverableLocalSong(localSong)) {
+                    // Keep this album/source entry local. The first playback
+                    // attempts a guarded path recovery and then refreshes all
+                    // equivalent title-and-artists references at once.
+                    viewSong.setLocal(true);
+                    viewSong.setFilePath(localSong.getFilePath());
+                    enrichViewSongFromLocal(viewSong, localSong);
+                    continue;
+                }
                 clearStaleLocalState(viewSong);
                 continue;
             }
@@ -370,6 +385,10 @@ final class PlayerMenuSongLocalState {
         song.setFilePath(null);
     }
 
+    private boolean isRecoverableLocalSong(Song song) {
+        return song != null && song.isLocal() && matchesManifestAsPlayable(song);
+    }
+
     private String resolvePlayableLocalPath(Song song) {
         if (song == null || !song.isLocal()) {
             return null;
@@ -377,12 +396,6 @@ final class PlayerMenuSongLocalState {
 
         if (hasUsableAudioFile(song.getFilePath())) {
             return new File(song.getFilePath()).getAbsolutePath();
-        }
-
-        // A non-empty path is an exact identity, even when the file has been
-        // deleted. It must not be replaced with another track by title.
-        if (song.getFilePath() != null && !song.getFilePath().isBlank()) {
-            return null;
         }
 
         if (startUpService == null) {
@@ -394,6 +407,12 @@ final class PlayerMenuSongLocalState {
                 return new File(resolved.get()).getAbsolutePath();
             }
         } catch (Exception ignored) {
+        }
+
+        // Never resolve an unavailable explicit location through a loose
+        // title comparison. The fast resolver above is strict by identity.
+        if (song.getFilePath() != null && !song.getFilePath().isBlank()) {
+            return null;
         }
         return null;
     }

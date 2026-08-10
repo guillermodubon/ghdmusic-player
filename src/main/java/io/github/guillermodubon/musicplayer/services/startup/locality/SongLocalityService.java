@@ -74,6 +74,7 @@ public class SongLocalityService {
                 Optional<Song> so = owner.getSongs().stream().filter(s -> s != null && s.getSongID() == tid).findFirst();
                 if (so.isPresent() && so.get().getTitle() != null) {
                     owner.putTitleToPath(so.get().getTitle(), absolutePath);
+                    owner.putSongToPath(so.get(), absolutePath);
                     DeezerApiMetaData pseudo = new DeezerApiMetaData();
                     pseudo.setSongName(so.get().getTitle());
                     pseudo.setTrackId(so.get().getSongID());
@@ -82,6 +83,43 @@ public class SongLocalityService {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    /** Persists a recovered location without waiting on the JavaFX thread. */
+    public void repairSongPathAsync(Song song, String absolutePath) {
+        if (song == null || song.getSongID() <= 0 || absolutePath == null || absolutePath.isBlank()) {
+            return;
+        }
+
+        localityExecutor.execute(() -> {
+            try {
+                synchronized (owner.getDbLock()) {
+                    DbConnectionManager.getInstance().runInTransaction(connection -> {
+                        try (PreparedStatement update = connection.prepareStatement(
+                                "UPDATE Song SET IsLocal = 1, FilePath = ? WHERE SongID = ?")) {
+                            update.setString(1, absolutePath);
+                            update.setLong(2, song.getSongID());
+                            update.executeUpdate();
+                        } catch (SQLException error) {
+                            throw new RuntimeException(error);
+                        }
+                        return null;
+                    });
+                }
+
+                DeezerApiMetaData manifestMetadata = new DeezerApiMetaData();
+                manifestMetadata.setTrackId(song.getSongID());
+                manifestMetadata.setSongName(song.getTitle());
+                manifestSyncService.updateManifestEntryAsync(
+                        manifestMetadata,
+                        new File(absolutePath),
+                        new File(absolutePath).lastModified()
+                );
+            } catch (Throwable error) {
+                System.err.println("repairSongPathAsync: DB update failed -> "
+                        + Optional.ofNullable(error.getMessage()).orElse("null"));
+            }
+        });
     }
 
     /**

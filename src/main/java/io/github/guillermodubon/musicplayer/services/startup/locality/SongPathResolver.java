@@ -1,9 +1,8 @@
 
 package io.github.guillermodubon.musicplayer.services.startup.locality;
 
-import io.github.guillermodubon.musicplayer.utils.SongDataHelper;
-import io.github.guillermodubon.musicplayer.models.Artist;
 import io.github.guillermodubon.musicplayer.models.Song;
+import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,8 +10,8 @@ import java.util.*;
 
 public class SongPathResolver {
 
-    public Optional<String> resolvePathForSong(Song s, Map<String, String> titleToPath) {
-        if (s == null || titleToPath == null || titleToPath.isEmpty()) return Optional.empty();
+    public Optional<String> resolvePathForSong(Song s, Map<String, String> audioIdentityToPath) {
+        if (s == null) return Optional.empty();
 
         String path = s.getFilePath();
         try {
@@ -22,40 +21,25 @@ public class SongPathResolver {
         } catch (Exception ignored) {
         }
 
-        // A persisted path identifies the exact local file for this song. If
-        // it no longer exists, do not replace it with a similarly named track.
-        if (path != null && !path.isBlank()) {
+        if (audioIdentityToPath == null || audioIdentityToPath.isEmpty()) {
             return Optional.empty();
         }
 
-        String title = Optional.ofNullable(s.getTitle()).orElse("").trim();
-        List<String> artistNames = s.getArtist() == null ? List.of() :
-                s.getArtist().stream().map(Artist::getName).filter(Objects::nonNull).toList();
-
-        List<String> candidates = new ArrayList<>();
-        if (!title.isBlank()) {
-            candidates.add(title);
-            candidates.add(SongDataHelper.sanitizeForFileKey(title));
-            candidates.add(SongDataHelper.fallbackKey(title));
-            candidates.add(title.toLowerCase(Locale.ROOT));
-        }
-        for (String an : artistNames) {
-            if (an == null || an.isBlank()) continue;
-            String combo = an + " " + title;
-            candidates.add(combo);
-            candidates.add(SongDataHelper.sanitizeForFileKey(combo));
-            candidates.add(combo.toLowerCase(Locale.ROOT));
+        Optional<String> identityKey = SongAudioIdentity.keyFor(s);
+        if (identityKey.isEmpty()) {
+            return Optional.empty();
         }
 
-        for (String key : candidates) {
-            if (key == null) continue;
-            String p = titleToPath.get(key);
-            if (p != null) {
-                try {
-                    if (Files.exists(Path.of(p))) return Optional.of(p);
-                } catch (Exception ignored) {
-                }
+        String candidatePath = audioIdentityToPath.get(identityKey.get());
+        if (candidatePath == null || candidatePath.isBlank()) {
+            return Optional.empty();
+        }
+        try {
+            if (Files.exists(Path.of(candidatePath))) {
+                s.setFilePath(candidatePath);
+                return Optional.of(candidatePath);
             }
+        } catch (Exception ignored) {
         }
 
         return Optional.empty();

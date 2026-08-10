@@ -26,19 +26,37 @@ public class SongScannerService {
      * adding unique entries to the provided map: songName -> filePath.
      */
     public void scanDirectoryParallel(Path directory, Map<String, String> uniqueSongs) {
+        if (uniqueSongs == null) return;
+        for (ScannedAudioFile file : scanDirectory(directory)) {
+            String songName = songDataUtils.removeFileExtension(file.fileName());
+            uniqueSongs.putIfAbsent(songName, file.path().toString());
+        }
+    }
+
+    private List<ScannedAudioFile> scanDirectory(Path directory) {
+        List<ScannedAudioFile> files = new ArrayList<>();
         try (Stream<Path> paths = Files.walk(directory)) {
             // Files.walk is disk-bound. Parallelizing it inside another executor
             // oversubscribes disk I/O and is slower for large music folders.
             paths
                     .filter(path -> Files.isRegularFile(path) && songDataUtils.isAudioFile(path))
                     .forEach(path -> {
-                        String songName = songDataUtils.removeFileExtension(path.getFileName().toString());
-                        String filePath = path.toAbsolutePath().toString();
-                        uniqueSongs.putIfAbsent(songName, filePath);
+                        try {
+                            Path absolute = path.toAbsolutePath().normalize();
+                            files.add(new ScannedAudioFile(
+                                    absolute,
+                                    absolute.getFileName().toString(),
+                                    Files.getLastModifiedTime(absolute).toMillis(),
+                                    Files.size(absolute)
+                            ));
+                        } catch (IOException ignored) {
+                            // The file moved during the scan. A later scan can recover it.
+                        }
                     });
         } catch (IOException e) {
             System.err.println("Failed to access: " + directory + " - " + e.getMessage());
         }
+        return files;
     }
 
     /**
@@ -46,8 +64,15 @@ public class SongScannerService {
      * key = song name (without extension), value = absolute file path.
      */
     public Map<String, String> getAllSongsMapFromLocalDevice() {
-        ConcurrentMap<String, String> uniqueSongs = new ConcurrentHashMap<>();
+        return toUniqueSongMap(scanLocalAudioFiles());
+    }
 
+    /**
+     * Scans every configured music directory while retaining duplicate display
+     * titles. Path recovery uses this rich result to avoid title-only matches.
+     */
+    public List<ScannedAudioFile> scanLocalAudioFiles() {
+        ConcurrentLinkedQueue<ScannedAudioFile> discovered = new ConcurrentLinkedQueue<>();
         List<Path> directoriesToScan = resolveWindowsAudioDirectories();
 
         int directoryWorkers = Math.max(1, Math.min(2, directoriesToScan.size()));
@@ -57,21 +82,35 @@ public class SongScannerService {
             return thread;
         });
 
-        // Lanzamos una tarea por cada directorio
         List<? extends Future<?>> futures = directoriesToScan.stream()
-                .map(dir -> exec.submit(() -> scanDirectoryParallel(dir, uniqueSongs)))
+                .map(dir -> exec.submit(() -> discovered.addAll(scanDirectory(dir))))
                 .toList();
 
-        // Esperamos a que todas terminen
-        for (Future<?> f : futures) {
+        for (Future<?> future : futures) {
             try {
-                f.get();
-            } catch (InterruptedException | ExecutionException e) {
+                future.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (ExecutionException e) {
                 System.err.println("Error scanning directory: " + e.getMessage());
             }
         }
-
         exec.shutdown();
+
+        List<ScannedAudioFile> files = new ArrayList<>(discovered);
+        files.sort(Comparator.comparing(file -> file.path().toString(), String.CASE_INSENSITIVE_ORDER));
+        return List.copyOf(files);
+    }
+
+    public Map<String, String> toUniqueSongMap(Collection<ScannedAudioFile> files) {
+        ConcurrentMap<String, String> uniqueSongs = new ConcurrentHashMap<>();
+        if (files == null) return uniqueSongs;
+        for (ScannedAudioFile file : files) {
+            if (file == null || file.path() == null || file.fileName() == null) continue;
+            String songName = songDataUtils.removeFileExtension(file.fileName());
+            uniqueSongs.putIfAbsent(songName, file.path().toString());
+        }
 
         return uniqueSongs;
     }
@@ -96,10 +135,19 @@ public class SongScannerService {
             }
         }
 
-        return directories.stream()
-                .filter(Files::isDirectory)
-                .filter(Files::isReadable)
-                .toList();
+        Set<Path> resolvedDirectories = new LinkedHashSet<>();
+        for (Path directory : directories) {
+            try {
+                if (!Files.isDirectory(directory) || !Files.isReadable(directory)) continue;
+                // Windows can expose the same known folder through USERPROFILE
+                // and OneDrive. Resolve its real location once so a redirected
+                // Downloads/Desktop/Music folder is never walked twice.
+                resolvedDirectories.add(directory.toRealPath());
+            } catch (IOException ignored) {
+                // A folder may disappear while the application is starting.
+            }
+        }
+        return List.copyOf(resolvedDirectories);
     }
 
     private void addAudioDirectories(Set<Path> directories, Path root) {

@@ -12,7 +12,7 @@ import io.github.guillermodubon.musicplayer.repository.dao.genre.GenreDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.song.SongDao;
 import io.github.guillermodubon.musicplayer.repository.dao.song.SongDaoImpl;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.homePage.HomePageController;
-import io.github.guillermodubon.musicplayer.utils.SongDataHelper;
+import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.services.api.DeezerApiService;
 import io.github.guillermodubon.musicplayer.services.api.DeezerHttpClient;
@@ -60,13 +60,11 @@ public class RemoteAlbumPromotionService {
         final long downloadedTrackId = meta.getTrackId();
         final String downloadedPath = file == null ? null : file.getAbsolutePath();
 
-        Map<String, String> titleToPathLocal = owner.getTitleToPathSnapshot();
-
-        Map<String, String> normalizedTitleToPath = new HashMap<>();
-        for (var e : titleToPathLocal.entrySet()) {
-            if (e.getKey() != null && e.getValue() != null) {
-                normalizedTitleToPath.put(e.getKey().toLowerCase(Locale.ROOT), e.getValue());
-            }
+        Map<String, String> localPathByAudioIdentity = owner.getSongIdentityPathSnapshot();
+        if (downloadedPath != null && !downloadedPath.isBlank()) {
+            SongAudioIdentity.keyFor(meta).ifPresent(
+                    identity -> localPathByAudioIdentity.put(identity, downloadedPath)
+            );
         }
 
         JsonObject albumJson = null;
@@ -265,21 +263,21 @@ public class RemoteAlbumPromotionService {
             }
         }
 
-        java.util.function.BiFunction<String, Long, Optional<String>> findLocalPathFor = (title, trackId) -> {
-            if (trackId != null && trackId > 0 && trackId == downloadedTrackId && downloadedPath != null) {
+        java.util.function.Function<DeezerTrackInfo, Optional<String>> findLocalPathFor = track -> {
+            if (track == null) {
+                return Optional.empty();
+            }
+            if (track.getId() > 0 && track.getId() == downloadedTrackId && downloadedPath != null) {
                 return Optional.of(downloadedPath);
             }
-            if (title == null) return Optional.empty();
-            String key = title.toLowerCase(Locale.ROOT);
-            String p = normalizedTitleToPath.get(key);
-            if (p != null) return Optional.of(p);
-            String sKey = SongDataHelper.sanitizeForFileKey(title).toLowerCase(Locale.ROOT);
-            p = normalizedTitleToPath.get(sKey);
-            if (p != null) return Optional.of(p);
-            String fb = SongDataHelper.fallbackKey(title).toLowerCase(Locale.ROOT);
-            p = normalizedTitleToPath.get(fb);
-            if (p != null) return Optional.of(p);
-            return Optional.empty();
+            List<String> trackArtists = trackArtistsForIdentity(
+                    track.getId(),
+                    contributorsByTrackId,
+                    albumArtistNames
+            );
+            return SongAudioIdentity.keyFor(track.getTitle(), trackArtists)
+                    .map(localPathByAudioIdentity::get)
+                    .filter(path -> path != null && !path.isBlank());
         };
 
         List<Long> localTrackIdsToMark = new ArrayList<>();
@@ -392,7 +390,7 @@ public class RemoteAlbumPromotionService {
                                     long tid = info.getId() > 0 ? info.getId() : 0L;
                                     String title = Optional.ofNullable(info.getTitle()).orElse("");
                                     int trackOrder = info.getTrackOrder();
-                                    Optional<String> localPath = findLocalPathFor.apply(title, tid);
+                                    Optional<String> localPath = findLocalPathFor.apply(info);
                                     boolean localFound = localPath.isPresent();
                                     boolean shouldBeLocal = localFound
                                             || (tid > 0 && existingLocalById.getOrDefault(tid, false))
@@ -427,8 +425,10 @@ public class RemoteAlbumPromotionService {
 
                                     Set<String> trackArtistNames = new LinkedHashSet<>();
                                     if (albumArtistNames != null) trackArtistNames.addAll(albumArtistNames);
+                                    if (contributorsByTrackId.containsKey(tid)) {
+                                        trackArtistNames.addAll(contributorsByTrackId.get(tid));
+                                    }
                                     if (tid > 0 && tid == downloadedTrackId) {
-                                        if (contributorsByTrackId.containsKey(tid)) trackArtistNames.addAll(contributorsByTrackId.get(tid));
                                         if (meta.getSongContributorNames() != null) trackArtistNames.addAll(meta.getSongContributorNames());
                                     }
 
@@ -550,7 +550,13 @@ public class RemoteAlbumPromotionService {
             try {
                 String p = tid != null && tid == downloadedTrackId && downloadedPath != null
                         ? downloadedPath
-                        : findBestPathFromMap(albumTracks, normalizedTitleToPath, tid);
+                        : findBestPathFromIdentityMap(
+                                albumTracks,
+                                contributorsByTrackId,
+                                albumArtistNames,
+                                localPathByAudioIdentity,
+                                tid
+                        );
                 if (p != null) {
                     songLocalityService.markSongAsLocal(tid, p);
                 }
@@ -628,24 +634,45 @@ public class RemoteAlbumPromotionService {
         return obj.get(field).getAsString();
     }
 
-    private String findBestPathFromMap(List<DeezerTrackInfo> tracks,
-                                       Map<String, String> normalizedTitleToPath,
-                                       long trackId) {
-        if (tracks == null || normalizedTitleToPath == null || normalizedTitleToPath.isEmpty()) return null;
+    private String findBestPathFromIdentityMap(
+            List<DeezerTrackInfo> tracks,
+            Map<Long, List<String>> contributorsByTrackId,
+            List<String> albumArtistNames,
+            Map<String, String> localPathByAudioIdentity,
+            long trackId
+    ) {
+        if (tracks == null || localPathByAudioIdentity == null || localPathByAudioIdentity.isEmpty()) return null;
         for (DeezerTrackInfo info : tracks) {
             if (info == null || info.getId() != trackId) continue;
-            String title = info.getTitle();
-            if (title == null) continue;
-            String key = title.toLowerCase(Locale.ROOT);
-            String p = normalizedTitleToPath.get(key);
-            if (p != null) return p;
-            String sKey = SongDataHelper.sanitizeForFileKey(title).toLowerCase(Locale.ROOT);
-            p = normalizedTitleToPath.get(sKey);
-            if (p != null) return p;
-            String fb = SongDataHelper.fallbackKey(title).toLowerCase(Locale.ROOT);
-            p = normalizedTitleToPath.get(fb);
-            if (p != null) return p;
+            List<String> artists = trackArtistsForIdentity(
+                    info.getId(),
+                    contributorsByTrackId,
+                    albumArtistNames
+            );
+            Optional<String> identityKey = SongAudioIdentity.keyFor(info.getTitle(), artists);
+            if (identityKey.isPresent()) {
+                String path = localPathByAudioIdentity.get(identityKey.get());
+                if (path != null && !path.isBlank()) {
+                    return path;
+                }
+            }
         }
         return null;
+    }
+
+    private List<String> trackArtistsForIdentity(
+            long trackId,
+            Map<Long, List<String>> contributorsByTrackId,
+            List<String> albumArtistNames
+    ) {
+        if (contributorsByTrackId == null || !contributorsByTrackId.containsKey(trackId)) {
+            return List.of();
+        }
+        Set<String> artists = new LinkedHashSet<>();
+        if (albumArtistNames != null) {
+            artists.addAll(albumArtistNames);
+        }
+        artists.addAll(contributorsByTrackId.getOrDefault(trackId, List.of()));
+        return List.copyOf(artists);
     }
 }
