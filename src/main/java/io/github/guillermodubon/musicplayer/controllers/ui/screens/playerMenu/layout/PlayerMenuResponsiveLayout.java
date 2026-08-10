@@ -84,8 +84,10 @@ public final class PlayerMenuResponsiveLayout {
             });
         }
 
+        // The root/scene listeners above cover the second layout pulse once
+        // the view is attached. A single deferred pass is enough here and
+        // avoids forcing two extra full-screen layout passes on first paint.
         Platform.runLater(this::refreshMetrics);
-        Platform.runLater(() -> Platform.runLater(this::refreshMetrics));
 
         if (surface != null) surface.setMaxWidth(Double.MAX_VALUE);
         if (root != null) root.setMaxWidth(Double.MAX_VALUE);
@@ -103,18 +105,14 @@ public final class PlayerMenuResponsiveLayout {
      * once here removes the former dependency on a user scroll event.
      */
     public void settleAfterContentUpdate() {
-        Platform.runLater(() -> Platform.runLater(() -> {
+        Platform.runLater(() -> {
             if (root == null || root.getScene() == null) {
                 refreshMetrics();
                 return;
             }
 
-            root.applyCss();
-            root.layout();
             refreshMetrics();
-            root.applyCss();
-            root.layout();
-        }));
+        });
     }
 
     private void scheduleAttachedRefresh() {
@@ -133,6 +131,8 @@ public final class PlayerMenuResponsiveLayout {
             screenWidth = scrollPane.getViewportBounds().getWidth();
         }
         if (screenWidth <= 0) return;
+
+        if (Math.abs(screenWidth - lastViewportWidth) < 0.5) return;
 
         applyMetrics(screenWidth);
         if (header != null) header.requestLayout();
@@ -186,6 +186,7 @@ public final class PlayerMenuResponsiveLayout {
         if (headerCover != null) {
             headerCover.setFitWidth(cover);
             headerCover.setFitHeight(cover);
+            headerCover.setPreserveRatio(true);
         }
         applyTitleMetrics(viewportWidth, headerPadding, cover, headerSpacing);
 
