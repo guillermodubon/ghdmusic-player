@@ -2,9 +2,9 @@ package io.github.guillermodubon.musicplayer.services.startup.hydration;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import io.github.guillermodubon.musicplayer.utils.SongDataHelper;
 import io.github.guillermodubon.musicplayer.utils.FileNameUtils;
 import io.github.guillermodubon.musicplayer.models.*;
+import io.github.guillermodubon.musicplayer.repository.dao.lyrics.LyricsDaoImpl;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 
 import java.io.IOException;
@@ -38,7 +38,6 @@ public class ModelHydrationService {
         List<Song> songs = owner.getSongs();
         List<Artist> artists = owner.getArtists();
         ObservableList<Playlist> playlists = owner.getPlaylists();
-        Map<String, String> titleToPath = providedTitleToPath == null ? Collections.emptyMap() : providedTitleToPath;
         System.out.println("loadModels: starting to populate in-memory caches from DB");
         // defensive: ensure we operate on provided connection only (no new connections)
         if (conn == null || conn.isClosed()) throw new SQLException("loadModels: connection is null/closed");
@@ -118,7 +117,7 @@ SELECT AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks FROM Albu
         }
         // --- 7) Songs (populate, compute path when local) ---
         songs.clear();
-        String sqlSongs = "SELECT SongID, Title, Album, TrackOrder, IsLocal, FilePath FROM Song";
+        String sqlSongs = "SELECT SongID, Title, Album, TrackOrder, IsLocal, FilePath, DurationSeconds FROM Song";
         try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sqlSongs)) {
             while (rs.next()) {
                 long id = rs.getLong("SongID");
@@ -129,15 +128,8 @@ SELECT AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks FROM Albu
                 Album alb = albumById.get(albumId);
                 String path = null;
                 try { path = rs.getString("FilePath"); } catch (Exception ignored) {}
-                if (isLocal && title != null) {
-                    // lookup normalized keys with minimal allocations
-                    if (path == null || path.isBlank()) path = titleToPath.get(title);
-                    if (path == null) path = titleToPath.get(SongDataHelper.sanitizeForFileKey(title));
-                    if (path == null) path = titleToPath.get(SongDataHelper.fallbackKey(title));
-                    if (path == null) path = titleToPath.get(title.toLowerCase());
-                    if (path == null) path = titleToPath.get(SongDataHelper.sanitizeForFileKey(title).toLowerCase());
-                }
                 Song s = new Song(id, title, new ArrayList<>(), alb, path, order, isLocal);
+                s.setDurationSeconds(rs.getInt("DurationSeconds"));
                 songs.add(s);
                 songById.put(id, s);
             }
@@ -214,6 +206,8 @@ SELECT AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks FROM Albu
             }
         }
         System.out.println("loadModels: merged SongArtist relations (attached artists to songs)");
+        registerResolvedLocalAudioPaths(songs);
+        new LyricsDaoImpl(conn).hydrateSongs(songs);
         // --- 10) Assign songs into album.songList (initial pass) ---
         for (Song s : songs) {
             Album alb = s.getAlbum();
@@ -227,9 +221,9 @@ SELECT AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks FROM Albu
         for (Song s : songs) if (s != null && s.getSongID() > 0) songById.put(s.getSongID(), s);
         artistById.clear();
         for (Artist a : artists) if (a != null && a.getArtistID() > 0) artistById.put(a.getArtistID(), a);
-        // --- 13) attach saved SongArtist to models (if you need additional processing) ---
-        attachSavedSongArtistsToModels(artistById, songById, conn);
-        // --- 14) Fetch missing collaborators from Deezer async (bounded parallelism) ---
+        // SongArtist was already read and attached in the bulk pass above.
+        // Do not query the same relationship a second time during startup.
+        // --- 13) Fetch missing collaborators from Deezer async (bounded parallelism) ---
         List<Long> toFetch = songs.stream()
                 .filter(s -> s.getSongID() > 0)
                 .filter(s -> s.getArtist() == null || s.getArtist().isEmpty())
@@ -251,36 +245,79 @@ SELECT AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks FROM Albu
             });
         }
         smallPool.shutdown();
-        // --- 15) Playlists (bulk load) ---
+        // --- 14) Playlists (bulk load) ---
         playlists.clear();
-        String sqlPlaylists = "SELECT PlaylistID, Title, Author, Description, CreationDate FROM Playlist";
-        try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sqlPlaylists)) {
-            String sqlSongsInPl = """
-    SELECT s.SongID FROM Song s JOIN SongsPlaylists sp ON s.SongID = sp.SongID WHERE sp.PlaylistID = ? ORDER BY sp.Position, sp.CreatedAt, sp.SongID
-    """;
-            while (rs.next()) {
-                long playlistId = rs.getLong("PlaylistID");
-                String title = rs.getString("Title");
-                String author = rs.getString("Author");
-                String description = rs.getString("Description");
-                String date = rs.getString("CreationDate");
-                List<Song> playlistSongs = new ArrayList<>();
-                try (PreparedStatement ps2 = conn.prepareStatement(sqlSongsInPl)) {
-                    ps2.setLong(1, playlistId);
-                    try (ResultSet rs2 = ps2.executeQuery()) {
-                        while (rs2.next()) {
-                            long songId = rs2.getLong("SongID");
-                            Song s = songById.get(songId);
-                            if (s != null) playlistSongs.add(s);
-                        }
-                    }
-                }
-                ObservableList<Song> singleList = FXCollections.observableArrayList(playlistSongs);
-                Playlist pl = new Playlist(playlistId, title, author == null ? "CustomPlaylist" : author, description, date, null, singleList);
-                playlists.add(pl);
+        Map<Long, PlaylistDraft> playlistDrafts = new LinkedHashMap<>();
+        try (Statement statement = conn.createStatement();
+             ResultSet result = statement.executeQuery(
+                     "SELECT PlaylistID, Title, Author, Description, CreationDate FROM Playlist"
+             )) {
+            while (result.next()) {
+                long playlistId = result.getLong("PlaylistID");
+                playlistDrafts.put(playlistId, new PlaylistDraft(
+                        playlistId,
+                        result.getString("Title"),
+                        result.getString("Author"),
+                        result.getString("Description"),
+                        result.getString("CreationDate"),
+                        new ArrayList<>()
+                ));
             }
         }
+
+        if (!playlistDrafts.isEmpty()) {
+            String memberships = """
+                    SELECT sp.PlaylistID, sp.SongID
+                      FROM SongsPlaylists sp
+                      JOIN Song s ON s.SongID = sp.SongID
+                     ORDER BY sp.PlaylistID, sp.Position, sp.CreatedAt, sp.SongID
+                    """;
+            try (Statement statement = conn.createStatement();
+                 ResultSet result = statement.executeQuery(memberships)) {
+                while (result.next()) {
+                    PlaylistDraft draft = playlistDrafts.get(result.getLong("PlaylistID"));
+                    Song song = songById.get(result.getLong("SongID"));
+                    if (draft != null && song != null) draft.songs().add(song);
+                }
+            }
+        }
+
+        for (PlaylistDraft draft : playlistDrafts.values()) {
+            playlists.add(new Playlist(
+                    draft.id(),
+                    draft.title(),
+                    draft.author() == null ? "CustomPlaylist" : draft.author(),
+                    draft.description(),
+                    draft.creationDate(),
+                    null,
+                    FXCollections.observableArrayList(draft.songs())
+            ));
+        }
         System.out.println("loadModels: finished loading playlists count=" + playlists.size());
+        owner.notifyGenreChangeListeners();
+    }
+
+    private void registerResolvedLocalAudioPaths(List<Song> songs) {
+        if (songs == null || songs.isEmpty()) {
+            return;
+        }
+        for (Song song : songs) {
+            if (song == null || !song.isLocal()
+                    || song.getFilePath() == null || song.getFilePath().isBlank()) {
+                continue;
+            }
+            owner.putSongToPath(song, song.getFilePath());
+        }
+    }
+
+    private record PlaylistDraft(
+            long id,
+            String title,
+            String author,
+            String description,
+            String creationDate,
+            List<Song> songs
+    ) {
     }
 
     public void attachSavedSongArtistsToModels(Map<Long, Artist> artistById, Map<Long, Song> songById, Connection conn) {
@@ -375,6 +412,7 @@ SELECT AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks FROM Albu
 
     public void loadModelsForAlbum(Connection connection, long albumId) throws SQLException {
         albumModelHydrationService.loadModelsForAlbum(connection, albumId);
+        owner.notifyGenreChangeListeners();
     }
 
 }
