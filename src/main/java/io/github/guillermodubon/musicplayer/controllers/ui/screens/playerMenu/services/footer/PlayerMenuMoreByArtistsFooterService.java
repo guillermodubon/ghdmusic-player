@@ -92,6 +92,21 @@ public class PlayerMenuMoreByArtistsFooterService {
         this.playerMenuScroll = playerMenuScroll;
     }
 
+    /** Invalidates pending footer sections when this PlayerMenu detaches. */
+    public void detach() {
+        clearLazyLoadingObserver();
+        if (moreByArtistsContainer != null) {
+            moreByArtistsContainer.getProperties().put(FOOTER_RUN_ID_KEY, System.nanoTime());
+            moreByArtistsContainer.getChildren().clear();
+            moreByArtistsContainer.setVisible(false);
+            moreByArtistsContainer.setManaged(false);
+        }
+        if (footerPane != null) {
+            footerPane.setVisible(false);
+            footerPane.setManaged(false);
+        }
+    }
+
     public void refreshForView(ContentType type, Playlist playlist) {
         if (!Platform.isFxApplicationThread()) {
             Platform.runLater(() -> refreshForView(type, playlist));

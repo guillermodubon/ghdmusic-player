@@ -291,6 +291,8 @@ public final class PlayerMenuServiceCoordinator {
 
     public void detach() {
         if (songListService != null) songListService.onDetached();
+        if (headerFooterService != null) headerFooterService.detach();
+        if (recommendationsService != null) recommendationsService.detach();
         if (downloadSyncService != null) downloadSyncService.detach();
     }
 

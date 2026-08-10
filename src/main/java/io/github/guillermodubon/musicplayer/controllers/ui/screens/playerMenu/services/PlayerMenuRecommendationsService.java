@@ -66,6 +66,10 @@ public class PlayerMenuRecommendationsService {
         playlistFooterService.bindCallbacks(refreshSongListView, refreshQueue, refreshPlaybackContext);
     }
 
+    public void detach() {
+        playlistFooterService.detach();
+    }
+
 
     public void populateRecommendations() {
         playlistFooterService.populateRecommendations();

@@ -71,6 +71,13 @@ public class PlayerMenuPlaylistFooterService {
         );
     }
 
+    /** Stops footer work from publishing into a detached PlayerMenu view. */
+    public void detach() {
+        localRecommendations.clear();
+        remoteSuggestions.hide();
+        setFooterVisible(false);
+    }
+
     public ObservableList<Song> getDisplayedRecommendations() {
         return localRecommendations.displayedRecommendations();
     }
