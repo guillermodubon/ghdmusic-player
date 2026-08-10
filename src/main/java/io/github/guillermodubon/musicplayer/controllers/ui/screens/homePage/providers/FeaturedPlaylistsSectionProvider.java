@@ -10,10 +10,12 @@ import io.github.guillermodubon.musicplayer.controllers.ui.screens.homePage.prov
 import io.github.guillermodubon.musicplayer.models.Genre;
 import io.github.guillermodubon.musicplayer.services.api.DeezerApiService;
 import io.github.guillermodubon.musicplayer.services.images.MediaImageResolver;
+import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.scene.Parent;
 import javafx.scene.image.Image;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -25,14 +27,27 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class FeaturedPlaylistsSectionProvider extends BaseHomePageSectionProvider {
 
     private static final String SECTION_TITLE = "Playlists based on your favorite genres";
-    private static final int PLAYLIST_FETCH_LIMIT = 100;
-    private static final int SOURCE_GENRE_CHART = 0;
-    private static final int SOURCE_NAME_SEARCH = 1;
-    private static final int SOURCE_GLOBAL_CHART = 2;
+    private static final int PLAYLIST_PAGE_SIZE = 25;
+    private static final int MAX_SEARCH_PAGES = 4;
+    private static final Duration EMPTY_RESULT_RETRY_DELAY = Duration.millis(360);
+    private static final AtomicInteger PLAYLIST_THREAD_ID = new AtomicInteger();
+    private static final ExecutorService PLAYLIST_LOOKUP_POOL = Executors.newFixedThreadPool(3, runnable -> {
+        Thread thread = new Thread(runnable, "home-featured-playlists-" + PLAYLIST_THREAD_ID.incrementAndGet());
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    private final AtomicBoolean genreListenerRegistered = new AtomicBoolean(false);
+    private final Runnable genreChangeListener = this::onGenresChanged;
+    private volatile String lastGenreSignature = "";
 
     public FeaturedPlaylistsSectionProvider(HomePageContext context) {
         super(context);
@@ -42,26 +57,48 @@ public class FeaturedPlaylistsSectionProvider extends BaseHomePageSectionProvide
     public CompletableFuture<Void> render(VBox container, String filter, long renderId) {
         if (!isRenderActive(renderId)) return CompletableFuture.completedFuture(null);
 
+        registerGenreChangeListener();
+
         VBox section = sectionBlock(container, SECTION_TITLE);
         setSectionContent(section, emptyState("Loading playlists based on your favorite genres..."));
 
         List<GenreSeed> genreSeeds = genreSeeds();
+        lastGenreSignature = genreSignature(genreSeeds);
         if (genreSeeds.isEmpty()) {
             removeSection(section);
             return CompletableFuture.completedFuture(null);
         }
 
+        CompletableFuture<Void> completion = new CompletableFuture<>();
+        loadAndRender(section, genreSeeds, filter, renderId, 0, completion);
+        return completion;
+    }
+
+    /**
+     * Keeps the section slot alive for one identical retry when Deezer has a
+     * transient empty response. This does not introduce a different source of
+     * playlists; it only prevents a temporary request race from removing a
+     * valid personalized section.
+     */
+    private void loadAndRender(VBox section,
+                               List<GenreSeed> genreSeeds,
+                               String filter,
+                               long renderId,
+                               int attempt,
+                               CompletableFuture<Void> completion) {
         List<CompletableFuture<List<PlaylistCandidate>>> futures = new ArrayList<>();
         for (GenreSeed genre : genreSeeds) {
-            futures.add(supplyAsync(() -> fetchPlaylistsForGenre(genre, filter, renderId))
+            futures.add(supplyAsync(() -> fetchPlaylistsForGenre(genre, filter, renderId), PLAYLIST_LOOKUP_POOL)
                     .exceptionally(ignored -> List.of()));
         }
 
-        CompletableFuture<Void> completion = new CompletableFuture<>();
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
                 .whenComplete((unused, throwable) -> Platform.runLater(() -> {
                     try {
-                        if (!isRenderActive(renderId)) return;
+                        if (!isRenderActive(renderId)) {
+                            completion.complete(null);
+                            return;
+                        }
 
                         List<List<PlaylistCandidate>> groups = new ArrayList<>();
                         for (CompletableFuture<List<PlaylistCandidate>> future : futures) {
@@ -71,45 +108,95 @@ public class FeaturedPlaylistsSectionProvider extends BaseHomePageSectionProvide
 
                         List<Parent> cards = createPlaylistCards(selectFeaturedPlaylists(groups), renderId);
                         if (cards.isEmpty()) {
+                            if (attempt == 0 && isBlankFilter(filter)) {
+                                PauseTransition retry = new PauseTransition(EMPTY_RESULT_RETRY_DELAY);
+                                retry.setOnFinished(event -> loadAndRender(
+                                        section,
+                                        genreSeeds,
+                                        filter,
+                                        renderId,
+                                        attempt + 1,
+                                        completion
+                                ));
+                                retry.playFromStart();
+                                return;
+                            }
                             removeSection(section);
                         } else {
                             setSectionContent(section, createMusicCarousel(cards));
                         }
-                    } finally {
+                    } catch (Exception ignored) {
+                        if (isRenderActive(renderId)) {
+                            removeSection(section);
+                        }
+                    }
+
+                    if (!completion.isDone()) {
                         completion.complete(null);
                     }
                 }));
-        return completion;
+    }
+
+    private boolean isBlankFilter(String filter) {
+        return filter == null || filter.isBlank();
+    }
+
+    private void registerGenreChangeListener() {
+        if (context.svc() == null || context.libraryMetadataRefresh() == null) return;
+        if (genreListenerRegistered.compareAndSet(false, true)) {
+            context.svc().addGenreChangeListener(genreChangeListener);
+        }
+    }
+
+    private void onGenresChanged() {
+        String currentSignature = genreSignature(genreSeeds());
+        if (currentSignature.equals(lastGenreSignature)) return;
+        lastGenreSignature = currentSignature;
+
+        Platform.runLater(() -> {
+            if (context.libraryMetadataRefresh() != null) {
+                context.libraryMetadataRefresh().run();
+            }
+        });
+    }
+
+    private String genreSignature(List<GenreSeed> seeds) {
+        if (seeds == null || seeds.isEmpty()) return "";
+        return seeds.stream()
+                .map(GenreSeed::name)
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .sorted()
+                .reduce((left, right) -> left + "|" + right)
+                .orElse("");
     }
 
     private List<GenreSeed> genreSeeds() {
         LinkedHashMap<String, GenreSeed> unique = new LinkedHashMap<>();
         try {
             if (context.memory() == null || context.memory().genres() == null) {
-                return List.of(new GenreSeed(0, ""));
+                return List.of();
             }
 
             for (Genre genre : context.memory().genres()) {
                 if (genre == null) continue;
 
                 String name = cleanGenreName(genre.getName());
-                boolean hasUsableName = isUsableGenreName(name);
-                // "Unknown" is persisted locally with an internal ID. That
-                // number is not a Deezer genre ID and must not be queried as one.
-                int genreId = hasUsableName ? genre.getGenreID() : 0;
-                if (genreId <= 0 && !hasUsableName) continue;
+                if (!isUsableGenreName(name)) continue;
 
-                String key = genreId > 0 ? "id:" + genreId : "name:" + name.toLowerCase(Locale.ROOT);
-                unique.putIfAbsent(key, new GenreSeed(genreId, hasUsableName ? name : ""));
+                // Recommendations are intentionally based on the readable
+                // genre name. The local/Deezer numeric ID is not used here.
+                String key = name.toLowerCase(Locale.ROOT);
+                unique.putIfAbsent(key, new GenreSeed(name));
                 if (unique.size() >= MAX_GENRES_TO_QUERY) break;
             }
         } catch (Exception ignored) {
         }
         if (!unique.isEmpty()) return new ArrayList<>(unique.values());
 
-        // No user genre can be queried safely. Keep the section useful with
-        // Deezer's chart instead of issuing a meaningless "Unknown" search.
-        return List.of(new GenreSeed(0, ""));
+        // Without a persisted or cached user genre there is no valid basis for
+        // this personalized section. Returning an empty list lets render()
+        // remove the section before starting any Deezer request.
+        return List.of();
     }
 
     private List<PlaylistCandidate> fetchPlaylistsForGenre(GenreSeed genre, String filter, long renderId) {
@@ -120,39 +207,35 @@ public class FeaturedPlaylistsSectionProvider extends BaseHomePageSectionProvide
         String normalizedFilter = norm(filter);
 
         try {
-            // Deezer's genre chart is the strongest quality signal available
-            // without relying on a free-text result alone.
-            if (genre.id() > 0) {
-                JsonObject chartRoot = getJson(withLimit(
-                        context.endpoints().genrePlaylists(genre.id()),
-                        PLAYLIST_FETCH_LIMIT
-                ));
-                appendCandidates(candidates, seenPlaylistIds, playlistArray(chartRoot), normalizedFilter,
-                        SOURCE_GENRE_CHART, renderId);
-            }
-
-            // Keep the text lookup as a complementary source: it covers genres
-            // whose chart is sparse and supplies more than the chart page alone.
             if (!genre.name().isBlank()) {
                 String encodedGenre = URLEncoder.encode(genre.name(), StandardCharsets.UTF_8);
-                JsonObject searchRoot = getJson(withLimit(
-                        context.endpoints().searchPlaylists(encodedGenre),
-                        PLAYLIST_FETCH_LIMIT
-                ));
-                appendCandidates(candidates, seenPlaylistIds, playlistArray(searchRoot), normalizedFilter,
-                        SOURCE_NAME_SEARCH, renderId);
-            }
+                String searchEndpoint = context.endpoints().searchPlaylists(encodedGenre);
 
-            // This does not replace the genre-based recommendations. It only
-            // completes a sparse genre response with Deezer's own chart so the
-            // carousel can still present a full, high-quality set of cards.
-            if (candidates.size() < MAX_CARDS_PER_SECTION && isRenderActive(renderId)) {
-                JsonObject globalChartRoot = getJson(withLimit(
-                        context.endpoints().chartPlaylists(),
-                        PLAYLIST_FETCH_LIMIT
-                ));
-                appendCandidates(candidates, seenPlaylistIds, playlistArray(globalChartRoot), normalizedFilter,
-                        SOURCE_GLOBAL_CHART, renderId);
+                // Deezer may cap a single search response. Request additional
+                // pages with the same plain-text genre until this genre can
+                // contribute the required cards or all search pages are read.
+                for (int page = 0;
+                     page < MAX_SEARCH_PAGES
+                             && candidates.size() < MAX_CARDS_PER_SECTION
+                             && isRenderActive(renderId);
+                     page++) {
+                    String pageEndpoint = withLimit(searchEndpoint, PLAYLIST_PAGE_SIZE)
+                            + "&index=" + (page * PLAYLIST_PAGE_SIZE);
+                    JsonObject searchRoot = getJson(pageEndpoint);
+                    JsonArray pageResults = playlistArray(searchRoot);
+                    appendCandidates(
+                            candidates,
+                            seenPlaylistIds,
+                            pageResults,
+                            normalizedFilter,
+                            page,
+                            renderId
+                    );
+
+                    if (pageResults == null || pageResults.isEmpty()) {
+                        break;
+                    }
+                }
             }
         } catch (Exception ignored) {
         }
@@ -380,7 +463,7 @@ public class FeaturedPlaylistsSectionProvider extends BaseHomePageSectionProvide
         return normalized.contains("deezer") || normalized.contains("editorial");
     }
 
-    private record GenreSeed(int id, String name) {
+    private record GenreSeed(String name) {
     }
 
     private record PlaylistCandidate(

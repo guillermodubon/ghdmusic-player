@@ -110,7 +110,8 @@ public class HomePageController {
                 artistActions,
                 renderVersion,
                 requestScope,
-                this::openLibraryCatalog
+                this::openLibraryCatalog,
+                this::scheduleLibraryRefresh
         );
 
         this.registry = new HomePageSectionRegistry(context);

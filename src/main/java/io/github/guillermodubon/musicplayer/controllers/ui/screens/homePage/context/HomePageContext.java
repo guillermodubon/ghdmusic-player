@@ -21,5 +21,6 @@ public record HomePageContext(
         ArtistCardActionManager artistActions,
         java.util.concurrent.atomic.AtomicLong renderVersion,
         ScreenRequestScope requestScope,
-        Consumer<CatalogType> catalogNavigator
+        Consumer<CatalogType> catalogNavigator,
+        Runnable libraryMetadataRefresh
 ) {}
