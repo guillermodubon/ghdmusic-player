@@ -35,6 +35,10 @@ public final class PlayerArtistLinksRenderer {
         if (container == null) return;
 
         container.getChildren().clear();
+        // The artist row is metadata, not a decorative layer. Keep it
+        // interactive even when its parent is used as a marquee viewport.
+        container.setMouseTransparent(false);
+        container.setPickOnBounds(false);
         List<Artist> artists = resolveArtists(song);
         if (artists.isEmpty()) {
             Label empty = new Label("Unknown artist");
@@ -55,6 +59,11 @@ public final class PlayerArtistLinksRenderer {
                 Hyperlink link = new Hyperlink(name);
                 link.getStyleClass().addAll("app-hyperlink", artistLinkStyle);
                 link.setFocusTraversable(false);
+                // Keep the interactive node pickable even when the metadata
+                // track is inside a clipped marquee viewport.
+                link.setDisable(false);
+                link.setMouseTransparent(false);
+                link.setPickOnBounds(true);
                 link.setOnAction(event -> {
                     if (artistNavigation != null) {
                         artistNavigation.accept(link, artist);

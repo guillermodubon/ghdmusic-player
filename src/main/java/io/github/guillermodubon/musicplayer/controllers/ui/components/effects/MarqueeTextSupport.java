@@ -263,6 +263,9 @@ public final class MarqueeTextSupport {
             Hyperlink copy = new Hyperlink(source.getText());
             copy.getStyleClass().setAll(source.getStyleClass());
             copy.setFocusTraversable(false);
+            copy.setDisable(false);
+            copy.setMouseTransparent(false);
+            copy.setPickOnBounds(true);
             copy.setOnAction(source.getOnAction());
             configureTickerText(copy);
             return copy;
