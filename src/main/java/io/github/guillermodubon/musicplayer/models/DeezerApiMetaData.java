@@ -24,6 +24,7 @@ public class DeezerApiMetaData {
     private long trackId;
     private String albumCoverUrl;
     private int albumGenreId;
+    private int durationSeconds;
 
     public DeezerApiMetaData(
             long albumId,
@@ -65,6 +66,7 @@ public class DeezerApiMetaData {
         this.trackId = trackId;
         this.albumCoverUrl = albumCoverUrl;
         this.albumGenreId=albumGenreId;
+        this.durationSeconds = 0;
     }
 
 
@@ -82,6 +84,7 @@ public class DeezerApiMetaData {
         this.trackOrder = 0;
         this.numberOfTracks = 0;
         this.albumGenreId = 0;
+        this.durationSeconds = 0;
     }
 
     public String getSongFileName() {
@@ -225,6 +228,14 @@ public class DeezerApiMetaData {
 
     public int getAlbumGenreId() {
         return albumGenreId;
+    }
+
+    public int getDurationSeconds() {
+        return durationSeconds;
+    }
+
+    public void setDurationSeconds(int durationSeconds) {
+        this.durationSeconds = Math.max(0, durationSeconds);
     }
 
 }

@@ -66,6 +66,7 @@ public class DeezerApiService implements ApiService<DeezerApiMetaData> {
         }
 
         List<String> requests = new ArrayList<>(uniqueTitles.values());
+        MetadataLookupSession lookupSession = new MetadataLookupSession();
         List<DeezerApiMetaData> metadata = new ArrayList<>(requests.size());
         for (int offset = 0; offset < requests.size(); offset += METADATA_REQUEST_BATCH_SIZE) {
             int end = Math.min(requests.size(), offset + METADATA_REQUEST_BATCH_SIZE);
@@ -73,7 +74,7 @@ public class DeezerApiService implements ApiService<DeezerApiMetaData> {
             for (int index = offset; index < end; index++) {
                 String title = requests.get(index);
                 futures.add(CompletableFuture.supplyAsync(
-                        () -> getFetchedApiMetadataObject(title), HTTP_EXECUTOR
+                        () -> getFetchedApiMetadataObject(title, lookupSession), HTTP_EXECUTOR
                 ));
             }
             for (CompletableFuture<DeezerApiMetaData> future : futures) {
@@ -87,6 +88,19 @@ public class DeezerApiService implements ApiService<DeezerApiMetaData> {
     }
 
     public DeezerApiMetaData getFetchedApiMetadataObject(String originalTitle) {
+        return getFetchedApiMetadataObject(originalTitle, null);
+    }
+
+    /**
+     * Resolves a track while optionally sharing immutable album data with the
+     * rest of one bulk lookup. A local-library scan frequently contains every
+     * track of the same album, so its cover, owners and release data are only
+     * retrieved once per startup batch.
+     */
+    private DeezerApiMetaData getFetchedApiMetadataObject(
+            String originalTitle,
+            MetadataLookupSession lookupSession
+    ) {
         try {
             System.out.println("ORIGINAL TITLE: " + originalTitle);
             // 1) /search?q={originalTitle}
@@ -164,102 +178,33 @@ public class DeezerApiService implements ApiService<DeezerApiMetaData> {
                 }
                 String albumName = DeezerApiDataManager.getStringOrDefault(albumObj, "title", "");
                 // 4) /album/{albumId} → retrieve metadata for the entire album
-                String albumEndpoint = ALBUM_URL + albumId;
-                System.out.println(albumEndpoint);
-                Request reqAlbum = new Request.Builder().url(albumEndpoint).build();
+                AlbumMetadata albumMetadata = lookupSession == null
+                        ? fetchAlbumMetadata(albumId, albumObj)
+                        : lookupSession.resolve(albumId, albumObj);
 
-                String albumReleaseDate = "";
-                String recordType = "";
-                String albumGenre = "";
-                int albumGenreId = 0;
-                int numberOfTracks = 0;
-                List<String> albumArtistNames = new ArrayList<>();
-                List<List<byte[]>> albumArtistsPortraitBytes = new ArrayList<>();
-                List<Long> albumArtistIds = new ArrayList<>();
+                String albumReleaseDate = albumMetadata.releaseDate();
+                String recordType = albumMetadata.recordType();
+                String albumGenre = albumMetadata.genre();
+                int albumGenreId = albumMetadata.genreId();
+                int numberOfTracks = albumMetadata.numberOfTracks();
+                List<String> albumArtistNames = new ArrayList<>(albumMetadata.artistNames());
+                List<List<byte[]>> albumArtistsPortraitBytes = new ArrayList<>(albumMetadata.artistPortraits());
+                List<Long> albumArtistIds = new ArrayList<>(albumMetadata.artistIds());
                 List<Long> songContributorIds = new ArrayList<>();
-                String albumCoverUrl = null;
-                List<byte[]> albumCoverBytesList = DeezerApiDataManager.fetchImageByteLists(
-                        albumObj, CLIENT, "cover", "cover_medium", "cover_xl"
-                );
-                try (Response rspAlbum = CLIENT.newCall(reqAlbum).execute()) {
-                    if (rspAlbum.isSuccessful() && rspAlbum.body() != null) {
-
-                        String body = rspAlbum.body().string();
-                        JsonObject albumDetails = JsonParser.parseString(body).getAsJsonObject();
-
-                        try {
-                            albumCoverUrl = DeezerApiService.extractCoverUrlFromAlbumOrPlaylist(albumDetails);
-                        } catch (Exception ignore) {
-                        }
-                        // 4.2) Release date and record_type
-                        Map.Entry<String, String> datesType = DeezerApiDataManager
-                                .extractAlbumDatesAndType(albumDetails);
-                        albumReleaseDate = datesType.getKey();
-                        recordType = datesType.getValue();
-
-                        numberOfTracks = safeGetInt(albumDetails, "nb_tracks", 0);
-                        // 4.3) Genre (first element of "genres.data") -> extract name and ID
-                        if (albumDetails.has("genres") && albumDetails.getAsJsonObject("genres").has("data")) {
-                            JsonArray genresArray = albumDetails.getAsJsonObject("genres").getAsJsonArray("data");
-                            if (!genresArray.isEmpty()) {
-                                JsonObject g = genresArray.get(0).getAsJsonObject();
-                                albumGenre = DeezerApiDataManager.getStringOrNull(g, "name");
-                                albumGenreId = safeGetInt(g, "id", 0);
-                            }
-                        }
-                        // 4.4) Album owners. Keep every owner from the resource,
-                        // not only the first primary artist.
-                        if (albumDetails.has("artists")
-                                && albumDetails.get("artists").isJsonArray()) {
-                            for (JsonElement elem : albumDetails.getAsJsonArray("artists")) {
-                                if (elem.isJsonObject()) {
-                                    appendAlbumArtist(
-                                            elem.getAsJsonObject(),
-                                            albumArtistNames,
-                                            albumArtistIds,
-                                            albumArtistsPortraitBytes
-                                    );
-                                }
-                            }
-                        }
-                        if (albumDetails.has("contributors")
-                                && albumDetails.get("contributors").isJsonArray()) {
-                            JsonArray owners = albumDetails.getAsJsonArray("contributors");
-                            for (JsonElement elem : owners) {
-                                if (!elem.isJsonObject()) continue;
-                                JsonObject obj = elem.getAsJsonObject();
-                                String role = DeezerApiDataManager.getStringOrNull(obj, "role");
-                                if (role != null && !role.toLowerCase(Locale.ROOT).contains("main")) continue;
-                                appendAlbumArtist(
-                                        obj,
-                                        albumArtistNames,
-                                        albumArtistIds,
-                                        albumArtistsPortraitBytes
-                                );
-                            }
-                        }
-                        if (albumDetails.has("artist")
-                                && albumDetails.get("artist").isJsonObject()) {
-                            JsonObject obj = albumDetails.getAsJsonObject("artist");
-                            appendAlbumArtist(
-                                    obj,
-                                    albumArtistNames,
-                                    albumArtistIds,
-                                    albumArtistsPortraitBytes
-                            );
-                        }
-                    }
-                }
+                String albumCoverUrl = albumMetadata.coverUrl();
+                List<byte[]> albumCoverBytesList = albumMetadata.coverBytes();
                 // 5) /track/{trackId} → exclusive collaborators on the track
                 String trackEndpoint = TRACK_URL + trackId;
                 Request reqTrack = new Request.Builder().url(trackEndpoint).build();
                 int trackOrder = 0;
+                int durationSeconds = safeGetInt(firstSongMatchDataObject, "duration", 0);
                 List<String> songContributorNames = new ArrayList<>();
                 List<List<byte[]>> songContributorsPortraitBytes = new ArrayList<>();
                 try (Response rspTrack = CLIENT.newCall(reqTrack).execute()) {
                     if (rspTrack.isSuccessful() && rspTrack.body() != null) {
                         JsonObject trackDetails = JsonParser.parseString(rspTrack.body().string()).getAsJsonObject();
                         trackOrder = safeGetInt(trackDetails, "track_position", 0);
+                        durationSeconds = safeGetInt(trackDetails, "duration", durationSeconds);
                         if (trackDetails.has("contributors")) {
                             JsonArray contribs = trackDetails.getAsJsonArray("contributors");
                             for (JsonElement elem : contribs) {
@@ -290,13 +235,180 @@ public class DeezerApiService implements ApiService<DeezerApiMetaData> {
                 }
                 System.out.println(songName + " " + numberOfTracks);
                 System.out.println("DEZZER API METADATA OBJECT STORED ID: "+trackId);
-                return new DeezerApiMetaData(
+                DeezerApiMetaData metadata = new DeezerApiMetaData(
                         albumId, originalTitle, albumArtistNames, albumArtistsPortraitBytes, albumName, albumCoverBytesList, albumReleaseDate, recordType, albumGenre, songName, songContributorNames, songContributorsPortraitBytes, trackOrder, numberOfTracks, albumArtistIds, songContributorIds, trackId, albumCoverUrl, albumGenreId // <- new final parameter: genre id
                 );
+                metadata.setDurationSeconds(durationSeconds);
+                return metadata;
             }
+        } catch (AlbumLookupFailure e) {
+            System.err.println("Error en Deezer para '" + originalTitle + "': " + e.ioException.getMessage());
+            return null;
         } catch (IOException e) {
             System.err.println("Error en Deezer para '" + originalTitle + "': " + e.getMessage());
             return null;
+        }
+    }
+
+    private static AlbumMetadata fetchAlbumMetadata(long albumId, JsonObject searchAlbum) throws IOException {
+        String releaseDate = "";
+        String recordType = "";
+        String genre = "";
+        int genreId = 0;
+        int numberOfTracks = 0;
+        String coverUrl = null;
+        List<String> artistNames = new ArrayList<>();
+        List<Long> artistIds = new ArrayList<>();
+        List<List<byte[]>> artistPortraits = new ArrayList<>();
+        List<byte[]> coverBytes = DeezerApiDataManager.fetchImageByteLists(
+                searchAlbum,
+                CLIENT,
+                "cover",
+                "cover_medium",
+                "cover_xl"
+        );
+
+        Request request = new Request.Builder().url(ALBUM_URL + albumId).build();
+        try (Response response = CLIENT.newCall(request).execute()) {
+            if (!response.isSuccessful() || response.body() == null) {
+                return new AlbumMetadata(
+                        releaseDate, recordType, genre, genreId, numberOfTracks, coverUrl,
+                        coverBytes, artistNames, artistIds, artistPortraits
+                );
+            }
+
+            JsonObject albumDetails = JsonParser.parseString(response.body().string()).getAsJsonObject();
+            try {
+                coverUrl = extractCoverUrlFromAlbumOrPlaylist(albumDetails);
+            } catch (Exception ignored) {
+            }
+
+            Map.Entry<String, String> datesType = DeezerApiDataManager.extractAlbumDatesAndType(albumDetails);
+            releaseDate = datesType.getKey();
+            recordType = datesType.getValue();
+            numberOfTracks = safeGetInt(albumDetails, "nb_tracks", 0);
+
+            Optional<AlbumGenre> albumGenre = extractAlbumGenre(albumDetails);
+            if (albumGenre.isPresent()) {
+                genre = albumGenre.get().name();
+                genreId = albumGenre.get().id();
+            }
+
+            appendAlbumArtists(albumDetails, artistNames, artistIds, artistPortraits);
+        }
+
+        return new AlbumMetadata(
+                releaseDate, recordType, genre, genreId, numberOfTracks, coverUrl,
+                List.copyOf(coverBytes), List.copyOf(artistNames), List.copyOf(artistIds), List.copyOf(artistPortraits)
+        );
+    }
+
+    private static void appendAlbumArtists(
+            JsonObject albumDetails,
+            List<String> artistNames,
+            List<Long> artistIds,
+            List<List<byte[]>> artistPortraits
+    ) {
+        if (albumDetails.has("artists") && albumDetails.get("artists").isJsonArray()) {
+            for (JsonElement element : albumDetails.getAsJsonArray("artists")) {
+                if (element.isJsonObject()) {
+                    appendAlbumArtist(element.getAsJsonObject(), artistNames, artistIds, artistPortraits);
+                }
+            }
+        }
+
+        if (albumDetails.has("contributors") && albumDetails.get("contributors").isJsonArray()) {
+            for (JsonElement element : albumDetails.getAsJsonArray("contributors")) {
+                if (!element.isJsonObject()) continue;
+                JsonObject artist = element.getAsJsonObject();
+                String role = DeezerApiDataManager.getStringOrNull(artist, "role");
+                if (role != null && !role.toLowerCase(Locale.ROOT).contains("main")) continue;
+                appendAlbumArtist(artist, artistNames, artistIds, artistPortraits);
+            }
+        }
+
+        if (albumDetails.has("artist") && albumDetails.get("artist").isJsonObject()) {
+            appendAlbumArtist(albumDetails.getAsJsonObject("artist"), artistNames, artistIds, artistPortraits);
+        }
+    }
+
+    /** Resolves the genre published on a Deezer album without loading its artwork or tracks. */
+    public Optional<AlbumGenre> getAlbumGenreById(long albumId) {
+        if (albumId <= 0) return Optional.empty();
+
+        try {
+            Request request = new Request.Builder().url(ALBUM_URL + albumId).build();
+            try (Response response = CLIENT.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) return Optional.empty();
+                JsonElement root = JsonParser.parseString(response.body().string());
+                return root.isJsonObject() ? extractAlbumGenre(root.getAsJsonObject()) : Optional.empty();
+            }
+        } catch (IOException | RuntimeException ignored) {
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<AlbumGenre> extractAlbumGenre(JsonObject albumDetails) {
+        if (albumDetails == null || !albumDetails.has("genres")
+                || !albumDetails.get("genres").isJsonObject()) {
+            return Optional.empty();
+        }
+
+        JsonObject genresObject = albumDetails.getAsJsonObject("genres");
+        if (!genresObject.has("data") || !genresObject.get("data").isJsonArray()) {
+            return Optional.empty();
+        }
+
+        for (JsonElement element : genresObject.getAsJsonArray("data")) {
+            if (element == null || !element.isJsonObject()) continue;
+            JsonObject genre = element.getAsJsonObject();
+            String name = DeezerApiDataManager.getStringOrNull(genre, "name");
+            if (name == null || name.isBlank()) continue;
+            return Optional.of(new AlbumGenre(safeGetInt(genre, "id", 0), name.trim()));
+        }
+        return Optional.empty();
+    }
+
+    public record AlbumGenre(int id, String name) {
+    }
+
+    private record AlbumMetadata(
+            String releaseDate,
+            String recordType,
+            String genre,
+            int genreId,
+            int numberOfTracks,
+            String coverUrl,
+            List<byte[]> coverBytes,
+            List<String> artistNames,
+            List<Long> artistIds,
+            List<List<byte[]>> artistPortraits
+    ) {
+    }
+
+    private static final class MetadataLookupSession {
+        private final ConcurrentMap<Long, AlbumMetadata> albums = new ConcurrentHashMap<>();
+
+        private AlbumMetadata resolve(long albumId, JsonObject searchAlbum) throws IOException {
+            try {
+                return albums.computeIfAbsent(albumId, ignored -> {
+                    try {
+                        return fetchAlbumMetadata(albumId, searchAlbum);
+                    } catch (IOException error) {
+                        throw new AlbumLookupFailure(error);
+                    }
+                });
+            } catch (AlbumLookupFailure failure) {
+                throw failure.ioException;
+            }
+        }
+    }
+
+    private static final class AlbumLookupFailure extends RuntimeException {
+        private final IOException ioException;
+
+        private AlbumLookupFailure(IOException ioException) {
+            this.ioException = ioException;
         }
     }
 
@@ -314,6 +426,7 @@ public class DeezerApiService implements ApiService<DeezerApiMetaData> {
             String fallbackSongName = fallback == null ? "" : Optional.ofNullable(fallback.getSongName()).orElse("");
             String songName = DeezerApiDataManager.getStringOrDefault(trackDetails, "title", fallbackSongName);
             int trackOrder = safeGetInt(trackDetails, "track_position", fallback == null ? 0 : fallback.getTrackOrder());
+            int durationSeconds = safeGetInt(trackDetails, "duration", fallback == null ? 0 : fallback.getDurationSeconds());
 
             JsonObject albumObj = DeezerApiDataManager.getObjectOrNull(trackDetails, "album");
             long albumId = albumObj == null
@@ -367,13 +480,10 @@ public class DeezerApiService implements ApiService<DeezerApiMetaData> {
                             recordType = Optional.ofNullable(datesType.getValue()).orElse(recordType);
                             numberOfTracks = safeGetInt(albumDetails, "nb_tracks", numberOfTracks);
 
-                            if (albumDetails.has("genres") && albumDetails.getAsJsonObject("genres").has("data")) {
-                                JsonArray genresArray = albumDetails.getAsJsonObject("genres").getAsJsonArray("data");
-                                if (!genresArray.isEmpty()) {
-                                    JsonObject g = genresArray.get(0).getAsJsonObject();
-                                    albumGenre = Optional.ofNullable(DeezerApiDataManager.getStringOrNull(g, "name")).orElse(albumGenre);
-                                    albumGenreId = safeGetInt(g, "id", albumGenreId);
-                                }
+                            Optional<AlbumGenre> resolvedGenre = extractAlbumGenre(albumDetails);
+                            if (resolvedGenre.isPresent()) {
+                                albumGenre = resolvedGenre.get().name();
+                                albumGenreId = resolvedGenre.get().id();
                             }
 
                             if ((albumDetails.has("contributors") && albumDetails.get("contributors").isJsonArray())
@@ -462,7 +572,7 @@ public class DeezerApiService implements ApiService<DeezerApiMetaData> {
                     ? songName
                     : fallback.getSongFileName();
 
-            return new DeezerApiMetaData(
+            DeezerApiMetaData metadata = new DeezerApiMetaData(
                     albumId,
                     songFileName,
                     albumArtistNames,
@@ -483,6 +593,8 @@ public class DeezerApiService implements ApiService<DeezerApiMetaData> {
                     albumCoverUrl,
                     albumGenreId
             );
+            metadata.setDurationSeconds(durationSeconds);
+            return metadata;
         } catch (IOException e) {
             return fallback;
         } catch (Throwable t) {

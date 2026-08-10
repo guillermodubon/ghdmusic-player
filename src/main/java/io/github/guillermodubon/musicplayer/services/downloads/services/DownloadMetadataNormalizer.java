@@ -4,6 +4,7 @@ import io.github.guillermodubon.musicplayer.services.downloads.context.DownloadT
 import io.github.guillermodubon.musicplayer.models.Album;
 import io.github.guillermodubon.musicplayer.models.Artist;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
+import io.github.guillermodubon.musicplayer.models.Genre;
 import io.github.guillermodubon.musicplayer.models.Song;
 import io.github.guillermodubon.musicplayer.utils.ImageUtils;
 import io.github.guillermodubon.musicplayer.utils.FileNameUtils;
@@ -52,7 +53,6 @@ public final class DownloadMetadataNormalizer {
             recordType = "album";
         }
         normalized.setRecordType(recordType);
-        normalized.setGenre(firstNonBlank(normalized.getGenre(), UNKNOWN));
         normalized.setAlbumReleaseDate(firstNonBlank(normalized.getAlbumReleaseDate(), ""));
         normalized.setTrackOrder(Math.max(1, normalized.getTrackOrder()));
         normalized.setNumberOfTracks(trackCount);
@@ -66,6 +66,7 @@ public final class DownloadMetadataNormalizer {
         normalized.setAlbumCoverBytesList(nonNullList(normalized.getAlbumCoverBytesList()));
 
         enrichFromSourceSong(normalized, context);
+        normalized.setGenre(firstNonBlank(normalized.getGenre(), UNKNOWN));
 
         if (normalized.getAlbumArtistNames().isEmpty() && normalized.getSongContributorNames().isEmpty()) {
             normalized.setAlbumArtistNames(new ArrayList<>(List.of(UNKNOWN)));
@@ -88,11 +89,21 @@ public final class DownloadMetadataNormalizer {
         Album sourceAlbum = sourceSong.getAlbum();
         List<Artist> sourceArtists = sourceArtists(sourceSong);
 
+        if (metadata.getDurationSeconds() <= 0 && sourceSong.getDurationSeconds() > 0) {
+            metadata.setDurationSeconds(sourceSong.getDurationSeconds());
+        }
+
         if (metadata.getTrackId() <= 0 && sourceSong.getSongID() > 0) {
             metadata.setTrackId(sourceSong.getSongID());
         }
         if (metadata.getAlbumId() <= 0 && sourceAlbum != null && sourceAlbum.getAlbumID() > 0) {
             metadata.setAlbumId(sourceAlbum.getAlbumID());
+        }
+        if (!hasUsableGenre(metadata.getGenre()) && sourceAlbum != null) {
+            Genre sourceGenre = sourceAlbum.getGenre();
+            if (sourceGenre != null && hasUsableGenre(sourceGenre.getName())) {
+                metadata.setGenre(sourceGenre.getName().trim());
+            }
         }
 
         if (metadata.getTrackId() <= 0 && sourceSong.getTitle() != null && !sourceSong.getTitle().isBlank()) {
@@ -228,6 +239,14 @@ public final class DownloadMetadataNormalizer {
                 .anyMatch(name -> !name.equals(UNKNOWN.toLowerCase(Locale.ROOT))
                         && !name.equals("unknown artist")
                         && !name.equals("desconocido"));
+    }
+
+    private static boolean hasUsableGenre(String genre) {
+        if (genre == null || genre.isBlank()) return false;
+        String normalized = genre.trim().toLowerCase(Locale.ROOT);
+        return !normalized.equals(UNKNOWN.toLowerCase(Locale.ROOT))
+                && !normalized.equals("unknown genre")
+                && !normalized.equals("desconocido");
     }
 
     private static boolean hasSourceCover(Album album) {
