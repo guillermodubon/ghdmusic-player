@@ -173,7 +173,12 @@ public class InitialLibraryImportService {
             if (cleanedFileName.length() > 200) cleanedFileName = cleanedFileName.substring(0, 200).trim();
             long ts = f.exists() ? f.lastModified() : System.currentTimeMillis();
             long id = localSong.getSongID() > 0 ? localSong.getSongID() : 0;
-            newManifest.put(cleanedFileName, new ManifestEntry(id, ts));
+            newManifest.put(cleanedFileName, new ManifestEntry(
+                    id,
+                    ts,
+                    f.isFile() ? f.length() : 0L,
+                    f.getName()
+            ));
         }
         // Add no-metadata songs (not in DB)
         for (String localTitle : originalLocalTitles) {
@@ -187,7 +192,12 @@ public class InitialLibraryImportService {
                 String cleanedFileName = SongDataHelper.removeFileExtension(fileName).replaceAll("[\\\\/:*?\"<>|]", "").replaceAll("\\s+", " ").trim();
                 if (cleanedFileName.length() > 200) cleanedFileName = cleanedFileName.substring(0, 200).trim();
                 long ts = f.lastModified();
-                newManifest.put(cleanedFileName, new ManifestEntry(0, ts));
+                newManifest.put(cleanedFileName, new ManifestEntry(
+                        0,
+                        ts,
+                        f.isFile() ? f.length() : 0L,
+                        f.getName()
+                ));
             }
         }
         // save the new manifest

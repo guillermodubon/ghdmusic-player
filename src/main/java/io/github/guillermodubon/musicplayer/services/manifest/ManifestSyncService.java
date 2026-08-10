@@ -7,6 +7,7 @@ import io.github.guillermodubon.musicplayer.models.Song;
 import io.github.guillermodubon.musicplayer.services.manifest.ManifestService;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -84,7 +85,12 @@ public class ManifestSyncService {
                 String key = buildManifestKey(meta, file);
                 long tid = (meta != null) ? (meta.getTrackId() > 0 ? meta.getTrackId() : 0L) : 0L;
                 long ts = (timestamp != null) ? timestamp : System.currentTimeMillis();
-                ManifestEntry entry = new ManifestEntry(tid, ts);
+                ManifestEntry entry = new ManifestEntry(
+                        tid,
+                        ts,
+                        resolveFileSize(file),
+                        file == null ? null : file.getName()
+                );
                 String normalizedKey = normalizeManifestKey(key);
                 manifest.entrySet().removeIf(existing -> {
                     if (existing == null || existing.getKey() == null || existing.getKey().equals(key)) return false;
@@ -150,6 +156,15 @@ public class ManifestSyncService {
         return base.isBlank() ? "unknown" : base;
     }
 
+    private static long resolveFileSize(File file) {
+        if (file == null) return 0L;
+        try {
+            return Files.size(file.toPath());
+        } catch (Exception ignored) {
+            return 0L;
+        }
+    }
+
     private static String normalizeManifestKey(String key) {
         if (key == null) return "";
         int sep = key.lastIndexOf(" | id:");
@@ -164,5 +179,4 @@ public class ManifestSyncService {
                 .toLowerCase(java.util.Locale.ROOT);
     }
 }
-
 

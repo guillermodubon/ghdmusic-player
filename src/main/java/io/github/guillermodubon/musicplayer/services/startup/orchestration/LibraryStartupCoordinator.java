@@ -15,6 +15,7 @@ import io.github.guillermodubon.musicplayer.repository.dao.song.SongDao;
 import io.github.guillermodubon.musicplayer.repository.dao.song.SongDaoImpl;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 import io.github.guillermodubon.musicplayer.services.manifest.ManifestService;
+import io.github.guillermodubon.musicplayer.services.scanning.ScannedAudioFile;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 import io.github.guillermodubon.musicplayer.services.startup.library.AlbumGenreBackfillService;
 
@@ -44,7 +45,9 @@ public final class LibraryStartupCoordinator {
 
     owner.reportStartupStatus("Looking for music on this device...");
     owner.reportStartupProgress(0.10);
-    Map<String, String> scanned = owner.scannerService().getAllSongsMapFromLocalDevice();
+    List<ScannedAudioFile> scannedFiles = owner.scannerService().scanLocalAudioFiles();
+    Map<String, String> scanned = owner.scannerService().toUniqueSongMap(scannedFiles);
+    owner.updateScannedAudioFiles(scannedFiles);
 
     synchronized (owner.titleToPathIndex()) {
         owner.titleToPathIndex().clear();
@@ -179,6 +182,11 @@ public final class LibraryStartupCoordinator {
                     SongDao songDao = new SongDaoImpl(conn);
 
                     owner.setDataAccessObjects(albumDao, new PlaylistDaoImpl(conn));
+
+                    int repairedPaths = owner.reconcileMovedLocalAudioPaths(conn, oldManifest);
+                    if (repairedPaths > 0) {
+                        System.out.println("runStartup: repaired moved local audio paths=" + repairedPaths);
+                    }
 
                     owner.incrementalLibrarySyncService().syncExistingData(
                             conn,

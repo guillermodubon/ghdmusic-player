@@ -235,7 +235,7 @@ public class IncrementalLibrarySyncService {
                 String oldKey = oldKeyMap.get(fn);
                 if (oldKey != null && oldMan != null) {
                     ManifestEntry oldEntry = oldMan.get(oldKey);
-                    if (oldEntry != null) oldMan.put(oldKey, new ManifestEntry(oldEntry.getDeezerId(), newTs));
+                    if (oldEntry != null) oldMan.put(oldKey, oldEntry.withLastModified(newTs));
                 }
             }
 
@@ -288,7 +288,7 @@ public class IncrementalLibrarySyncService {
                 String oldKey = oldKeyMap.get(fn);
                 if (oldKey != null && oldMan != null) {
                     ManifestEntry oldEntry = oldMan.get(oldKey);
-                    if (oldEntry != null) oldMan.put(oldKey, new ManifestEntry(oldEntry.getDeezerId(), newTs));
+                    if (oldEntry != null) oldMan.put(oldKey, oldEntry.withLastModified(newTs));
                 }
             }
             // Optional rebuild of noMetadataSongs to keep in-memory consistent with manifest
@@ -478,7 +478,13 @@ public class IncrementalLibrarySyncService {
                 long ts = path != null ? new File(path).lastModified() : scanTsMap.getOrDefault(nf, System.currentTimeMillis());
                 String manifestKey = path != null ? manifestFileKey(path) : manifestFileKey(nf);
                 removeDuplicateManifestEntries(oldMan, manifestKey, deezerId);
-                oldMan.put(manifestKey, new ManifestEntry(deezerId, ts));
+                File manifestFile = path == null ? null : new File(path);
+                oldMan.put(manifestKey, new ManifestEntry(
+                        deezerId,
+                        ts,
+                        manifestFile != null && manifestFile.isFile() ? manifestFile.length() : 0L,
+                        manifestFile == null ? null : manifestFile.getName()
+                ));
 
                 // If no metadata (deezerId == 0), register in noMetadataSongs (avoid duplicates)
                 if (deezerId == 0) {
@@ -509,7 +515,7 @@ public class IncrementalLibrarySyncService {
             String oldKey = oldKeyMap.get(fn);
             if (oldKey != null) {
                 ManifestEntry oldEntry = oldMan.get(oldKey);
-                if (oldEntry != null) oldMan.put(oldKey, new ManifestEntry(oldEntry.getDeezerId(), newTs));
+                if (oldEntry != null) oldMan.put(oldKey, oldEntry.withLastModified(newTs));
             }
         }
 
