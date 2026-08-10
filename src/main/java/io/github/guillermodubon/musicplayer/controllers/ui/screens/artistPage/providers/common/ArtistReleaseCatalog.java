@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Shared, short-lived release catalog for the artist page. Album and single providers consume
@@ -27,9 +29,18 @@ public final class ArtistReleaseCatalog {
     private static final long CACHE_TTL_MILLIS = 5 * 60 * 1000L;
     private static final int MAX_CACHE_ENTRIES = 72;
     private static final int MAX_DETAIL_LOOKUPS_PER_CATALOG = 20;
+    private static final int DETAIL_LOOKUP_WORKERS = 3;
 
     private static final ConcurrentMap<String, CachedReleases> CACHE = new ConcurrentHashMap<>();
     private static final ConcurrentMap<String, CompletableFuture<List<Release>>> IN_FLIGHT = new ConcurrentHashMap<>();
+    private static final ExecutorService DETAIL_LOOKUP_POOL = Executors.newFixedThreadPool(
+            DETAIL_LOOKUP_WORKERS,
+            runnable -> {
+                Thread thread = new Thread(runnable, "artist-release-detail-io");
+                thread.setDaemon(true);
+                return thread;
+            }
+    );
 
     private ArtistReleaseCatalog() {
     }
@@ -59,8 +70,12 @@ public final class ArtistReleaseCatalog {
         try {
             List<Release> loaded = fetchReleases(service, artist, artistId, renderContext);
             List<Release> immutable = List.copyOf(loaded);
-            CACHE.put(key, new CachedReleases(immutable, System.currentTimeMillis() + CACHE_TTL_MILLIS));
-            trimCache();
+            // An interrupted/stale request can legitimately return an empty
+            // list. Never retain that transient result for five minutes.
+            if (!immutable.isEmpty()) {
+                CACHE.put(key, new CachedReleases(immutable, System.currentTimeMillis() + CACHE_TTL_MILLIS));
+                trimCache();
+            }
             created.complete(immutable);
             return immutable;
         } catch (Exception ex) {
@@ -95,8 +110,10 @@ public final class ArtistReleaseCatalog {
                 renderContext
         );
         List<Release> immutable = List.copyOf(searched);
-        CACHE.put(key, new CachedReleases(immutable, System.currentTimeMillis() + CACHE_TTL_MILLIS));
-        trimCache();
+        if (!immutable.isEmpty()) {
+            CACHE.put(key, new CachedReleases(immutable, System.currentTimeMillis() + CACHE_TTL_MILLIS));
+            trimCache();
+        }
         return immutable;
     }
 
@@ -120,6 +137,7 @@ public final class ArtistReleaseCatalog {
         if (source == null || source.isEmpty()) return List.of();
 
         Map<Long, Release> byId = new LinkedHashMap<>();
+        List<Long> detailIds = new ArrayList<>(Math.min(MAX_DETAIL_LOOKUPS_PER_CATALOG, source.size()));
         int detailLookups = 0;
         for (JsonElement element : source) {
             if (!renderContext.isAlive()) return List.of();
@@ -140,16 +158,53 @@ public final class ArtistReleaseCatalog {
                     && artists.size() <= 1
                     && id > 0) {
                 detailLookups++;
-                try {
-                    JsonObject detail = service.albumByIdJson(id);
-                    List<String> detailedArtists = AlbumArtistResolver.names(detail);
-                    if (!detailedArtists.isEmpty()) artists = detailedArtists;
-                } catch (Exception ignored) {
-                }
+                detailIds.add(id);
             }
             byId.put(id, new Release(id, title, coverUrl, single, artists));
         }
-        return new ArrayList<>(byId.values());
+
+        if (detailIds.isEmpty() || !renderContext.isAlive()) {
+            return new ArrayList<>(byId.values());
+        }
+
+        Map<Long, CompletableFuture<List<String>>> detailFutures = new LinkedHashMap<>();
+        for (Long id : detailIds) {
+            if (id == null || detailFutures.containsKey(id)) continue;
+            detailFutures.put(id, CompletableFuture.supplyAsync(
+                    () -> resolveDetailedArtists(service, id),
+                    DETAIL_LOOKUP_POOL
+            ));
+        }
+
+        List<Release> enriched = new ArrayList<>(byId.size());
+        for (Release release : byId.values()) {
+            if (!renderContext.isAlive()) return List.of();
+
+            CompletableFuture<List<String>> detailFuture = detailFutures.get(release.id());
+            List<String> detailedArtists = detailFuture == null
+                    ? List.of()
+                    : detailFuture.join();
+            enriched.add(detailedArtists.isEmpty()
+                    ? release
+                    : new Release(
+                    release.id(),
+                    release.title(),
+                    release.coverUrl(),
+                    release.single(),
+                    detailedArtists
+            ));
+        }
+        return enriched;
+    }
+
+    private static List<String> resolveDetailedArtists(ArtistPageService service, long albumId) {
+        try {
+            JsonObject detail = service.albumByIdJson(albumId);
+            List<String> artists = AlbumArtistResolver.names(detail);
+            return artists == null ? List.of() : List.copyOf(artists);
+        } catch (Exception ignored) {
+            return List.of();
+        }
     }
 
     private static boolean isSingle(JsonObject release) {

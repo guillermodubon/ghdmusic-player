@@ -1,6 +1,7 @@
 package io.github.guillermodubon.musicplayer.controllers.ui.screens.artistPage.providers;
 
 import javafx.application.Platform;
+import javafx.scene.image.Image;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.artistPage.ArtistPageController;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.artistPage.context.ArtistPageContext;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.artistPage.context.ArtistPageRenderContext;
@@ -40,6 +41,7 @@ public final class AlbumsArtistPageSectionProvider extends BaseArtistPageSection
     private List<CardRequest> buildCards(ArtistPageRenderContext renderContext) {
         List<ArtistReleaseCatalog.Release> releases = ArtistReleaseCatalog.releases(service, renderContext);
         Map<Long, Album> localById = ArtistReleaseCardFactory.localAlbumsById(service.snapshotAlbums());
+        Image fallbackCover = defaultCover();
         List<CardRequest> cards = new ArrayList<>(MAX_CARDS);
 
         for (ArtistReleaseCatalog.Release release : releases) {
@@ -50,7 +52,7 @@ public final class AlbumsArtistPageSectionProvider extends BaseArtistPageSection
                     release,
                     localById.get(release.id()),
                     context,
-                    defaultCover()
+                    fallbackCover
             );
             if (card != null) cards.add(card);
             if (cards.size() >= MAX_CARDS) break;
