@@ -25,6 +25,7 @@ import java.util.List;
 /** Renders Deezer editorial releases, alternating singles and albums when both are available. */
 public class LatestReleasesSectionProvider extends BaseDiscoverPagePageSectionProvider {
 
+    private static final String SECTION_TITLE = "Featured Albums";
     private static final int EDITORIALS_TO_QUERY = 3;
     private static final int RELEASES_PER_EDITORIAL = 10;
 
@@ -34,7 +35,7 @@ public class LatestReleasesSectionProvider extends BaseDiscoverPagePageSectionPr
 
     @Override
     public void render(VBox container) {
-        VBox section = sectionBlock("Latest releases");
+        VBox section = sectionBlock(SECTION_TITLE);
         container.getChildren().add(section);
         int generation = captureRenderGeneration(container);
 
@@ -42,15 +43,15 @@ public class LatestReleasesSectionProvider extends BaseDiscoverPagePageSectionPr
                 .whenComplete((candidates, error) -> Platform.runLater(() -> {
                     if (!isRenderCurrent(container, generation)) return;
                     if (candidates == null || candidates.isEmpty()) {
-                        section.getChildren().setAll(sectionTitle("Latest releases"), emptyState("No recent releases available"));
+                        section.getChildren().setAll(sectionTitle(SECTION_TITLE), emptyState("No featured albums available"));
                         return;
                     }
 
                     FlowPane content = createContentFlow(container);
-                    section.getChildren().setAll(sectionTitle("Latest releases"), content);
+                    section.getChildren().setAll(sectionTitle(SECTION_TITLE), content);
                     appendNodesInBatches(container, generation, content, candidates, this::createReleaseCard, rendered -> {
                         if (rendered == 0) {
-                            section.getChildren().setAll(sectionTitle("Latest releases"), emptyState("No recent releases available"));
+                            section.getChildren().setAll(sectionTitle(SECTION_TITLE), emptyState("No featured albums available"));
                         }
                     });
                 }));
