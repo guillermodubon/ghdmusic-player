@@ -30,6 +30,8 @@ public final class MainWindowLauncher {
     public void show(Stage stage, StartUpService startUpService) throws Exception {
         splashWindowLauncher.release(stage);
 
+        new DownloadAwareCloseHandler().install(stage);
+
         PlayerMenuNavigator playerMenuNavigator = new PlayerMenuNavigator(startUpService);
         ArtistOpenCoordinator artistOpenCoordinator =
                 new ArtistOpenCoordinator(startUpService, playerMenuNavigator);
