@@ -28,6 +28,7 @@ public class DownloadManager {
     private final Queue<DownloadTask> deferredTasks = new ConcurrentLinkedQueue<>();
     private final int workerCount;
     private volatile String exclusiveSessionId;
+    private volatile boolean acceptingDownloads = true;
 
     private DownloadManager() {
         workerCount = Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors() / 2));
@@ -67,6 +68,12 @@ public class DownloadManager {
 
     public boolean enqueueTask(DownloadTask task) {
         if (task == null) return false;
+
+        if (!acceptingDownloads) {
+            task.cancelAndAwaitCleanup();
+            DownloadLog.warn("DownloadManager", "Ignored download because application shutdown is in progress");
+            return false;
+        }
 
         if (hasExistingTask(task.getQuery(), task.getTargetDir(), task.getCleanSongName())) {
             DownloadLog.warn("DownloadManager", "Ignored duplicate " + DownloadLog.taskLabel(task.getContext()));
@@ -230,10 +237,25 @@ public class DownloadManager {
 
     public void submitTaskWithoutAdding(DownloadTask task) {
         if (task == null) return;
+
+        if (!acceptingDownloads) {
+            task.cancelAndAwaitCleanup();
+            DownloadLog.warn("DownloadManager", "Ignored retry because application shutdown is in progress");
+            return;
+        }
+
         DownloadLog.info("DownloadManager", "Submitting task without adding to list: "
                 + DownloadLog.taskLabel(task.getContext()));
         task.setDeferredByExclusiveSession(false);
         executor.submit(task);
+    }
+
+    /**
+     * Prevents new work from entering the download executor while the
+     * application is performing its orderly shutdown protocol.
+     */
+    public void stopAcceptingDownloads() {
+        acceptingDownloads = false;
     }
 
     public void retryTask(DownloadTask sourceTask) {

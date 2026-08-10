@@ -212,7 +212,7 @@ public class DownloadCellController {
     private void installTaskActions(DownloadTask task) {
         cancelButton.setOnAction(event -> {
             if (!task.isCancelled() && !task.isDone()) {
-                task.cancel();
+                task.cancelAndAwaitCleanup();
             }
         });
 
