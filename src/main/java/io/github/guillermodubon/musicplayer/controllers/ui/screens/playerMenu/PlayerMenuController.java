@@ -30,6 +30,7 @@ import io.github.guillermodubon.musicplayer.services.playback.PlaybackManager;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.services.images.MediaImageResolver;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
+import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -482,7 +483,7 @@ public class PlayerMenuController implements PlayerMenuActionHost {
         if (left.getSongID() > 0 && right.getSongID() > 0) {
             return left.getSongID() == right.getSongID();
         }
-        return Objects.equals(left.getTitle(), right.getTitle());
+        return SongAudioIdentity.matches(left, right);
     }
 
 
@@ -604,14 +605,16 @@ public class PlayerMenuController implements PlayerMenuActionHost {
 
         syncSongListUiState();
 
-        refreshHeaderAndScheduleDeferredContent(viewRevision);
-
         if (serviceCoordinator.playlistActionsService() != null) {
             serviceCoordinator.playlistActionsService().wireAfterPlaylistLoad(playlist, type);
-            refreshPlaylistHeaderActionsState();
         } else {
             uiCoordinator.configureRemoteSaveCheckBoxInitialState();
         }
+
+        // The action service has just applied the playlist state above, so the
+        // header pass does not need to query/publish that state a second time
+        // during the first paint.
+        refreshHeaderAndScheduleDeferredContent(viewRevision, false);
     }
 
     public void adjustListHeight(ListView<?> lv) {
@@ -721,16 +724,6 @@ public class PlayerMenuController implements PlayerMenuActionHost {
         updateSongSearchPrompt(playlist, type);
         syncLocalRandomModeForCurrentView();
 
-        /*
-         * The playlist may change while the screen remains open.
-         * Update the checkbox on the next JavaFX pulse.
-         */
-        if (Platform.isFxApplicationThread()) {
-            refreshPlaylistHeaderActionsState();
-        } else {
-            Platform.runLater(this::refreshPlaylistHeaderActionsState);
-        }
-
         return context.getViewRevision();
     }
 
@@ -770,10 +763,15 @@ public class PlayerMenuController implements PlayerMenuActionHost {
      * current JavaFX pulse and only while this playlist revision is still active.
      */
     private void refreshHeaderAndScheduleDeferredContent(long viewRevision) {
+        refreshHeaderAndScheduleDeferredContent(viewRevision, true);
+    }
+
+    private void refreshHeaderAndScheduleDeferredContent(long viewRevision,
+                                                         boolean refreshActions) {
         if (serviceCoordinator.headerFooterService() != null) {
             serviceCoordinator.headerFooterService().refreshHeader();
         }
-        refreshPlaylistHeaderActionsState();
+        if (refreshActions) refreshPlaylistHeaderActionsState();
         scheduleFooterWhenVisible(viewRevision);
         if (uiCoordinator != null) {
             uiCoordinator.settleResponsiveLayout();
@@ -965,7 +963,7 @@ public class PlayerMenuController implements PlayerMenuActionHost {
                     currentContentTypeInView,
                     emptyUserPlaylist,
                     serviceCoordinator.songListService(),
-                    this::refreshPlaylistHeaderActionsState
+                    null
             );
         }
     }

@@ -5,6 +5,7 @@ import io.github.guillermodubon.musicplayer.models.Artist;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 import io.github.guillermodubon.musicplayer.models.Song;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.items.musicItems.services.SongArtistResolver;
+import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -36,17 +37,7 @@ final class PlayerMenuDownloadSongMatcher {
             return true;
         }
 
-        String songTitle = normalize(song.getTitle());
-        String metadataTitle = normalize(metadata.getSongName());
-        if (songTitle.isBlank() || !songTitle.equals(metadataTitle)) {
-            return false;
-        }
-
-        long downloadedAlbumId = metadata.getAlbumId();
-        return downloadedAlbumId <= 0
-                || song.getAlbum() == null
-                || song.getAlbum().getAlbumID() <= 0
-                || song.getAlbum().getAlbumID() == downloadedAlbumId;
+        return SongAudioIdentity.matches(song, metadata);
     }
 
     static boolean matchesSong(Song current, Song candidate) {
@@ -60,52 +51,11 @@ final class PlayerMenuDownloadSongMatcher {
             return true;
         }
 
-        String currentTitle = normalize(current.getTitle());
-        String candidateTitle = normalize(candidate.getTitle());
-        if (currentTitle.isBlank() || !currentTitle.equals(candidateTitle)) {
-            return false;
-        }
-
-        Album currentAlbum = current.getAlbum();
-        Album candidateAlbum = candidate.getAlbum();
-        long currentAlbumId = currentAlbum == null ? 0L : currentAlbum.getAlbumID();
-        long candidateAlbumId = candidateAlbum == null ? 0L : candidateAlbum.getAlbumID();
-        if (currentAlbumId > 0 && candidateAlbumId > 0 && currentAlbumId != candidateAlbumId) {
-            return false;
-        }
-
-        return artistsOverlap(current, candidate);
+        return SongAudioIdentity.matches(current, candidate);
     }
 
     static boolean artistsOverlap(Song current, Song candidate) {
-        List<Artist> currentArtists = current == null ? null : current.getArtist();
-        List<Artist> candidateArtists = candidate == null ? null : candidate.getArtist();
-        if (currentArtists == null || candidateArtists == null
-                || currentArtists.isEmpty() || candidateArtists.isEmpty()) {
-            return true;
-        }
-
-        for (Artist first : currentArtists) {
-            if (first == null) {
-                continue;
-            }
-            long firstId = first.getArtistID();
-            String firstName = normalize(first.getName());
-            for (Artist second : candidateArtists) {
-                if (second == null) {
-                    continue;
-                }
-                long secondId = second.getArtistID();
-                String secondName = normalize(second.getName());
-                if (firstId > 0 && secondId > 0 && firstId == secondId) {
-                    return true;
-                }
-                if (!firstName.isBlank() && firstName.equals(secondName)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return SongAudioIdentity.matches(current, candidate);
     }
 
     static void preserveViewSpecificData(Song oldSong, Song newSong) {
@@ -150,9 +100,12 @@ final class PlayerMenuDownloadSongMatcher {
             return null;
         }
 
-        long songId = localSong.getSongID() > 0
-                ? localSong.getSongID()
-                : viewSong == null ? 0L : viewSong.getSongID();
+        // This wrapper represents the selected edition, not the album from
+        // which its reusable file was downloaded. Retaining the view ID keeps
+        // its contributor hydration, ordering and cover source intact.
+        long songId = viewSong != null && viewSong.getSongID() > 0
+                ? viewSong.getSongID()
+                : localSong.getSongID();
         String title = viewSong != null && viewSong.getTitle() != null
                 && !viewSong.getTitle().isBlank()
                 ? viewSong.getTitle()
@@ -164,8 +117,8 @@ final class PlayerMenuDownloadSongMatcher {
                 ? viewSong.getTrackOrder()
                 : localSong.getTrackOrder();
         List<Artist> artists = SongArtistResolver.merge(
-                localSong.getArtist(),
-                viewSong == null ? null : viewSong.getArtist()
+                viewSong == null ? List.of() : SongArtistResolver.resolveParticipants(viewSong),
+                SongArtistResolver.resolveParticipants(localSong)
         );
 
         return new Song(
