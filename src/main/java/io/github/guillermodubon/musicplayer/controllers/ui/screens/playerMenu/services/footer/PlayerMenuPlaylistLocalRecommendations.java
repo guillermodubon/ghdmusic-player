@@ -23,6 +23,7 @@ import io.github.guillermodubon.musicplayer.services.playback.PlaybackManager;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 import io.github.guillermodubon.musicplayer.utils.LocalSongVerifier;
 import io.github.guillermodubon.musicplayer.utils.MusicCardHelper;
+import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -525,7 +526,7 @@ public final class PlayerMenuPlaylistLocalRecommendations {
     private boolean matchesSong(Song left, Song right) {
         if (left == null || right == null) return false;
         if (left.getSongID() > 0 && right.getSongID() > 0) return left.getSongID() == right.getSongID();
-        return Objects.equals(left.getTitle(), right.getTitle());
+        return SongAudioIdentity.matches(left, right);
     }
 
     private int indexOfSongById(List<Song> songs, Song target) {
@@ -542,5 +543,4 @@ public final class PlayerMenuPlaylistLocalRecommendations {
         return indexOfSongById(songs, target) >= 0;
     }
 }
-
 

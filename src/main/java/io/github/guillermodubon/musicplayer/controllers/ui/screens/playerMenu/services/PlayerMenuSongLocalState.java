@@ -9,6 +9,7 @@ import io.github.guillermodubon.musicplayer.models.Song;
 import io.github.guillermodubon.musicplayer.services.manifest.ManifestService;
 import io.github.guillermodubon.musicplayer.services.manifest.ManifestSyncService;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
+import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -117,7 +118,12 @@ final class PlayerMenuSongLocalState {
         }
 
         Map<Long, Song> localById = new HashMap<>();
-        Map<String, List<Song>> localByTitle = new HashMap<>();
+        Map<String, List<Song>> localByAudioIdentity = new HashMap<>();
+        Map<String, String> localPathByAudioIdentity = new HashMap<>();
+        try {
+            localPathByAudioIdentity.putAll(startUpService.getSongIdentityPathSnapshot());
+        } catch (Exception ignored) {
+        }
 
         for (Song librarySong : librarySnapshot) {
             String playablePath = resolvePlayableLocalPath(librarySong);
@@ -132,10 +138,12 @@ final class PlayerMenuSongLocalState {
                 localById.putIfAbsent(librarySong.getSongID(), librarySong);
             }
 
-            String titleKey = normalizedSongTitle(librarySong.getTitle());
-            if (!titleKey.isBlank()) {
-                localByTitle.computeIfAbsent(titleKey, ignored -> new ArrayList<>()).add(librarySong);
-            }
+            SongAudioIdentity.keyFor(librarySong).ifPresent(identity -> {
+                localByAudioIdentity
+                        .computeIfAbsent(identity, ignored -> new ArrayList<>())
+                        .add(librarySong);
+                localPathByAudioIdentity.putIfAbsent(identity, playablePath);
+            });
         }
 
         for (Song viewSong : viewSongs) {
@@ -143,20 +151,22 @@ final class PlayerMenuSongLocalState {
                 continue;
             }
 
-            Song localSong = findLocalCounterpart(viewSong, localById, localByTitle);
-            if (localSong == null) {
-                continue;
+            Song localSong = findLocalCounterpart(viewSong, localById, localByAudioIdentity);
+            String playablePath = findPathByAudioIdentity(viewSong, localPathByAudioIdentity);
+            if (playablePath == null && localSong != null) {
+                playablePath = resolvePlayableLocalPath(localSong);
             }
-
-            String playablePath = resolvePlayableLocalPath(localSong);
             if (playablePath == null) {
+                clearStaleLocalState(viewSong);
                 continue;
             }
 
             // Preserve the remote song object so its full playlist metadata remains intact.
             viewSong.setLocal(true);
             viewSong.setFilePath(playablePath);
-            enrichViewSongFromLocal(viewSong, localSong);
+            if (localSong != null) {
+                enrichViewSongFromLocal(viewSong, localSong);
+            }
         }
 
         return viewSongs;
@@ -173,27 +183,7 @@ final class PlayerMenuSongLocalState {
             return true;
         }
 
-        String currentTitle = normalizeImmediateRefreshKey(current.getTitle());
-        String downloadedTitle = normalizeImmediateRefreshKey(downloaded.getTitle());
-        if (currentTitle.isBlank() || !currentTitle.equals(downloadedTitle)) {
-            return false;
-        }
-
-        if (current.getAlbum() == null || downloaded.getAlbum() == null) {
-            return true;
-        }
-
-        long currentAlbumId = current.getAlbum().getAlbumID();
-        long downloadedAlbumId = downloaded.getAlbum().getAlbumID();
-        if (currentAlbumId > 0 && downloadedAlbumId > 0) {
-            return currentAlbumId == downloadedAlbumId;
-        }
-
-        String currentAlbumName = normalizeImmediateRefreshKey(current.getAlbum().getName());
-        String downloadedAlbumName = normalizeImmediateRefreshKey(downloaded.getAlbum().getName());
-        return currentAlbumName.isBlank()
-                || downloadedAlbumName.isBlank()
-                || currentAlbumName.equals(downloadedAlbumName);
+        return SongAudioIdentity.matches(current, downloaded);
     }
 
     boolean hasUsableAudioFile(String path) {
@@ -325,7 +315,7 @@ final class PlayerMenuSongLocalState {
 
     private Song findLocalCounterpart(Song viewSong,
                                       Map<Long, Song> localById,
-                                      Map<String, List<Song>> localByTitle) {
+                                      Map<String, List<Song>> localByAudioIdentity) {
         if (viewSong == null) {
             return null;
         }
@@ -337,29 +327,47 @@ final class PlayerMenuSongLocalState {
             }
         }
 
-        String titleKey = normalizedSongTitle(viewSong.getTitle());
-        if (titleKey.isBlank()) {
+        Optional<String> identity = SongAudioIdentity.keyFor(viewSong);
+        if (identity.isEmpty()) {
             return null;
         }
 
-        List<Song> candidates = localByTitle.get(titleKey);
+        List<Song> candidates = localByAudioIdentity.get(identity.get());
         if (candidates == null || candidates.isEmpty()) {
             return null;
         }
-        if (candidates.size() == 1) {
-            return candidates.getFirst();
+        return candidates.getFirst();
+    }
+
+    /**
+     * Resolves a file exclusively through the normalized title-and-artists
+     * signature. This lets different album editions share one recording even
+     * when their in-memory song relations hydrate at different times, while
+     * still preventing title-only matches from becoming local.
+     */
+    private String findPathByAudioIdentity(Song viewSong, Map<String, String> pathsByAudioIdentity) {
+        if (viewSong == null || pathsByAudioIdentity == null || pathsByAudioIdentity.isEmpty()) {
+            return null;
         }
 
-        long viewAlbumId = viewSong.getAlbum() == null ? 0 : viewSong.getAlbum().getAlbumID();
-        if (viewAlbumId > 0) {
-            for (Song candidate : candidates) {
-                long candidateAlbumId = candidate.getAlbum() == null ? 0 : candidate.getAlbum().getAlbumID();
-                if (candidateAlbumId == viewAlbumId) {
-                    return candidate;
-                }
-            }
+        return SongAudioIdentity.keyFor(viewSong)
+                .map(pathsByAudioIdentity::get)
+                .filter(this::hasUsableAudioFile)
+                .orElse(null);
+    }
+
+    /**
+     * Older title-only reconciliation could have marked a remote Deezer song
+     * as local. Once the stricter identity lookup rejects it, remove that
+     * transient state immediately instead of letting a valid path from a
+     * different recording remain playable in this view.
+     */
+    private void clearStaleLocalState(Song song) {
+        if (song == null || song.getSongID() <= 0 || !song.isLocal()) {
+            return;
         }
-        return null;
+        song.setLocal(false);
+        song.setFilePath(null);
     }
 
     private String resolvePlayableLocalPath(Song song) {
@@ -430,14 +438,6 @@ final class PlayerMenuSongLocalState {
             }
         }
         return false;
-    }
-
-    private String normalizedSongTitle(String title) {
-        return title == null ? "" : title.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
-    }
-
-    private String normalizeImmediateRefreshKey(String value) {
-        return value == null ? "" : value.toLowerCase(Locale.ROOT).trim().replaceAll("\\s+", " ");
     }
 
     private String normalizeKey(String value) {
