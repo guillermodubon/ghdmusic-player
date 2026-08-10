@@ -14,6 +14,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.control.Slider;
+import javafx.scene.control.ButtonBase;
 import java.util.function.DoubleConsumer;
 
 /**
@@ -446,20 +447,20 @@ public final class PlayerMenuBarLayoutCoordinator {
 
         switch (density) {
             case ULTRA_COMPACT -> applyLayoutMetrics(
-                    8, 6, 46, 150, 190, 230, 280, 6, 8,
-                    218, 280, 340, 112, 200, 300, 126, 96
+                    8, 6, 46, 150, 190, 230, 292, 2, 6,
+                    218, 280, 340, 104, 190, 280, 128, 90
             );
             case NARROW -> applyLayoutMetrics(
-                    10, 8, 54, 220, 250, 280, 294, 8, 8,
-                    244, 330, 430, 140, 230, 330, 126, 96
+                    10, 8, 54, 220, 250, 280, 310, 4, 8,
+                    244, 330, 430, 140, 230, 330, 134, 96
             );
             case COMPACT -> applyLayoutMetrics(
-                    14, 12, 62, 250, 330, 300, 310, 12, 14,
-                    260, 470, 570, 156, 370, 470, 122, 90
+                    14, 12, 62, 250, 330, 300, 320, 7, 14,
+                    260, 470, 570, 156, 370, 470, 128, 90
             );
             case REGULAR -> applyLayoutMetrics(
-                    24, 24, 70, 290, 410, 340, 358, 18, 20,
-                    280, 640, 720, 180, 540, 650, 150, 118
+                    24, 24, 70, 290, 410, 340, 358, 10, 20,
+                    280, 640, 720, 180, 540, 650, 158, 118
             );
         }
 
@@ -513,12 +514,17 @@ public final class PlayerMenuBarLayoutCoordinator {
             playerPlaybackCenter.setMaxWidth(Double.MAX_VALUE);
             HBox.setHgrow(playerPlaybackCenter, Priority.ALWAYS);
         }
-        if (playerTransportRow != null) playerTransportRow.setSpacing(transportSpacing);
+        double playbackContentShift = -Math.min(24.0, Math.max(6.0, horizontalPadding));
+        if (playerTransportRow != null) {
+            playerTransportRow.setSpacing(transportSpacing);
+            playerTransportRow.setTranslateX(playbackContentShift);
+        }
 
         if (timeRow != null) {
             timeRow.setMinWidth(timeRowMin);
             timeRow.setPrefWidth(timeRowPref);
             timeRow.setMaxWidth(timeRowMax);
+            timeRow.setTranslateX(playbackContentShift);
         }
         if (timeSliderShell != null) {
             timeSliderShell.setMinWidth(timeSliderMin);
@@ -532,7 +538,11 @@ public final class PlayerMenuBarLayoutCoordinator {
             rightControls.setMinWidth(rightControlsWidth);
             rightControls.setPrefWidth(rightControlsWidth);
             rightControls.setMaxWidth(rightControlsWidth);
+            // Keep the action group visually close to the elapsed-time label while
+            // preserving its own layout slot for responsive shrinking.
+            rightControls.setTranslateX(-Math.min(4.0, Math.max(1.5, horizontalPadding * 0.15)));
             HBox.setHgrow(rightControls, Priority.NEVER);
+            applyStandardControlButtonSize();
         }
         if (volumeBox != null) {
             volumeBox.setSpacing(volumeBoxWidth <= 106 ? 6 : 8);
@@ -556,5 +566,16 @@ public final class PlayerMenuBarLayoutCoordinator {
         region.setMinSize(min, min);
         region.setPrefSize(pref, pref);
         region.setMaxSize(max, max);
+    }
+
+    /** Keeps the secondary actions visually uniform across responsive modes. */
+    private void applyStandardControlButtonSize() {
+        if (rightControls == null) return;
+        for (javafx.scene.Node child : rightControls.getChildren()) {
+            if (!(child instanceof ButtonBase button)) continue;
+            button.setMinSize(30.0, 30.0);
+            button.setPrefSize(30.0, 30.0);
+            button.setMaxSize(30.0, 30.0);
+        }
     }
 }

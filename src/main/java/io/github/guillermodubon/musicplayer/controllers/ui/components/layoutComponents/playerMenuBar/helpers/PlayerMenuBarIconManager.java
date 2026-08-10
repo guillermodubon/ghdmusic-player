@@ -261,7 +261,7 @@ public final class PlayerMenuBarIconManager {
                 || volumeIconHost.getChildren().isEmpty()
                 || !iconPath.equals(currentVolumeIconPath)) {
             currentVolumeIconPath = iconPath;
-            volumeIcon = SvgIconFactory.icon(iconPath, scaled(22));
+            volumeIcon = SvgIconFactory.icon(iconPath, scaled(23));
             SvgIconFactory.setIconColor(volumeIcon, ICON_BRIGHT);
             volumeIconHost.getChildren().setAll(volumeIcon);
         }
