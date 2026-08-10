@@ -6,7 +6,10 @@ import io.github.guillermodubon.musicplayer.models.Genre;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public class GenreDaoImpl implements GenreDao {
@@ -315,6 +318,9 @@ public class GenreDaoImpl implements GenreDao {
         System.out.println("GenreDaoImpl.upsertAll: metas=" + (metas == null ? 0 : metas.size()));
         if (metas == null || metas.isEmpty()) return;
 
+        List<DeezerApiMetaData> uniqueGenres = uniqueGenreMetadata(metas);
+        if (uniqueGenres.isEmpty()) return;
+
         String insertWithIdSql = "INSERT OR IGNORE INTO Genre(GenreID, Name) VALUES(?, ?)";
         String insertNameOnlySql = "INSERT OR IGNORE INTO Genre(Name) VALUES(?)";
 
@@ -327,7 +333,7 @@ public class GenreDaoImpl implements GenreDao {
                     try (PreparedStatement psWithId = sharedConn.prepareStatement(insertWithIdSql);
                          PreparedStatement psNameOnly = sharedConn.prepareStatement(insertNameOnlySql)) {
 
-                        for (DeezerApiMetaData meta : metas) {
+                        for (DeezerApiMetaData meta : uniqueGenres) {
                             if (meta == null) continue;
                             String genreName = meta.getGenre();
                             if (genreName == null || genreName.isBlank()) continue;
@@ -373,7 +379,7 @@ public class GenreDaoImpl implements GenreDao {
                     try (PreparedStatement psWithId = prepareStatementWithRetry(conn, insertWithIdSql, 6);
                          PreparedStatement psNameOnly = prepareStatementWithRetry(conn, insertNameOnlySql, 6)) {
 
-                        for (DeezerApiMetaData meta : metas) {
+                        for (DeezerApiMetaData meta : uniqueGenres) {
                             if (meta == null) continue;
                             String genreName = meta.getGenre();
                             if (genreName == null || genreName.isBlank()) continue;
@@ -406,6 +412,21 @@ public class GenreDaoImpl implements GenreDao {
                 }
             }
         }
+    }
+
+    /** Avoid repeated existence checks when an album contributes many tracks. */
+    private static List<DeezerApiMetaData> uniqueGenreMetadata(List<DeezerApiMetaData> metas) {
+        Map<String, DeezerApiMetaData> byGenre = new LinkedHashMap<>();
+        for (DeezerApiMetaData meta : metas) {
+            if (meta == null || meta.getGenre() == null || meta.getGenre().isBlank()) continue;
+
+            String key = meta.getGenre().trim().toLowerCase(Locale.ROOT);
+            DeezerApiMetaData previous = byGenre.get(key);
+            if (previous == null || (previous.getAlbumGenreId() <= 0 && meta.getAlbumGenreId() > 0)) {
+                byGenre.put(key, meta);
+            }
+        }
+        return new ArrayList<>(byGenre.values());
     }
 
     @Override
