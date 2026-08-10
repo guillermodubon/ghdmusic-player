@@ -177,7 +177,14 @@ public class SongItemVisualController extends BaseSongCellController {
         if (extra == null || extra.isEmpty()) return;
         if (!isCurrentRender(expectedGeneration) || !isCurrentSong(expectedSong)) return;
 
-        List<Artist> merged = SongArtistResolver.merge(displayedArtists, extra);
+        // Keep the resolved contributors on the Song itself as well as in the
+        // visual row. The row can become a PlayableSongItem immediately after
+        // a download; retaining them here prevents that replacement from
+        // falling back to the album-owner artists only.
+        List<Artist> songArtists = SongArtistResolver.merge(currentSong.getArtist(), extra);
+        currentSong.setArtist(songArtists);
+
+        List<Artist> merged = SongArtistResolver.resolveParticipants(currentSong);
 
         displayedArtists.clear();
         displayedArtists.addAll(merged);

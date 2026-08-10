@@ -16,9 +16,9 @@ public final class SongArtistResolver {
         if (song == null) return List.of();
 
         List<Artist> participants = new ArrayList<>();
-        addDistinct(participants, song.getArtist());
+        addDistinctForDisplay(participants, song.getArtist());
         if (song.getAlbum() != null) {
-            addDistinct(participants, song.getAlbum().getArtist());
+            addDistinctForDisplay(participants, song.getAlbum().getArtist());
         }
         return List.copyOf(participants);
     }
@@ -46,6 +46,39 @@ public final class SongArtistResolver {
             }
             target.add(artist);
         }
+    }
+
+    /**
+     * Album and track relations can occasionally carry separate persisted
+     * Artist objects for one displayed name. Keep those relations intact in
+     * the model, while avoiding a duplicated name in a song row.
+     */
+    private static void addDistinctForDisplay(List<Artist> target, Collection<Artist> artists) {
+        if (artists == null) return;
+
+        for (Artist artist : artists) {
+            if (artist == null) continue;
+
+            int duplicateIndex = displayDuplicateIndex(target, artist);
+            if (duplicateIndex >= 0) {
+                Artist current = target.get(duplicateIndex);
+                if (isBetterIdentity(artist, current)) {
+                    target.set(duplicateIndex, artist);
+                }
+                continue;
+            }
+            target.add(artist);
+        }
+    }
+
+    private static int displayDuplicateIndex(List<Artist> artists, Artist candidate) {
+        for (int i = 0; i < artists.size(); i++) {
+            Artist existing = artists.get(i);
+            if (existing == candidate || sameName(existing, candidate)) {
+                return i;
+            }
+        }
+        return duplicateIndex(artists, candidate);
     }
 
     private static int duplicateIndex(List<Artist> artists, Artist candidate) {
