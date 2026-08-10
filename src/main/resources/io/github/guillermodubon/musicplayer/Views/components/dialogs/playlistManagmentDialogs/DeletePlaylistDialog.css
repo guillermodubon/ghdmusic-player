@@ -147,3 +147,38 @@
     -fx-border-color: #0077B6;
     -fx-text-fill: #FFFFFF;
 }
+
+.download-cleanup-content {
+    -fx-spacing: 14;
+    -fx-alignment: center-left;
+}
+
+.download-cleanup-status {
+    -fx-text-fill: rgba(255, 255, 255, 0.78);
+    -fx-font-size: 14px;
+    -fx-wrap-text: true;
+}
+
+.download-cleanup-progress {
+    -fx-pref-height: 12px;
+    -fx-min-height: 12px;
+    -fx-max-height: 12px;
+    -fx-accent: #0077B6;
+}
+
+.download-cleanup-progress .track {
+    -fx-background-color: rgba(255, 255, 255, 0.14);
+    -fx-background-radius: 999;
+}
+
+.download-cleanup-progress .bar {
+    -fx-background-color: #0077B6;
+    -fx-background-radius: 999;
+    -fx-background-insets: 0;
+}
+
+.download-cleanup-percentage {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
