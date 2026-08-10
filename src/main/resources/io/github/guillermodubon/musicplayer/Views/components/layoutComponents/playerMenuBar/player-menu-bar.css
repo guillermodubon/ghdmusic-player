@@ -25,6 +25,17 @@
     -fx-background-color: transparent;
 }
 
+.player-lyrics-button-host {
+    -fx-min-width: 30px;
+    -fx-pref-width: 30px;
+    -fx-max-width: 30px;
+    -fx-min-height: 30px;
+    -fx-pref-height: 30px;
+    -fx-max-height: 30px;
+    -fx-alignment: center;
+    -fx-background-color: transparent;
+}
+
 .player-lyrics-button,
 .player-lyrics-button:hover,
 .player-lyrics-button:focused,
@@ -36,6 +47,10 @@
     -fx-border-color: transparent;
     -fx-border-width: 0;
     -fx-effect: null;
+}
+
+.player-lyrics-button:disabled {
+    -fx-cursor: default;
 }
 
 .player-now-playing-row {

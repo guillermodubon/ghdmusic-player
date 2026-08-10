@@ -157,10 +157,13 @@
                spacing="24"
                alignment="CENTER_RIGHT"
                styleClass="player-right-controls">
-            <Button fx:id="LyricsButton"
-                    onAction="#onShowLyrics"
-                    focusTraversable="false"
-                    styleClass="player-icon-button player-lyrics-button"/>
+            <StackPane fx:id="lyricsButtonHost"
+                       styleClass="player-lyrics-button-host">
+               <Button fx:id="LyricsButton"
+                       onAction="#onShowLyrics"
+                       focusTraversable="false"
+                       styleClass="player-icon-button player-lyrics-button"/>
+            </StackPane>
             <ToggleButton fx:id="ReplayToggleButton"
                           focusTraversable="false"
                           styleClass="player-icon-button player-toggle"/>

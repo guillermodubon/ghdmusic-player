@@ -77,6 +77,7 @@ public class PlayerMenuBarController {
     @FXML private Label SongLengthLabel;
     @FXML private ToggleButton RandomToggleButton;
     @FXML private ToggleButton ReplayToggleButton;
+    @FXML private StackPane lyricsButtonHost;
     @FXML private Button LyricsButton;
     @FXML private ToggleButton FullScreenToggleButton;
     @FXML private Button QueueButton;
@@ -290,6 +291,7 @@ public class PlayerMenuBarController {
         updateToggleTooltips();
         lyricsButtonSupport = new PlayerLyricsButtonSupport(
                 LyricsButton,
+                lyricsButtonHost,
                 () -> LyricsFullscreenController.getInstance().toggle(
                         startUpService,
                         parentRoot,
