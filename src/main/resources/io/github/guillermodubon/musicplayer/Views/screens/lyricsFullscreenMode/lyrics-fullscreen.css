@@ -1,0 +1,115 @@
+.lyrics-panel {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 0;
+    -fx-padding: 0;
+}
+
+.lyrics-panel-content {
+    -fx-alignment: top-left;
+    -fx-background-color: transparent;
+}
+
+.lyrics-fullscreen-cover {
+    -fx-background-color: transparent;
+    -fx-background-radius: 24;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-border-radius: 24;
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(0, 0, 0, 0.62),
+            24,
+            0.22,
+            0,
+            8
+    );
+}
+
+.lyrics-scroll-pane {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-border-color: transparent;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+.lyrics-scroll-pane > .viewport {
+    -fx-background-color: transparent;
+    -fx-padding: 0 10 0 0;
+}
+
+.lyrics-scroll-pane .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 8px;
+    -fx-opacity: 0;
+}
+
+.lyrics-scroll-pane .scroll-bar:horizontal {
+    -fx-background-color: transparent;
+    -fx-pref-height: 0;
+    -fx-opacity: 0;
+}
+
+.lyrics-scroll-pane .scroll-bar:vertical .track {
+    -fx-background-color: rgba(255, 255, 255, 0.08);
+    -fx-background-radius: 999;
+}
+
+.lyrics-scroll-pane .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(255, 255, 255, 0.48);
+    -fx-background-radius: 999;
+}
+
+.lyrics-scroll-pane .increment-button,
+.lyrics-scroll-pane .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+.lyrics-line {
+    -fx-background-color: transparent;
+    -fx-text-fill: #8A8A8A;
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+    -fx-padding: 4 0 4 0;
+    -fx-cursor: hand;
+}
+
+.lyrics-line:hover {
+    -fx-text-fill: #FFFFFF;
+}
+
+.lyrics-line-active {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 33px;
+}
+
+.lyrics-line-large {
+    -fx-font-size: 35px;
+    -fx-padding: 5 0 5 0;
+}
+
+.lyrics-line-large.lyrics-line-active {
+    -fx-font-size: 42px;
+}
+
+.lyrics-plain-line {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(255, 255, 255, 0.84);
+    -fx-font-size: 26px;
+    -fx-padding: 4 0 4 0;
+}
+
+.lyrics-plain-line-large {
+    -fx-font-size: 33px;
+    -fx-padding: 5 0 5 0;
+}
+
+.lyrics-empty {
+    -fx-text-fill: rgba(255, 255, 255, 0.62);
+    -fx-font-size: 18px;
+}
