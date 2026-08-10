@@ -8,6 +8,9 @@ import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.Region;
+import javafx.scene.Scene;
+import javafx.stage.Stage;
+import javafx.stage.Window;
 import io.github.guillermodubon.musicplayer.services.images.colors.CoverColorExtractor;
 import io.github.guillermodubon.musicplayer.services.images.colors.CoverColorPalette;
 
@@ -26,30 +29,49 @@ public final class PlayerFullScreenBackgroundStyler {
     private static final double BACKGROUND_OPACITY = 0.34;
     private static final double BLUR_RADIUS = 63.0;
     private static final double BACKGROUND_OVERFLOW = 60.0;
+    private static final double GLOW_LAYER_SCALE = 1.30;
     private static final double BACKGROUND_SCALE = 1.15;
 
     private final Pane backgroundLayer;
     private final Region baseColorLayer;
     private final ImageView ambientArtwork;
+    private final PlayerFullScreenColorBlobLayer animatedBlobLayer;
     private final Region primaryGlowLayer;
     private final Region secondaryGlowLayer;
     private final Region exposureMask;
     private final Region vignetteLayer;
     private final Region bottomGradientLayer;
+    private final PlayerFullScreenAmbientMotionCoordinator backgroundMotion;
     private final ChangeListener<Number> widthListener;
     private final ChangeListener<Number> heightListener;
+    private final ChangeListener<Scene> sceneListener;
+    private final ChangeListener<Window> windowListener;
+    private final ChangeListener<Boolean> windowShowingListener;
+    private final ChangeListener<Boolean> windowIconifiedListener;
+    private Window observedWindow;
+    private boolean layersVisible;
 
     public PlayerFullScreenBackgroundStyler(Pane backgroundLayer) {
         this.backgroundLayer = backgroundLayer;
         this.baseColorLayer = createLayer("#111111");
         this.ambientArtwork = createAmbientArtwork();
+        this.animatedBlobLayer = new PlayerFullScreenColorBlobLayer();
         this.primaryGlowLayer = createLayer("transparent");
         this.secondaryGlowLayer = createLayer("transparent");
         this.exposureMask = createLayer("rgba(0, 0, 0, 0.18)");
         this.vignetteLayer = createLayer("transparent");
         this.bottomGradientLayer = createLayer("transparent");
+        this.backgroundMotion = new PlayerFullScreenAmbientMotionCoordinator(ambientArtwork);
         this.widthListener = (obs, oldValue, newValue) -> updateViewport();
         this.heightListener = (obs, oldValue, newValue) -> updateViewport();
+        this.sceneListener = (obs, oldScene, newScene) -> handleSceneChanged(oldScene, newScene);
+        this.windowListener = (obs, oldWindow, newWindow) -> {
+            detachWindowListeners(oldWindow);
+            attachWindowListeners(newWindow);
+            refreshMotionVisibility();
+        };
+        this.windowShowingListener = (obs, oldValue, newValue) -> refreshMotionVisibility();
+        this.windowIconifiedListener = (obs, oldValue, newValue) -> refreshMotionVisibility();
 
         if (backgroundLayer != null) {
             backgroundLayer.getChildren().setAll(
@@ -59,10 +81,17 @@ public final class PlayerFullScreenBackgroundStyler {
                     secondaryGlowLayer,
                     exposureMask,
                     vignetteLayer,
-                    bottomGradientLayer
+                    bottomGradientLayer,
+                    // Keep the animated fields above the static masks. They
+                    // remain inside the background pane, so content and input
+                    // are unaffected, but their broad color transitions are
+                    // no longer muted by the vignette or bottom fade.
+                    animatedBlobLayer.root()
             );
             backgroundLayer.widthProperty().addListener(widthListener);
             backgroundLayer.heightProperty().addListener(heightListener);
+            backgroundLayer.sceneProperty().addListener(sceneListener);
+            handleSceneChanged(null, backgroundLayer.getScene());
         }
     }
 
@@ -72,11 +101,28 @@ public final class PlayerFullScreenBackgroundStyler {
             return;
         }
 
-        applyDynamicPalette(cover);
+        applyArtwork(cover);
+        applyDynamicPalette(CoverColorExtractor.extractFullscreenColors(cover, 3));
+    }
+
+    /** Applies only the artwork layer; safe to call before async palette work. */
+    public void applyArtwork(Image cover) {
+        if (backgroundLayer == null || cover == null || cover.isError()) {
+            clear();
+            return;
+        }
+
+        resetPalette();
         ambientArtwork.setImage(cover);
         ambientArtwork.setOpacity(BACKGROUND_OPACITY);
         setLayersVisible(true);
         updateViewport();
+    }
+
+    /** Applies a palette that was calculated away from the JavaFX thread. */
+    public void applyPalette(List<CoverColorPalette> colors) {
+        if (backgroundLayer == null) return;
+        applyDynamicPalette(colors == null ? List.of() : colors);
     }
 
     public void clear() {
@@ -91,8 +137,16 @@ public final class PlayerFullScreenBackgroundStyler {
         if (backgroundLayer != null) {
             backgroundLayer.widthProperty().removeListener(widthListener);
             backgroundLayer.heightProperty().removeListener(heightListener);
+            backgroundLayer.sceneProperty().removeListener(sceneListener);
+            Scene scene = backgroundLayer.getScene();
+            if (scene != null) {
+                scene.windowProperty().removeListener(windowListener);
+            }
+            detachWindowListeners(observedWindow);
             backgroundLayer.getChildren().clear();
         }
+        animatedBlobLayer.dispose();
+        backgroundMotion.dispose();
     }
 
     private ImageView createAmbientArtwork() {
@@ -129,33 +183,36 @@ public final class PlayerFullScreenBackgroundStyler {
         return layer;
     }
 
-    private void applyDynamicPalette(Image cover) {
-        List<CoverColorPalette> colors = CoverColorExtractor.extractFullscreenColors(cover, 2);
+    private void applyDynamicPalette(List<CoverColorPalette> colors) {
         CoverColorPalette primary = colors.isEmpty()
                 ? new CoverColorPalette(17, 17, 17)
                 : colors.get(0);
         CoverColorPalette secondary = colors.size() > 1
                 ? colors.get(1)
                 : primary;
+        CoverColorPalette accent = colors.size() > 2
+                ? colors.get(2)
+                : secondary;
 
         baseColorLayer.setStyle(
                 "-fx-background-color: " + primary.fullscreenDeepHex() + ";"
         );
+        animatedBlobLayer.applyPalette(primary, secondary, accent);
 
         // The two glows use different centers so the color fields overlap
         // organically instead of splitting the screen into two halves.
         primaryGlowLayer.setStyle(
                 "-fx-background-color: "
                         + "radial-gradient(center 20% 22%, radius 88%, "
-                        + primary.fullscreenRgba(0.62) + " 0%, "
-                        + primary.fullscreenRgba(0.24) + " 46%, "
+                        + primary.fullscreenRgba(0.38) + " 0%, "
+                        + primary.fullscreenRgba(0.12) + " 46%, "
                         + "transparent 100%);"
         );
         secondaryGlowLayer.setStyle(
                 "-fx-background-color: "
                         + "radial-gradient(center 82% 34%, radius 92%, "
-                        + secondary.fullscreenRgba(0.48) + " 0%, "
-                        + secondary.fullscreenRgba(0.18) + " 48%, "
+                        + secondary.fullscreenRgba(0.30) + " 0%, "
+                        + secondary.fullscreenRgba(0.10) + " 48%, "
                         + "transparent 100%);"
         );
 
@@ -179,6 +236,7 @@ public final class PlayerFullScreenBackgroundStyler {
 
     private void resetPalette() {
         baseColorLayer.setStyle("-fx-background-color: #111111;");
+        animatedBlobLayer.clearPalette();
         primaryGlowLayer.setStyle("-fx-background-color: transparent;");
         secondaryGlowLayer.setStyle("-fx-background-color: transparent;");
         exposureMask.setStyle("-fx-background-color: rgba(0, 0, 0, 0.18);");
@@ -187,13 +245,83 @@ public final class PlayerFullScreenBackgroundStyler {
     }
 
     private void setLayersVisible(boolean visible) {
+        layersVisible = visible;
         baseColorLayer.setVisible(visible);
         ambientArtwork.setVisible(visible);
+        animatedBlobLayer.setVisible(visible);
         primaryGlowLayer.setVisible(visible);
         secondaryGlowLayer.setVisible(visible);
         exposureMask.setVisible(visible);
         vignetteLayer.setVisible(visible);
         bottomGradientLayer.setVisible(visible);
+        if (visible) {
+            refreshMotionVisibility();
+        } else {
+            backgroundMotion.stop();
+            animatedBlobLayer.stop();
+        }
+    }
+
+    private void handleSceneChanged(Scene oldScene, Scene newScene) {
+        if (oldScene != null) {
+            oldScene.windowProperty().removeListener(windowListener);
+            detachWindowListeners(oldScene.getWindow());
+        }
+        if (newScene != null) {
+            newScene.windowProperty().addListener(windowListener);
+            attachWindowListeners(newScene.getWindow());
+        }
+        refreshMotionVisibility();
+    }
+
+    private void attachWindowListeners(Window window) {
+        if (window == null || window == observedWindow) {
+            return;
+        }
+        observedWindow = window;
+        window.showingProperty().addListener(windowShowingListener);
+        if (window instanceof Stage stage) {
+            stage.iconifiedProperty().addListener(windowIconifiedListener);
+        }
+    }
+
+    private void detachWindowListeners(Window window) {
+        if (window == null) {
+            return;
+        }
+        window.showingProperty().removeListener(windowShowingListener);
+        if (window instanceof Stage stage) {
+            stage.iconifiedProperty().removeListener(windowIconifiedListener);
+        }
+        if (window == observedWindow) {
+            observedWindow = null;
+        }
+    }
+
+    private void refreshMotionVisibility() {
+        if (!layersVisible) {
+            backgroundMotion.stop();
+            animatedBlobLayer.stop();
+            return;
+        }
+        if (isRenderTargetVisible()) {
+            backgroundMotion.play();
+            animatedBlobLayer.play();
+        } else {
+            backgroundMotion.pause();
+            animatedBlobLayer.pause();
+        }
+    }
+
+    private boolean isRenderTargetVisible() {
+        if (backgroundLayer == null || backgroundLayer.getScene() == null) {
+            return false;
+        }
+        Window window = backgroundLayer.getScene().getWindow();
+        if (window == null || !window.isShowing()) {
+            return false;
+        }
+        return !(window instanceof Stage stage) || !stage.isIconified();
     }
 
     private void updateViewport() {
@@ -237,8 +365,12 @@ public final class PlayerFullScreenBackgroundStyler {
     private void resizeLayers(double width, double height) {
         if (width <= 0 || height <= 0) return;
         resize(baseColorLayer, width, height);
-        resize(primaryGlowLayer, width, height);
-        resize(secondaryGlowLayer, width, height);
+        animatedBlobLayer.resize(width, height);
+        if (layersVisible && isRenderTargetVisible()) {
+            animatedBlobLayer.play();
+        }
+        resizeOversized(primaryGlowLayer, width, height, GLOW_LAYER_SCALE);
+        resizeOversized(secondaryGlowLayer, width, height, GLOW_LAYER_SCALE);
         resize(exposureMask, width, height);
         resize(vignetteLayer, width, height);
         resize(bottomGradientLayer, width, height);
@@ -246,5 +378,21 @@ public final class PlayerFullScreenBackgroundStyler {
 
     private void resize(Region layer, double width, double height) {
         layer.resizeRelocate(0.0, 0.0, width, height);
+    }
+
+    private void resizeOversized(
+            Region layer,
+            double width,
+            double height,
+            double scale
+    ) {
+        double oversizedWidth = width * scale;
+        double oversizedHeight = height * scale;
+        layer.resizeRelocate(
+                (width - oversizedWidth) / 2.0,
+                (height - oversizedHeight) / 2.0,
+                oversizedWidth,
+                oversizedHeight
+        );
     }
 }

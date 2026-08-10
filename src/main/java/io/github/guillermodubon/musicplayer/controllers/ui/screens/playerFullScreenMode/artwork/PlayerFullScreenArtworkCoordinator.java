@@ -5,12 +5,12 @@ import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
 import javafx.scene.image.Image;
 import javafx.scene.Node;
-import io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.playerMenuBar.helpers.PlayerArtistLinksRenderer;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.playerFullScreenMode.background.PlayerFullScreenBackgroundStyler;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.playerFullScreenMode.view.PlayerFullScreenView;
 import io.github.guillermodubon.musicplayer.models.Artist;
 import io.github.guillermodubon.musicplayer.models.Song;
 import io.github.guillermodubon.musicplayer.services.images.MediaImageResolver;
+import io.github.guillermodubon.musicplayer.services.images.colors.CoverColorExtractor;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 
 import java.util.concurrent.CompletableFuture;
@@ -28,6 +28,11 @@ public final class PlayerFullScreenArtworkCoordinator {
         thread.setDaemon(true);
         return thread;
     });
+    private static final ExecutorService PALETTE_IO = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "fullscreen-palette-io");
+        thread.setDaemon(true);
+        return thread;
+    });
 
     private final PlayerFullScreenView view;
     private final BooleanSupplier active;
@@ -39,7 +44,7 @@ public final class PlayerFullScreenArtworkCoordinator {
     private Image observedCoverImage;
     private ChangeListener<Number> coverProgressListener;
     private ChangeListener<Boolean> coverErrorListener;
-    private long updateToken;
+    private volatile long updateToken;
 
     public PlayerFullScreenArtworkCoordinator(
             PlayerFullScreenView view,
@@ -67,14 +72,12 @@ public final class PlayerFullScreenArtworkCoordinator {
 
         setOverlayVisible(true);
         view.songTitleLabel().setText(normalizeTitle(song));
-        PlayerArtistLinksRenderer.render(
+        PlayerFullScreenArtistLinksRenderer.render(
                 view.artistsContainer(),
                 song,
-                artistNavigation,
-                "player-fullscreen-artist-link",
-                "player-fullscreen-artist-separator",
-                "player-fullscreen-artist-empty"
+                artistNavigation
         );
+        bringArtistLinksToFront();
         view.metadataMarquee().refresh();
 
         Image cachedCover = MediaImageResolver.cachedSongAlbumCover(
@@ -115,18 +118,34 @@ public final class PlayerFullScreenArtworkCoordinator {
         boolean compact = !narrow && (width < 900.0 || height < 820.0);
         double controlsReserve = narrow ? 156.0 : compact ? 174.0 : 190.0;
         double copyReserve = narrow ? 58.0 : 68.0;
-        double availableHeight = Math.max(170.0, height - controlsReserve - copyReserve);
+        double compositionWidth = view.nowPlayingOverlay().getWidth();
+        if (compositionWidth <= 1.0) {
+            compositionWidth = view.nowPlayingOverlay().prefWidth(-1.0);
+        }
+        boolean splitComposition = compositionWidth > 1.0 && compositionWidth < width * 0.75;
+        double layoutReserve = splitComposition ? 24.0 : 0.0;
+        double availableHeight = Math.max(
+                170.0,
+                height - controlsReserve - copyReserve - layoutReserve
+        );
+        double horizontalLimit = compositionWidth > 1.0
+                ? Math.max(80.0, compositionWidth - (narrow ? 28.0 : 48.0))
+                : width;
         // A larger cover remains the visual anchor of the mode. The playback
         // bar reads this exact width, so its time rail grows with the artwork.
         double size = Math.min(
                 width * (narrow ? 0.72 : 0.44),
-                availableHeight * (narrow ? 0.78 : 0.88)
+                Math.min(
+                        availableHeight * (narrow ? 0.78 : 0.88),
+                        horizontalLimit
+                )
         );
-        size = Math.max(narrow ? 165.0 : 200.0, Math.min(narrow ? 440.0 : 720.0, size));
+        double minimumSize = Math.min(narrow ? 165.0 : 200.0, horizontalLimit);
+        size = Math.max(minimumSize, Math.min(narrow ? 440.0 : 720.0, size));
 
         double topPadding = narrow ? 10.0 : 16.0;
-        double bottomPadding = controlsReserve + (narrow ? 8.0 : 12.0);
-        view.nowPlayingOverlay().setSpacing(narrow ? 10.0 : 12.0);
+        double bottomPadding = controlsReserve + layoutReserve + (narrow ? 8.0 : 12.0);
+        view.nowPlayingOverlay().setSpacing(narrow ? 12.0 : 14.0);
         view.nowPlayingOverlay().setPadding(new Insets(
                 topPadding,
                 narrow ? 16.0 : 24.0,
@@ -142,6 +161,11 @@ public final class PlayerFullScreenArtworkCoordinator {
         view.songCoverImageView().setPreserveRatio(true);
         view.songCoverImageView().setSmooth(true);
         view.songCoverImageView().setCache(false);
+
+        // Resizing and the lyrics column are both allowed to participate in
+        // layout. Reassert the interactive metadata layer after geometry is
+        // recalculated so the links cannot end up behind a later-added pane.
+        bringArtistLinksToFront();
     }
 
     public void dispose() {
@@ -174,7 +198,7 @@ public final class PlayerFullScreenArtworkCoordinator {
                 : MediaImageResolver.defaultCover(700, 700);
         view.songCoverImageView().setImage(safeImage);
         applyBackgroundWhenReady(safeImage, token);
-        Platform.runLater(updateViewport);
+        requestViewportUpdate();
     }
 
     private void applyBackgroundWhenReady(Image image, long token) {
@@ -200,7 +224,10 @@ public final class PlayerFullScreenArtworkCoordinator {
         };
         coverErrorListener = (obs, wasError, isError) -> {
             if (Boolean.TRUE.equals(isError) && isCurrent(token)) {
-                backgroundStyler.clear();
+                // A cached/remote image can fail after it was assigned to the
+                // ImageView. Keep the presentation complete instead of
+                // leaving the cover and ambient background empty.
+                presentCover(MediaImageResolver.defaultCover(700, 700), token);
             }
         };
         image.progressProperty().addListener(coverProgressListener);
@@ -209,7 +236,15 @@ public final class PlayerFullScreenArtworkCoordinator {
 
     private void applyBackground(Image image, long token) {
         if (!isCurrent(token) || image == null || image.isError()) return;
-        backgroundStyler.apply(image);
+        backgroundStyler.applyArtwork(image);
+        CompletableFuture
+                .supplyAsync(() -> CoverColorExtractor.extractFullscreenColors(image, 3), PALETTE_IO)
+                .thenAccept(colors -> Platform.runLater(() -> {
+                    if (isCurrent(token)) {
+                        backgroundStyler.applyPalette(colors);
+                    }
+                }))
+                .exceptionally(ignored -> null);
     }
 
     private void clearSongPresentation() {
@@ -219,7 +254,42 @@ public final class PlayerFullScreenArtworkCoordinator {
         view.metadataMarquee().refresh();
         view.songCoverImageView().setImage(MediaImageResolver.defaultCover(700, 700));
         backgroundStyler.clear();
-        Platform.runLater(updateViewport);
+        requestViewportUpdate();
+    }
+
+    private void requestViewportUpdate() {
+        if (Platform.isFxApplicationThread()) {
+            updateViewport.run();
+        } else {
+            Platform.runLater(updateViewport);
+        }
+    }
+
+    /**
+     * The lyrics panel is appended after the reusable player composition.
+     * Keep the metadata branch above that panel so hyperlinks retain their
+     * hover and click target while the background remains non-interactive.
+     */
+    private void bringArtistLinksToFront() {
+        if (view.artistsContainer() == null) {
+            return;
+        }
+
+        view.artistsContainer().setMouseTransparent(false);
+        view.artistsContainer().setPickOnBounds(false);
+        view.artistsContainer().toFront();
+        Node artistViewport = view.artistsContainer().getParent();
+        if (artistViewport != null) {
+            artistViewport.setMouseTransparent(false);
+            artistViewport.setPickOnBounds(false);
+            artistViewport.toFront();
+        }
+        if (view.nowPlayingOverlay() != null) {
+            view.nowPlayingOverlay().toFront();
+        }
+        if (view.closeButton() != null) {
+            view.closeButton().toFront();
+        }
     }
 
     private void setOverlayVisible(boolean visible) {
