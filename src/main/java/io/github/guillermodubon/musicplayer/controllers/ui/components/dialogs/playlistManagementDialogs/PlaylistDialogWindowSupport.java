@@ -26,6 +26,10 @@ public final class PlaylistDialogWindowSupport {
         configure(stage, content, owner, 430, 255, 0.70, 0.46, 350, 210, 0.34, 0.28);
     }
 
+    public static void configureDownloadExitDialog(Stage stage, Parent content, Window owner) {
+        configure(stage, content, owner, 500, 330, 0.72, 0.54, 430, 270, 0.42, 0.38);
+    }
+
     public static void installDragHandling(Stage stage, Node dragRoot) {
         if (stage == null || dragRoot == null) return;
 
