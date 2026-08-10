@@ -213,7 +213,7 @@ public final class SongDownloadTaskFactory {
             albumSnapshot.setCoverUrl(sourceAlbum.getCoverUrl());
         }
 
-        return new Song(
+        Song snapshot = new Song(
                 source.getSongID(),
                 source.getTitle(),
                 source.getArtist() == null
@@ -224,6 +224,9 @@ public final class SongDownloadTaskFactory {
                 source.getTrackOrder(),
                 source.isLocal()
         );
+        snapshot.setDurationSeconds(source.getDurationSeconds());
+        snapshot.setLyrics(source.getLyrics());
+        return snapshot;
     }
 
     /**
@@ -687,7 +690,7 @@ public final class SongDownloadTaskFactory {
                         ? ""
                         : song.getTitle();
 
-        return new DeezerApiMetaData(
+        DeezerApiMetaData metadata = new DeezerApiMetaData(
                 album == null
                         ? 0L
                         : album.getAlbumID(),
@@ -740,6 +743,8 @@ public final class SongDownloadTaskFactory {
                         genre.getGenreID()
                 )
         );
+        metadata.setDurationSeconds(song.getDurationSeconds());
+        return metadata;
     }
 
     private static Long inferSourceCollectionId(

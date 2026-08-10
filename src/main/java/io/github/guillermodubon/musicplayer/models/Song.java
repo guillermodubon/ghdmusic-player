@@ -1,5 +1,7 @@
 package io.github.guillermodubon.musicplayer.models;
 
+import io.github.guillermodubon.musicplayer.models.lyrics.SongLyrics;
+
 import java.util.List;
 import java.util.Objects;
 
@@ -12,6 +14,8 @@ public class Song {
     private String filePath;
     private int trackOrder;
     private boolean isLocal;
+    private int durationSeconds;
+    private SongLyrics lyrics = SongLyrics.empty();
 
 
     public Song(long songID, String title, List<Artist> artist, Album album, String filePath, int trackOrder,boolean local) {
@@ -65,6 +69,18 @@ public class Song {
     }
     public void setLocal(boolean local) {
         this.isLocal = local;
+    }
+    public int getDurationSeconds() {
+        return durationSeconds;
+    }
+    public void setDurationSeconds(int durationSeconds) {
+        this.durationSeconds = Math.max(0, durationSeconds);
+    }
+    public SongLyrics getLyrics() {
+        return lyrics;
+    }
+    public void setLyrics(SongLyrics lyrics) {
+        this.lyrics = lyrics == null ? SongLyrics.empty() : lyrics;
     }
 
     @Override

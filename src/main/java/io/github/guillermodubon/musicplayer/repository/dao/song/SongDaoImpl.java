@@ -22,7 +22,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
 
     @Override
     public Optional<Song> findById(Long id) throws SQLException {
-        String sql = "SELECT SongID, Title, Album, TrackOrder, IsLocal FROM Song WHERE SongID = ?";
+        String sql = "SELECT SongID, Title, Album, TrackOrder, IsLocal, DurationSeconds FROM Song WHERE SongID = ?";
         Connection conn = null;
         boolean close = false;
         try {
@@ -42,7 +42,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
 
     @Override
     public void insert(Song entity) throws SQLException {
-        String sql = "INSERT INTO Song(Title, Album, TrackOrder, IsLocal) VALUES (?, ?, ?, ?)";
+        String sql = "INSERT INTO Song(Title, Album, TrackOrder, IsLocal, DurationSeconds) VALUES (?, ?, ?, ?, ?)";
         synchronized (DB_WRITE_LOCK) {
             Connection conn = null;
             boolean close = false;
@@ -59,6 +59,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                     ps.setLong(2, entity.getAlbum().getAlbumID());
                     ps.setInt(3, entity.getTrackOrder());
                     ps.setInt(4, entity.isLocal() ? 1 : 0);
+                    ps.setInt(5, entity.getDurationSeconds());
                     ps.executeUpdate();
                     try (ResultSet rs = ps.getGeneratedKeys()) {
                         if (rs.next()) entity.setSongID(rs.getLong(1));
@@ -78,7 +79,8 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
 
     @Override
     public void update(Song song) throws SQLException {
-        String sql = "UPDATE Song SET Title = ?, Album = ?, TrackOrder = ?, IsLocal = ? WHERE SongID = ?";
+        String sql = "UPDATE Song SET Title = ?, Album = ?, TrackOrder = ?, IsLocal = ?, "
+                + "DurationSeconds = CASE WHEN ? > 0 THEN ? ELSE DurationSeconds END WHERE SongID = ?";
         synchronized (DB_WRITE_LOCK) {
             Connection conn = null;
             boolean close = false;
@@ -90,7 +92,9 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                     ps.setLong(2, song.getAlbum().getAlbumID());
                     ps.setInt(3, song.getTrackOrder());
                     ps.setInt(4, song.isLocal() ? 1 : 0);
-                    ps.setLong(5, song.getSongID());
+                    ps.setInt(5, song.getDurationSeconds());
+                    ps.setInt(6, song.getDurationSeconds());
+                    ps.setLong(7, song.getSongID());
                     ps.executeUpdate();
                 }
             } finally {
@@ -101,7 +105,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
 
     @Override
     public List<Song> findAll() throws SQLException {
-        String sql = "SELECT SongID, Title, Album, TrackOrder, IsLocal FROM Song";
+        String sql = "SELECT SongID, Title, Album, TrackOrder, IsLocal, DurationSeconds FROM Song";
         Connection conn = null;
         boolean close = false;
         try {
@@ -120,7 +124,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
 
     @Override
     public Long insertAndGetId(Song song) throws SQLException {
-        String sql = "INSERT INTO Song(Title, Album, TrackOrder, IsLocal) VALUES(?, ?, ?, ?)";
+        String sql = "INSERT INTO Song(Title, Album, TrackOrder, IsLocal, DurationSeconds) VALUES(?, ?, ?, ?, ?)";
         synchronized (DB_WRITE_LOCK) {
             Connection conn = null;
             boolean close = false;
@@ -134,6 +138,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                     ps.setLong(2, song.getAlbum().getAlbumID());
                     ps.setInt(3, song.getTrackOrder());
                     ps.setInt(4, song.isLocal() ? 1 : 0);
+                    ps.setInt(5, song.getDurationSeconds());
                     ps.executeUpdate();
                     try (ResultSet rs = ps.getGeneratedKeys()) {
                         if (rs.next()) return rs.getLong(1);
@@ -256,7 +261,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
 
     @Override
     public List<Song> findByAlbum(long albumId) throws SQLException {
-        String sql = "SELECT SongID, Title, Album, TrackOrder, IsLocal FROM Song WHERE Album = ?";
+        String sql = "SELECT SongID, Title, Album, TrackOrder, IsLocal, DurationSeconds FROM Song WHERE Album = ?";
         Connection conn = null;
         boolean close = false;
         try {
@@ -354,8 +359,9 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
     @Override
     public void insertSongsAndArtists(List<DeezerApiMetaData> metas, AlbumDao albumDao, ArtistDao artistDao) throws SQLException {
         if (metas == null || metas.isEmpty()) return;
-        String insertSongSql = "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal) VALUES (?, ?, ?, ?, ?)";
-        String updateSongSql = "UPDATE Song SET Title = ?, Album = ?, TrackOrder = ?, IsLocal = 1 WHERE SongID = ?";
+        String insertSongSql = "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal, DurationSeconds) VALUES (?, ?, ?, ?, ?, ?)";
+        String updateSongSql = "UPDATE Song SET Title = ?, Album = ?, TrackOrder = ?, IsLocal = 1, "
+                + "DurationSeconds = CASE WHEN ? > 0 THEN ? ELSE DurationSeconds END WHERE SongID = ?";
         String linkSql = "INSERT OR IGNORE INTO SongArtist(SongID, ArtistID) VALUES(?, ?)";
         synchronized (DB_WRITE_LOCK) {
             Connection conn = null;
@@ -371,10 +377,13 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                      PreparedStatement psUpdateSong = prepareStatementWithRetry(conn, updateSongSql, MAX_RETRY_ATTEMPTS);
                      PreparedStatement psLink = prepareStatementWithRetry(conn, linkSql, MAX_RETRY_ATTEMPTS)) {
 
+                    Map<String, Long> albumIdsByName = new HashMap<>();
+                    Map<String, Long> artistIdsByName = new HashMap<>();
+
                     for (var meta : metas) {
                         long deezerId = meta.getTrackId();
                         String title = meta.getSongName();
-                        Long albumId = albumDao.findIdByName(meta.getAlbumName());
+                        Long albumId = resolveAlbumId(albumDao, albumIdsByName, meta.getAlbumName());
                         int trackOrder = meta.getTrackOrder();
                         List<String> contributors = meta.getSongContributorNames();
 
@@ -389,7 +398,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                             updateAlbumAndOrderIfNeeded(existingId, albumId, trackOrder);
                             if (contributors != null) {
                                 for (var artName : contributors) {
-                                    Long artId = artistDao.findIdByName(artName);
+                                    Long artId = resolveArtistId(artistDao, artistIdsByName, artName);
                                     if (artId != null) {
                                         psLink.setLong(1, existingId);
                                         psLink.setLong(2, artId.longValue());
@@ -405,17 +414,20 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                         psSong.setLong(3, albumId);
                         psSong.setInt(4, trackOrder);
                         psSong.setInt(5, 1); // treat inserted as local
+                        psSong.setInt(6, meta.getDurationSeconds());
                         psSong.executeUpdate();
 
                         psUpdateSong.setString(1, title);
                         psUpdateSong.setLong(2, albumId);
                         psUpdateSong.setInt(3, trackOrder);
-                        psUpdateSong.setLong(4, deezerId);
+                        psUpdateSong.setInt(4, meta.getDurationSeconds());
+                        psUpdateSong.setInt(5, meta.getDurationSeconds());
+                        psUpdateSong.setLong(6, deezerId);
                         psUpdateSong.executeUpdate();
 
                         if (contributors != null) {
                             for (var artName : contributors) {
-                                Long artId = artistDao.findIdByName(artName);
+                                Long artId = resolveArtistId(artistDao, artistIdsByName, artName);
                                 if (artId != null) {
                                     psLink.setLong(1, deezerId);
                                     psLink.setLong(2, artId);
@@ -436,6 +448,32 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                 if (close) try { conn.close(); } catch (SQLException ignore) {}
             }
         }
+    }
+
+    private static Long resolveAlbumId(
+            AlbumDao albumDao,
+            Map<String, Long> albumIdsByName,
+            String albumName
+    ) throws SQLException {
+        if (albumDao == null || albumName == null || albumName.isBlank()) return null;
+        if (albumIdsByName.containsKey(albumName)) return albumIdsByName.get(albumName);
+
+        Long albumId = albumDao.findIdByName(albumName);
+        albumIdsByName.put(albumName, albumId);
+        return albumId;
+    }
+
+    private static Long resolveArtistId(
+            ArtistDao artistDao,
+            Map<String, Long> artistIdsByName,
+            String artistName
+    ) throws SQLException {
+        if (artistDao == null || artistName == null || artistName.isBlank()) return null;
+        if (artistIdsByName.containsKey(artistName)) return artistIdsByName.get(artistName);
+
+        Long artistId = artistDao.findIdByName(artistName);
+        artistIdsByName.put(artistName, artistId);
+        return artistId;
     }
 
     @Override
@@ -575,7 +613,9 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
         String title = rs.getString("Title");
         boolean isLocal = rs.getInt("IsLocal") == 1;
         Album alb = new Album(albumId, null, new ArrayList<>(), null, null, null, new ArrayList<>(), new ArrayList<>(), 0);
-        return new Song(id, title, new ArrayList<>(), alb, null, trackOrder, isLocal);
+        Song song = new Song(id, title, new ArrayList<>(), alb, null, trackOrder, isLocal);
+        song.setDurationSeconds(rs.getInt("DurationSeconds"));
+        return song;
     }
 
     @Override
@@ -601,14 +641,15 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
 
     @Override
     public void insertWithId(Song song) throws SQLException {
-        String insertSql = "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal, FilePath) VALUES(?, ?, ?, ?, ?, ?)";
+        String insertSql = "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal, FilePath, DurationSeconds) VALUES(?, ?, ?, ?, ?, ?, ?)";
         String updateSql = """
                 UPDATE Song
                    SET Title = ?,
                        Album = ?,
                        TrackOrder = ?,
                        IsLocal = CASE WHEN ? = 1 THEN 1 ELSE IsLocal END,
-                       FilePath = CASE WHEN ? IS NOT NULL THEN ? ELSE FilePath END
+                       FilePath = CASE WHEN ? IS NOT NULL THEN ? ELSE FilePath END,
+                       DurationSeconds = CASE WHEN ? > 0 THEN ? ELSE DurationSeconds END
                  WHERE SongID = ?
                 """;
         synchronized (DB_WRITE_LOCK) {
@@ -626,6 +667,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                     ps.setInt(5, song.isLocal() ? 1 : 0);
                     if (song.getFilePath() != null && !song.getFilePath().isBlank()) ps.setString(6, song.getFilePath());
                     else ps.setNull(6, Types.VARCHAR);
+                    ps.setInt(7, song.getDurationSeconds());
                     ps.executeUpdate();
 
                     upd.setString(1, song.getTitle());
@@ -639,7 +681,9 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                         upd.setNull(5, Types.VARCHAR);
                         upd.setNull(6, Types.VARCHAR);
                     }
-                    upd.setLong(7, song.getSongID());
+                    upd.setInt(7, song.getDurationSeconds());
+                    upd.setInt(8, song.getDurationSeconds());
+                    upd.setLong(9, song.getSongID());
                     upd.executeUpdate();
                 }
             } finally {
@@ -652,14 +696,15 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
     public void insertOrUpdateAllWithIds(Collection<Song> songs) throws SQLException {
         if (songs == null || songs.isEmpty()) return;
 
-        String insertSql = "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal, FilePath) VALUES(?, ?, ?, ?, ?, ?)";
+        String insertSql = "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal, FilePath, DurationSeconds) VALUES(?, ?, ?, ?, ?, ?, ?)";
         String updateSql = """
                 UPDATE Song
                    SET Title = ?,
                        Album = ?,
                        TrackOrder = ?,
                        IsLocal = CASE WHEN ? = 1 THEN 1 ELSE IsLocal END,
-                       FilePath = CASE WHEN ? IS NOT NULL THEN ? ELSE FilePath END
+                       FilePath = CASE WHEN ? IS NOT NULL THEN ? ELSE FilePath END,
+                       DurationSeconds = CASE WHEN ? > 0 THEN ? ELSE DurationSeconds END
                  WHERE SongID = ?
                 """;
         final int batchSize = 200;
@@ -707,6 +752,7 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
         insert.setInt(5, song.isLocal() ? 1 : 0);
         if (hasFilePath) insert.setString(6, filePath);
         else insert.setNull(6, Types.VARCHAR);
+        insert.setInt(7, song.getDurationSeconds());
         insert.addBatch();
 
         update.setString(1, song.getTitle());
@@ -720,7 +766,9 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
             update.setNull(5, Types.VARCHAR);
             update.setNull(6, Types.VARCHAR);
         }
-        update.setLong(7, song.getSongID());
+        update.setInt(7, song.getDurationSeconds());
+        update.setInt(8, song.getDurationSeconds());
+        update.setLong(9, song.getSongID());
         update.addBatch();
     }
 
