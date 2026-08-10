@@ -14,7 +14,12 @@ public class PlaybackMediaResolver {
 
         String fp = song.getFilePath();
         if (fp != null && !fp.isBlank()) {
-            return isReadableMediaFile(fp) ? Optional.of(fp) : Optional.empty();
+            if (isReadableMediaFile(fp)) {
+                return Optional.of(fp);
+            }
+            // The file can have been moved while the app is open. Continue to
+            // the strict recovery path instead of treating the old location as
+            // a definitive deletion.
         }
 
         try {
@@ -23,6 +28,14 @@ public class PlaybackMediaResolver {
                 Optional<String> candidate = svc.resolvePathForSong(song);
                 if (candidate.isPresent() && isReadableMediaFile(candidate.get())) {
                     String path = candidate.get();
+                    song.setFilePath(path);
+                    return Optional.of(path);
+                }
+
+                Optional<String> recovered = svc.recoverMovedAudioPath(song);
+                if (recovered.isPresent() && isReadableMediaFile(recovered.get())) {
+                    String path = recovered.get();
+                    song.setLocal(true);
                     song.setFilePath(path);
                     return Optional.of(path);
                 }
