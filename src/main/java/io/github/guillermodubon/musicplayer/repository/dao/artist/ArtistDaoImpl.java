@@ -8,8 +8,11 @@ import io.github.guillermodubon.musicplayer.utils.ArtistIdentity;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 public class ArtistDaoImpl extends JdbcDaoSupport implements ArtistDao {
 
@@ -277,6 +280,7 @@ public class ArtistDaoImpl extends JdbcDaoSupport implements ArtistDao {
             synchronized (DB_WRITE_LOCK) {
                 configureConnection(sharedConnection());
                 try (PreparedStatement ps = prepareStatementWithRetry(sharedConnection(), sql, 6)) {
+                    Set<String> processedArtists = new HashSet<>();
                     for (DeezerApiMetaData m : metas) {
                         List<Long> albumIds = m.getAlbumArtistIds();
                         List<String> albumNames = m.getAlbumArtistNames();
@@ -285,6 +289,7 @@ public class ArtistDaoImpl extends JdbcDaoSupport implements ArtistDao {
                             long apiId = albumIds.get(i);
                             String name = albumNames.get(i);
                             if (ArtistIdentity.isVariousArtists(name)) continue;
+                            if (!markArtistAsNew(processedArtists, apiId, name)) continue;
                             try {
                                 ps.setLong(1, apiId);
                                 ps.setString(2, name);
@@ -308,6 +313,7 @@ public class ArtistDaoImpl extends JdbcDaoSupport implements ArtistDao {
                             long apiId = contribIds.get(i);
                             String name = contribNames.get(i);
                             if (ArtistIdentity.isVariousArtists(name)) continue;
+                            if (!markArtistAsNew(processedArtists, apiId, name)) continue;
                             try {
                                 ps.setLong(1, apiId);
                                 ps.setString(2, name);
@@ -333,6 +339,7 @@ public class ArtistDaoImpl extends JdbcDaoSupport implements ArtistDao {
                     configureConnection(conn);
                     conn.setAutoCommit(false);
                     try (PreparedStatement ps = prepareStatementWithRetry(conn, sql, 6)) {
+                        Set<String> processedArtists = new HashSet<>();
                         for (DeezerApiMetaData m : metas) {
                             List<Long> albumIds = m.getAlbumArtistIds();
                             List<String> albumNames = m.getAlbumArtistNames();
@@ -341,6 +348,7 @@ public class ArtistDaoImpl extends JdbcDaoSupport implements ArtistDao {
                                 long apiId = albumIds.get(i);
                                 String name = albumNames.get(i);
                                 if (ArtistIdentity.isVariousArtists(name)) continue;
+                                if (!markArtistAsNew(processedArtists, apiId, name)) continue;
                                 try {
                                     ps.setLong(1, apiId);
                                     ps.setString(2, name);
@@ -364,6 +372,7 @@ public class ArtistDaoImpl extends JdbcDaoSupport implements ArtistDao {
                                 long apiId = contribIds.get(i);
                                 String name = contribNames.get(i);
                                 if (ArtistIdentity.isVariousArtists(name)) continue;
+                                if (!markArtistAsNew(processedArtists, apiId, name)) continue;
                                 try {
                                     ps.setLong(1, apiId);
                                     ps.setString(2, name);
@@ -396,6 +405,16 @@ public class ArtistDaoImpl extends JdbcDaoSupport implements ArtistDao {
                 }
             }
         }
+    }
+
+    private static boolean markArtistAsNew(Set<String> processedArtists, long artistId, String name) {
+        if (processedArtists == null || name == null || name.isBlank()) {
+            return false;
+        }
+
+        String normalizedName = name.trim().toLowerCase(Locale.ROOT);
+        String key = artistId > 0 ? artistId + "|" + normalizedName : normalizedName;
+        return processedArtists.add(key);
     }
 
     private static long resolvePersistedArtistId(Connection conn, String name) throws SQLException {
