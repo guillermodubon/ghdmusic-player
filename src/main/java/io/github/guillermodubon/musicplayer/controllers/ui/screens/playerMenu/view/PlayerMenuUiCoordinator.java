@@ -57,7 +57,6 @@ public final class PlayerMenuUiCoordinator {
 
         actionCoordinator.updateActionState();
         if (songListService != null) songListService.refreshListState();
-        actionCoordinator.updateTooltips();
         if (refreshPlaylistHeaderActions != null) refreshPlaylistHeaderActions.run();
     }
 
