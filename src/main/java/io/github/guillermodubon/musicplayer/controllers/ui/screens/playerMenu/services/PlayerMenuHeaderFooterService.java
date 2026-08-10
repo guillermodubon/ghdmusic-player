@@ -76,6 +76,11 @@ public class PlayerMenuHeaderFooterService {
         headerService.refreshHeader();
     }
 
+    public void detach() {
+        headerService.detach();
+        moreByArtistsFooterService.detach();
+    }
+
     public void prepareFooterForDeferredLoad() {
         moreByArtistsFooterService.prepareForDeferredLoad();
     }

@@ -61,6 +61,7 @@ public class PlayerMenuHeaderService {
     private Region playerMenuHeaderFade;
     private Region actionsAndSearch;
     private Region firstSongsSurface;
+    private final PlayerMenuHeaderAmbientStyler ambientStyler = new PlayerMenuHeaderAmbientStyler();
     private Label recordTypeLabel;
     private Label headerTitle;
     private HBox creatorContainer;
@@ -75,10 +76,15 @@ public class PlayerMenuHeaderService {
     private String ownerSnapshotScopeKey;
     private final Map<String, List<Artist>> ownerSnapshotsByRelease = new LinkedHashMap<>();
     private Image observedHeaderImage;
+    private Image requestedHeaderImage;
     private Image paletteSourceImage;
     private CoverColorPalette resolvedPalette;
     private boolean paletteResolutionPending;
     private long paletteGeneration;
+    private long headerViewRevision = Long.MIN_VALUE;
+    private long headerPlaylistId = Long.MIN_VALUE;
+    private long headerCoverRequestGeneration;
+    private boolean headerCoverLoadPending;
     private volatile List<Album> cachedAlbumListRef;
     private volatile int cachedAlbumListSize = -1;
     private volatile Map<Long, List<Artist>> cachedAlbumOwners = Map.of();
@@ -108,11 +114,30 @@ public class PlayerMenuHeaderService {
         this.playerMenuHeaderFade = playerMenuHeaderFade;
         this.actionsAndSearch = actionsAndSearch;
         this.firstSongsSurface = firstSongsSurface;
+        ambientStyler.bind(playerMenuHeader);
         this.recordTypeLabel = recordTypeLabel;
         this.headerTitle = headerTitle;
         this.creatorContainer = creatorContainer;
         this.playlistDescLabel = playlistDescLabel;
         this.dateLabel = dateLabel;
+    }
+
+    /** Invalidates asynchronous header work when the screen leaves the view. */
+    public void detach() {
+        headerViewRevision = Long.MIN_VALUE;
+        headerPlaylistId = Long.MIN_VALUE;
+        requestedHeaderImage = null;
+        headerCoverLoadPending = false;
+        headerCoverRequestGeneration++;
+        ownerSnapshotRevision = Long.MIN_VALUE;
+        ownerSnapshotScopeKey = null;
+        ownerSnapshotsByRelease.clear();
+
+        if (Platform.isFxApplicationThread()) {
+            clearCoverPalette();
+        } else {
+            Platform.runLater(this::clearCoverPalette);
+        }
     }
 
     public void refreshHeader() {
@@ -124,11 +149,27 @@ public class PlayerMenuHeaderService {
         Playlist playlist = context.getCurrentPlaylistModel();
         ContentType type = context.getCurrentContentTypeInView();
         if (playlist == null) {
+            headerViewRevision = Long.MIN_VALUE;
+            headerPlaylistId = Long.MIN_VALUE;
+            requestedHeaderImage = null;
+            headerCoverLoadPending = false;
+            headerCoverRequestGeneration++;
             clearCoverPalette();
             return;
         }
         long viewRevision = context.getViewRevision();
         long playlistId = playlist.getId();
+        boolean viewChanged = headerViewRevision != viewRevision
+                || headerPlaylistId != playlistId;
+
+        if (viewChanged) {
+            headerViewRevision = viewRevision;
+            headerPlaylistId = playlistId;
+            requestedHeaderImage = null;
+            headerCoverLoadPending = false;
+            headerCoverRequestGeneration++;
+            clearCoverPalette();
+        }
 
         try {
             if (recordTypeLabel != null && type != null) {
@@ -145,15 +186,36 @@ public class PlayerMenuHeaderService {
             }
 
             if (headerCover != null) {
-                clearCoverPalette();
                 Image cached = resolveCachedHeaderCover(playlist);
-                setHeaderCoverImage(cached, viewRevision, playlistId);
-                if (cached == null || cached.isError()) {
+                boolean usableCachedCover = cached != null && !cached.isError();
+                if (usableCachedCover) {
+                    if (cached != requestedHeaderImage || headerCover.getImage() == null) {
+                        requestedHeaderImage = cached;
+                        headerCoverLoadPending = false;
+                        setHeaderCoverImage(cached, viewRevision, playlistId);
+                    }
+                } else if (viewChanged
+                        || headerCover.getImage() == null
+                        || headerCover.getImage().isError()) {
+                    // Keep the first paint deterministic while the preferred
+                    // cover is resolved asynchronously.
+                    setHeaderCoverImage(cached, viewRevision, playlistId);
+                }
+
+                if (!usableCachedCover && !headerCoverLoadPending) {
+                    headerCoverLoadPending = true;
+                    long requestGeneration = ++headerCoverRequestGeneration;
                     CompletableFuture
                             .supplyAsync(() -> resolveHeaderCover(playlist), ioPool)
-                            .thenAccept(image -> Platform.runLater(() ->
-                                    setHeaderCoverImage(image, viewRevision, playlistId)
-                            ))
+                            .thenAccept(image -> Platform.runLater(() -> {
+                                if (requestGeneration != headerCoverRequestGeneration
+                                        || !isCurrentHeaderView(viewRevision, playlistId)) {
+                                    return;
+                                }
+                                headerCoverLoadPending = false;
+                                requestedHeaderImage = image;
+                                setHeaderCoverImage(image, viewRevision, playlistId);
+                            }))
                             .exceptionally(ignored -> null);
                 }
             }
@@ -259,6 +321,7 @@ public class PlayerMenuHeaderService {
             return;
         }
 
+        ambientStyler.setImage(image);
         if (headerCover.getImage() != image) {
             headerCover.setImage(image);
         }
@@ -297,6 +360,22 @@ public class PlayerMenuHeaderService {
         long generation = ++paletteGeneration;
 
         if (image.getProgress() >= 1.0) {
+            /*
+             * PlayerMenuNavigator initializes this controller before placing
+             * the view in the scene. Resolve a ready cached cover now so the
+             * first visible frame already contains its selected palette. If
+             * the view is already visible, keep the extraction off the FX
+             * thread and preserve navigation responsiveness.
+             */
+            if (playerMenuHeader == null || playerMenuHeader.getScene() == null) {
+                CoverColorPalette immediate = CoverColorExtractor.extract(image).orElse(null);
+                if (immediate != null && isCurrentHeaderView(viewRevision, playlistId)) {
+                    resolvedPalette = immediate;
+                    paletteResolutionPending = false;
+                    applyCoverPalette(image, viewRevision, playlistId, immediate);
+                    return;
+                }
+            }
             resolveCoverPalette(image, viewRevision, playlistId, generation, 0);
             return;
         }
@@ -350,8 +429,21 @@ public class PlayerMenuHeaderService {
                                 )));
                     } else {
                         paletteResolutionPending = false;
+                        applyAmbientCover(image, viewRevision, playlistId);
                     }
                 }));
+    }
+
+    private void applyAmbientCover(Image image, long viewRevision, long playlistId) {
+        if (!isCurrentHeaderView(viewRevision, playlistId)) return;
+        PlayerMenuHeaderGradientStyler.applyAmbient(
+                playerMenuHeader,
+                playerMenuHeaderFade,
+                actionsAndSearch,
+                firstSongsSurface
+        );
+        ambientStyler.setImage(image);
+        ambientStyler.show();
     }
 
     private void applyCoverPalette(Image image,
@@ -359,6 +451,7 @@ public class PlayerMenuHeaderService {
                                    long playlistId,
                                    CoverColorPalette palette) {
         if (!isCurrentHeaderView(viewRevision, playlistId)) return;
+        ambientStyler.hide();
         PlayerMenuHeaderGradientStyler.apply(
                 playerMenuHeader,
                 playerMenuHeaderFade,
@@ -373,6 +466,7 @@ public class PlayerMenuHeaderService {
         paletteSourceImage = null;
         resolvedPalette = null;
         paletteResolutionPending = false;
+        ambientStyler.clear();
         PlayerMenuHeaderGradientStyler.clear(
                 playerMenuHeader,
                 playerMenuHeaderFade,

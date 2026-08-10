@@ -44,6 +44,20 @@ final class PlayerMenuHeaderGradientStyler {
         setBackground(firstSongsSurface, "#111111");
     }
 
+    /**
+     * Keeps the base layout colors while allowing the ambient cover layer to
+     * provide the visual identity for covers without a readable accent color.
+     */
+    static void applyAmbient(Region header,
+                             Region fade,
+                             Region actionsAndSearch,
+                             Region firstSongsSurface) {
+        setBackground(header, "rgba(17, 17, 17, 0.18)");
+        removeBackground(fade);
+        removeBackground(actionsAndSearch);
+        removeBackground(firstSongsSurface);
+    }
+
     static void clear(Region header,
                       Region fade,
                       Region actionsAndSearch,
