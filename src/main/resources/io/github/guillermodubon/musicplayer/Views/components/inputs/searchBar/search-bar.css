@@ -24,7 +24,7 @@
     -fx-text-fill: #FFFFFF;
     -fx-prompt-text-fill: rgba(255, 255, 255, 0.62);
     -fx-font-size: 15px;
-    -fx-font-smoothing-type: lcd;
+    -fx-font-smoothing-type: gray;
     -fx-background-radius: 14;
     -fx-border-color: transparent;
     -fx-border-width: 0;
@@ -37,7 +37,7 @@
 }
 
 .app-search-text-quality {
-    -fx-font-smoothing-type: lcd;
+    -fx-font-smoothing-type: gray;
 }
 
 .app-search-bar-minimal {
@@ -64,7 +64,7 @@
     -fx-text-fill: #FFFFFF;
     -fx-prompt-text-fill: rgba(255, 255, 255, 0.66);
     -fx-font-size: 15px;
-    -fx-font-smoothing-type: lcd;
+    -fx-font-smoothing-type: gray;
     -fx-background-radius: 0;
     -fx-border-color: transparent;
     -fx-border-width: 0;
