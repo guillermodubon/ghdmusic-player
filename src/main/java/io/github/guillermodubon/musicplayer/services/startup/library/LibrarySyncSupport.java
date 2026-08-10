@@ -29,8 +29,19 @@ final class LibrarySyncSupport {
     }
 static void markSongsRemote(Connection conn, Collection<Long> songIds) throws SQLException {
     if (songIds == null || songIds.isEmpty()) return;
+
+    LinkedHashSet<Long> uniqueIds = new LinkedHashSet<>();
     for (Long songId : songIds) {
-        markSongRemote(conn, songId);
+        if (songId != null && songId > 0) {
+            uniqueIds.add(songId);
+        }
+    }
+    if (uniqueIds.isEmpty()) return;
+
+    try {
+        updateSongLocalityBatch(conn, uniqueIds, true);
+    } catch (SQLException missingFilePath) {
+        updateSongLocalityBatch(conn, uniqueIds, false);
     }
 }
 
@@ -43,6 +54,34 @@ static void markSongRemote(Connection conn, Long songId) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("UPDATE Song SET IsLocal = 0 WHERE SongID = ?")) {
             ps.setLong(1, songId);
             ps.executeUpdate();
+        }
+    }
+}
+
+private static void updateSongLocalityBatch(Connection conn,
+                                            Collection<Long> songIds,
+                                            boolean clearFilePath) throws SQLException {
+    if (conn == null || songIds == null || songIds.isEmpty()) return;
+
+    String sql = clearFilePath
+            ? "UPDATE Song SET IsLocal = 0, FilePath = NULL WHERE SongID = ?"
+            : "UPDATE Song SET IsLocal = 0 WHERE SongID = ?";
+
+    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+        int queued = 0;
+        for (Long songId : songIds) {
+            if (songId == null || songId <= 0) continue;
+
+            ps.setLong(1, songId);
+            ps.addBatch();
+            queued++;
+
+            if (queued % 250 == 0) {
+                ps.executeBatch();
+            }
+        }
+        if (queued % 250 != 0) {
+            ps.executeBatch();
         }
     }
 }
@@ -63,17 +102,14 @@ static void markSongLocal(Connection conn, long songId, String path) throws SQLE
 
 static boolean matchesMeta(DeezerApiMetaData meta, String comparisonName, String originalName) {
     if (meta == null) return false;
-    Set<String> metaKeys = new HashSet<>();
-    metaKeys.add(comparisonKey(meta.getSongFileName()));
-    metaKeys.add(comparisonKey(meta.getSongName()));
-    String fileName = meta.getSongFileName();
-    String songName = meta.getSongName();
-    if (fileName != null && songName != null) {
-        metaKeys.add(comparisonKey(fileName + " " + songName));
-    }
+    // This maps a Deezer result back to the scanned file that requested it.
+    // The returned song title is deliberately not a key: a matching title
+    // alone can belong to an entirely different recording and artist list.
+    String sourceFileName = comparisonKey(meta.getSongFileName());
+    if (sourceFileName.isBlank()) return false;
     String target = comparisonName == null ? "" : comparisonName;
     String original = comparisonKey(originalName);
-    return metaKeys.stream().anyMatch(c -> !c.isBlank() && (c.equals(target) || c.equals(original)));
+    return sourceFileName.equals(target) || sourceFileName.equals(original);
 }
 
 static String resolveManifestKeyAgainstScan(Connection conn,
@@ -135,7 +171,6 @@ static String resolveManifestKeyAgainstScan(Connection conn,
         }
 
         if (title != null && !title.isBlank()) {
-            aliases.add(comparisonKey(title));
             for (String artist : albumArtists) {
                 aliases.add(comparisonKey(artist + " " + title));
             }
@@ -177,16 +212,6 @@ static String resolvePathForMeta(DeezerApiMetaData meta,
         }
     }
     return null;
-}
-
-static String findPathForTitle(String title, Map<String, String> normalizedTitleToPath) {
-    if (title == null || normalizedTitleToPath == null) return null;
-    String path = normalizedTitleToPath.get(title.toLowerCase(Locale.ROOT));
-    if (path != null) return path;
-    path = normalizedTitleToPath.get(SongDataHelper.sanitizeForFileKey(title).toLowerCase(Locale.ROOT));
-    return path != null
-            ? path
-            : normalizedTitleToPath.get(SongDataHelper.fallbackKey(title).toLowerCase(Locale.ROOT));
 }
 
 static String manifestDisplayName(String manifestKey) {
@@ -241,5 +266,3 @@ static void removeDuplicateManifestEntries(Map<String, ManifestEntry> manifest,
 
 
 }
-
-
