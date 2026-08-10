@@ -47,6 +47,66 @@
     -fx-padding: 2 0 4 0;
 }
 
+.download-audio-section {
+    -fx-padding: 2 0 4 0;
+}
+
+.download-audio-preset-combo-box {
+    -fx-min-height: 38;
+    -fx-pref-height: 38;
+    -fx-background-color: rgba(255, 255, 255, 0.045);
+    -fx-background-radius: 10;
+    -fx-border-color: rgba(255, 255, 255, 0.08);
+    -fx-border-radius: 10;
+    -fx-border-width: 1;
+    -fx-padding: 0 10 0 12;
+    -fx-cursor: hand;
+}
+
+.download-audio-preset-combo-box:hover,
+.download-audio-preset-combo-box:focused,
+.download-audio-preset-combo-box:showing {
+    -fx-background-color: rgba(255, 255, 255, 0.075);
+    -fx-border-color: rgba(0, 119, 182, 0.78);
+}
+
+.download-audio-preset-combo-box .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(255, 255, 255, 0.88);
+    -fx-font-size: 12px;
+    -fx-padding: 0;
+}
+
+.download-audio-preset-combo-box .arrow {
+    -fx-background-color: rgba(255, 255, 255, 0.76);
+}
+
+.download-audio-preset-combo-box .arrow-button {
+    -fx-background-color: transparent;
+}
+
+.download-audio-preset-combo-box .list-view,
+.combo-box-popup .list-view {
+    -fx-background-color: #1b1b1b;
+    -fx-border-color: rgba(255, 255, 255, 0.12);
+    -fx-border-width: 1;
+}
+
+.download-audio-preset-combo-box .list-view .list-cell,
+.combo-box-popup .list-view .list-cell {
+    -fx-background-color: #1b1b1b;
+    -fx-text-fill: rgba(255, 255, 255, 0.88);
+    -fx-padding: 9 12 9 12;
+}
+
+.download-audio-preset-combo-box .list-view .list-cell:hover,
+.download-audio-preset-combo-box .list-view .list-cell:filled:selected,
+.combo-box-popup .list-view .list-cell:hover,
+.combo-box-popup .list-view .list-cell:filled:selected {
+    -fx-background-color: rgba(0, 119, 182, 0.34);
+    -fx-text-fill: #FFFFFF;
+}
+
 .download-location-row {
     -fx-background-color: rgba(255, 255, 255, 0.045);
     -fx-background-radius: 10;
