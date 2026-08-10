@@ -2,6 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.control.ListView?>
 <?import javafx.scene.layout.HBox?>
@@ -42,7 +43,7 @@
               styleClass="download-location-section">
             <HBox alignment="CENTER_LEFT"
                   spacing="10">
-                <Label text="Current location"
+                <Label text="Current download path"
                        styleClass="download-sidebar-subtitle"/>
                 <Region HBox.hgrow="ALWAYS"/>
                 <Button fx:id="clearAllButton"
@@ -64,6 +65,15 @@
                         focusTraversable="false"
                         styleClass="download-sidebar-icon-button download-folder-button"/>
             </HBox>
+        </VBox>
+
+        <VBox spacing="8"
+              styleClass="download-audio-section">
+            <Label text="Audio format &amp; quality"
+                   styleClass="download-sidebar-subtitle"/>
+            <ComboBox fx:id="audioPresetComboBox"
+                      focusTraversable="false"
+                      styleClass="download-audio-preset-combo-box"/>
         </VBox>
 
         <ListView fx:id="downloadsListView"
