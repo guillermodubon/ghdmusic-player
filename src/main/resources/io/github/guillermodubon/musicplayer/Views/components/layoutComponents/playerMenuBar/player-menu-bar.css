@@ -22,6 +22,20 @@
     -fx-min-width: 278px;
     -fx-pref-width: 358px;
     -fx-alignment: center-right;
+    -fx-background-color: transparent;
+}
+
+.player-lyrics-button,
+.player-lyrics-button:hover,
+.player-lyrics-button:focused,
+.player-lyrics-button:pressed,
+.player-lyrics-button:armed,
+.player-lyrics-button:disabled {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-effect: null;
 }
 
 .player-now-playing-row {
@@ -124,12 +138,12 @@
 .player-icon-button:pressed,
 .player-icon-button:armed,
 .player-icon-button:selected {
-    -fx-min-width: 34;
-    -fx-min-height: 34;
-    -fx-pref-width: 34;
-    -fx-pref-height: 34;
-    -fx-max-width: 34;
-    -fx-max-height: 34;
+    -fx-min-width: 30;
+    -fx-min-height: 30;
+    -fx-pref-width: 30;
+    -fx-pref-height: 30;
+    -fx-max-width: 30;
+    -fx-max-height: 30;
 
     -fx-padding: 0;
     -fx-background-color: transparent;
@@ -153,12 +167,12 @@
 .player-play-button:pressed,
 .player-play-button:armed,
 .player-play-button:selected {
-    -fx-min-width: 52;
-    -fx-min-height: 52;
-    -fx-pref-width: 52;
-    -fx-pref-height: 52;
-    -fx-max-width: 52;
-    -fx-max-height: 52;
+    -fx-min-width: 48;
+    -fx-min-height: 48;
+    -fx-pref-width: 48;
+    -fx-pref-height: 48;
+    -fx-max-width: 48;
+    -fx-max-height: 48;
 
     -fx-padding: 0;
     -fx-background-color: transparent;
@@ -238,15 +252,21 @@
 .player-volume-box {
     -fx-background-color: transparent;
 
-    -fx-min-width: 106px;
-    -fx-pref-width: 150px;
-    -fx-max-width: 150px;
+    -fx-min-width: 128px;
+    -fx-pref-width: 158px;
+    -fx-max-width: 158px;
 
     -fx-alignment: center-right;
 }
 
 .player-volume-icon-host {
     -fx-background-color: transparent;
+    -fx-min-width: 30px;
+    -fx-pref-width: 30px;
+    -fx-max-width: 30px;
+    -fx-min-height: 30px;
+    -fx-pref-height: 30px;
+    -fx-max-height: 30px;
 }
 
 .player-slider-shell {
@@ -490,18 +510,10 @@
 
 .player-fullscreen-song-title {
     -fx-text-fill: #E6E6E6;
-    -fx-font-size: 22px;
+    -fx-font-size: 25px;
     -fx-font-weight: bold;
     -fx-opacity: 1;
-
-    -fx-effect: dropshadow(
-            gaussian,
-            rgba(0, 0, 0, 0.88),
-            8,
-            0.30,
-            0,
-            2
-    );
+    -fx-font-smoothing-type: gray;
 }
 
 
@@ -509,6 +521,7 @@
     -fx-fill: #E6E6E6;
     -fx-font-weight: bold;
     -fx-opacity: 1;
+    -fx-font-smoothing-type: gray;
 }
 
 
@@ -524,31 +537,34 @@
 .player-fullscreen-artist-empty {
     -fx-fill: #B8B8B8;
     -fx-text-fill: #B8B8B8;
-    -fx-font-size: 14px;
+    -fx-font-size: 16px;
     -fx-font-weight: bold;
     -fx-opacity: 1;
-
-    -fx-effect: dropshadow(
-            gaussian,
-            rgba(0, 0, 0, 0.88),
-            7,
-            0.28,
-            0,
-            2
-    );
+    -fx-font-smoothing-type: gray;
 }
 
 .player-fullscreen-artist-link {
     -fx-padding: 0;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-max-height: 28;
     -fx-border-color: transparent;
     -fx-background-color: transparent;
+    -fx-opacity: 1;
     -fx-underline: false;
+    -fx-cursor: hand;
+}
+
+.player-fullscreen-artist-link:disabled {
+    -fx-opacity: 1;
+    -fx-text-fill: #B8B8B8;
     -fx-cursor: hand;
 }
 
 .player-fullscreen-artist-link .text,
 .player-fullscreen-artist-link:visited .text {
     -fx-fill: #B8B8B8;
+    -fx-font-smoothing-type: gray;
 }
 
 .player-fullscreen-artist-link:hover,
@@ -610,6 +626,21 @@
 .player-fullscreen-actions-button:hover .player-fullscreen-meatball-dot,
 .player-fullscreen-actions-button:focused .player-fullscreen-meatball-dot {
     -fx-background-color: #FFFFFF;
+}
+
+.player-fullscreen-actions-button:hover,
+.player-fullscreen-actions-button:focused,
+.player-fullscreen-actions-button:pressed,
+.player-fullscreen-actions-button:armed {
+    -fx-background-color: rgba(255, 255, 255, 0.22);
+    -fx-effect: dropshadow(
+            gaussian,
+            rgba(255, 255, 255, 0.24),
+            8,
+            0.24,
+            0,
+            0
+    );
 }
 
 
