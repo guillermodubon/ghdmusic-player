@@ -110,14 +110,27 @@ public class ArtistBiographyService {
      * multiple cell hydration callbacks from writing concurrently.
      */
     public CompletableFuture<Void> hydrateMissingBiographiesAsync(Collection<String> candidateNames) {
-        if (candidateNames == null || candidateNames.isEmpty()) {
+        return hydrateMissingBiographiesAsync(candidateNames, null);
+    }
+
+    /**
+     * Defers biography enrichment until the library itself is ready. This keeps
+     * remote Wikipedia work out of the startup transaction while preserving
+     * durable persistence and updating already-hydrated in-memory artists.
+     */
+    public CompletableFuture<Void> hydrateMissingBiographiesAsync(
+            Collection<String> candidateNames,
+            StartUpService owner
+    ) {
+        boolean hydrateAllArtists = candidateNames == null;
+        if (!hydrateAllArtists && candidateNames.isEmpty()) {
             return CompletableFuture.completedFuture(null);
         }
 
         return CompletableFuture.runAsync(() -> {
             try {
                 Set<String> candidateKeys = normalizeNameSet(candidateNames);
-                if (candidateKeys.isEmpty()) return;
+                if (!hydrateAllArtists && candidateKeys.isEmpty()) return;
 
                 /* Read and resolve biographies without keeping any SQLite
                  * connection open during the remote Wikipedia request. */
@@ -127,7 +140,8 @@ public class ArtistBiographyService {
                             .filter(Objects::nonNull)
                             .filter(artist -> !hasText(artist.getBiography()))
                             .filter(artist -> hasText(artist.getName()))
-                            .filter(artist -> candidateKeys.contains(normalizeKey(artist.getName())))
+                            .filter(artist -> hydrateAllArtists
+                                    || candidateKeys.contains(normalizeKey(artist.getName())))
                             .toList();
                 }
 
@@ -146,6 +160,14 @@ public class ArtistBiographyService {
                         if (!hasText(biography) || artist.getArtistID() <= 0) continue;
                         try {
                             artistDao.updateBiography(artist.getArtistID(), biography);
+                            if (owner != null) {
+                                updateMemoryArtistBiography(
+                                        owner.getArtists(),
+                                        artist.getArtistID(),
+                                        artist.getName(),
+                                        biography
+                                );
+                            }
                         } catch (SQLException error) {
                             throw new RuntimeException(error);
                         }
