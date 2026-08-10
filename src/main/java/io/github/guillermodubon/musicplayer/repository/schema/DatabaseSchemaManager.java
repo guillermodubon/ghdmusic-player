@@ -117,7 +117,30 @@ public final class DatabaseSchemaManager {
                         TrackOrder INTEGER NOT NULL DEFAULT 0,
                         IsLocal INTEGER NOT NULL DEFAULT 1,
                         FilePath TEXT NULL,
+                        DurationSeconds INTEGER NOT NULL DEFAULT 0,
                         FOREIGN KEY(Album) REFERENCES Album(AlbumID)
+                    )
+                    """);
+            statement.execute("""
+                    CREATE TABLE IF NOT EXISTS SongLyrics(
+                        LyricsID INTEGER PRIMARY KEY AUTOINCREMENT,
+                        SongID INTEGER NULL,
+                        SourceKey TEXT NOT NULL UNIQUE,
+                        TrackKey TEXT NULL,
+                        TrackKeyVersion INTEGER NOT NULL DEFAULT 2,
+                        LrcLibID INTEGER NULL,
+                        TrackName TEXT NOT NULL,
+                        ArtistName TEXT NOT NULL,
+                        AlbumName TEXT NULL,
+                        DurationSeconds INTEGER NOT NULL DEFAULT 0,
+                        PlainLyrics TEXT NULL,
+                        SyncedLyrics TEXT NULL,
+                        Instrumental INTEGER NOT NULL DEFAULT 0,
+                        Status TEXT NOT NULL,
+                        FetchedAt INTEGER NOT NULL DEFAULT 0,
+                        LastAttemptAt INTEGER NOT NULL DEFAULT 0,
+                        NextRetryAt INTEGER NOT NULL DEFAULT 0,
+                        FOREIGN KEY(SongID) REFERENCES Song(SongID) ON DELETE CASCADE
                     )
                     """);
             statement.execute("""
@@ -150,11 +173,32 @@ public final class DatabaseSchemaManager {
                         PlayedAt INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
                     )
                     """);
+
+            /*
+             * These indexes are additive and support the startup maintenance
+             * paths that resolve an album's local songs and remove metadata
+             * no longer referenced by albums or tracks.
+             */
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_song_album_local ON Song(Album, IsLocal)");
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_album_genre ON Album(GenreID)");
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_song_artist_artist ON SongArtist(ArtistID)");
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_album_artist_artist ON AlbumArtist(ArtistID)");
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_artist_image_artist ON ArtistImage(ArtistID)");
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_album_image_album ON AlbumImage(AlbumID)");
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_song_lyrics_status_retry ON SongLyrics(Status, NextRetryAt)");
+            statement.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_song_lyrics_song ON SongLyrics(SongID) WHERE SongID IS NOT NULL");
         }
     }
 
     private static void ensureMigrations(Connection connection) throws SQLException {
         ensureColumn(connection, "Song", "FilePath", "TEXT NULL");
+        ensureColumn(connection, "Song", "DurationSeconds", "INTEGER NOT NULL DEFAULT 0");
+        ensureColumn(connection, "SongLyrics", "TrackKey", "TEXT NULL");
+        ensureColumn(connection, "SongLyrics", "TrackKeyVersion", "INTEGER NOT NULL DEFAULT 0");
+        backfillLyricsTrackKeys(connection);
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("CREATE INDEX IF NOT EXISTS idx_song_lyrics_track_key ON SongLyrics(TrackKey)");
+        }
         ensureColumn(connection, "PlaybackHistory", "ItemType", "TEXT NOT NULL DEFAULT 'ALBUM'");
         boolean positionAdded = ensureColumn(connection, "SongsPlaylists", "Position", "INTEGER NOT NULL DEFAULT 0");
         if (positionAdded) {
@@ -162,6 +206,36 @@ public final class DatabaseSchemaManager {
         }
         if (ensureColumn(connection, "SongsPlaylists", "CustomPosition", "INTEGER NOT NULL DEFAULT 0")) {
             backfillPlaylistCustomPositions(connection);
+        }
+    }
+
+    private static void backfillLyricsTrackKeys(Connection connection) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.executeUpdate("""
+                    UPDATE SongLyrics
+                       SET TrackKey = lower(trim(COALESCE(TrackName, '')))
+                                   || char(31)
+                                   || COALESCE((
+                                        SELECT group_concat(name, char(30))
+                                          FROM (
+                                                SELECT DISTINCT lower(trim(ar.Name)) AS name
+                                                  FROM Artist ar
+                                                  JOIN SongArtist sa ON sa.ArtistID = ar.ArtistID
+                                                 WHERE sa.SongID = SongLyrics.SongID
+                                                UNION
+                                                SELECT DISTINCT lower(trim(ar2.Name)) AS name
+                                                  FROM Artist ar2
+                                                  JOIN AlbumArtist aa ON aa.ArtistID = ar2.ArtistID
+                                                  JOIN Song s2 ON s2.Album = aa.AlbumID
+                                                 WHERE s2.SongID = SongLyrics.SongID
+                                                ORDER BY name
+                                          )
+                                     ), lower(trim(COALESCE(ArtistName, '')))),
+                           TrackKeyVersion = 2
+                     WHERE COALESCE(TrackKeyVersion, 0) < 2
+                       AND trim(COALESCE(TrackName, '')) <> ''
+                       AND trim(COALESCE(ArtistName, '')) <> ''
+                    """);
         }
     }
 

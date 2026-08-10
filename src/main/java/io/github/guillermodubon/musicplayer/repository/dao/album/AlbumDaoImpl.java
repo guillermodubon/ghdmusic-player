@@ -4,6 +4,7 @@ import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDao;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.support.JdbcDaoOperations;
 import io.github.guillermodubon.musicplayer.repository.dao.genre.GenreDao;
+import io.github.guillermodubon.musicplayer.repository.dao.lyrics.LyricsDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.support.JdbcDaoSupport;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.utils.ArtistIdentity;
@@ -11,7 +12,10 @@ import io.github.guillermodubon.musicplayer.utils.ArtistIdentity;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
@@ -57,7 +61,7 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
                         // songs
                         List<Song> songs = new ArrayList<>();
                         try (PreparedStatement psSongs = prepareStatementWithRetry(sharedConnection(),
-                                "SELECT SongID, Title, TrackOrder, IsLocal, FilePath FROM Song WHERE Album = ? ORDER BY TrackOrder", 6)) {
+                                "SELECT SongID, Title, TrackOrder, IsLocal, FilePath, DurationSeconds FROM Song WHERE Album = ? ORDER BY TrackOrder", 6)) {
                             psSongs.setLong(1, id);
                             try (ResultSet rsS = psSongs.executeQuery()) {
                                 while (rsS.next()) {
@@ -84,12 +88,16 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
                                     } catch (Exception ignore) {}
 
                                     Song s = new Song(sid, title, songArtists, alb, filePath, order, isLocal);
+                                    s.setDurationSeconds(rsS.getInt("DurationSeconds"));
                                     songs.add(s);
                                 }
                             }
                         } catch (Exception ignore) {}
 
-                        if (!songs.isEmpty()) alb.setSongList(songs);
+                        if (!songs.isEmpty()) {
+                            new LyricsDaoImpl(sharedConnection()).hydrateSongs(songs);
+                            alb.setSongList(songs);
+                        }
 
                         // album artists (FIX: use rs2, get columns from rs2)
                         try (PreparedStatement psAA = prepareStatementWithRetry(sharedConnection(),
@@ -126,7 +134,7 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
                             // --- songs ---
                             List<Song> songs = new ArrayList<>();
                             try (PreparedStatement psSongs = prepareStatementWithRetry(conn,
-                                    "SELECT SongID, Title, TrackOrder, IsLocal, FilePath FROM Song WHERE Album = ? ORDER BY TrackOrder", 6)) {
+                                    "SELECT SongID, Title, TrackOrder, IsLocal, FilePath, DurationSeconds FROM Song WHERE Album = ? ORDER BY TrackOrder", 6)) {
                                 psSongs.setLong(1, id);
                                 try (ResultSet rsS = psSongs.executeQuery()) {
                                     while (rsS.next()) {
@@ -152,12 +160,16 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
                                         } catch (Exception ignore) {}
 
                                         Song s = new Song(sid, title, songArtists, alb, filePath, order, isLocal);
+                                        s.setDurationSeconds(rsS.getInt("DurationSeconds"));
                                         songs.add(s);
                                     }
                                 }
                             } catch (Exception ignore) {}
 
-                            if (!songs.isEmpty()) alb.setSongList(songs);
+                            if (!songs.isEmpty()) {
+                                new LyricsDaoImpl(conn).hydrateSongs(songs);
+                                alb.setSongList(songs);
+                            }
 
                             // --- album artists (non-shared) ---
                             try (PreparedStatement psAA = prepareStatementWithRetry(conn,
@@ -645,7 +657,7 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
                           GenreDao genreDao,
                           ArtistDao artistDao) throws SQLException {
         if (conn == null) throw new SQLException("conn requerido en upsertAll(conn, ...)");
-        for (DeezerApiMetaData meta : metas) {
+        for (DeezerApiMetaData meta : uniqueAlbumMetadata(metas)) {
             long deezerAlbumId = meta.getAlbumId();
             String albName     = meta.getAlbumName();
             String genName     = meta.getGenre();
@@ -917,7 +929,7 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
     public void upsertAll(List<DeezerApiMetaData> metas,
                           GenreDao genreDao,
                           ArtistDao artistDao) throws SQLException {
-        for (DeezerApiMetaData meta : metas) {
+        for (DeezerApiMetaData meta : uniqueAlbumMetadata(metas)) {
             long deezerAlbumId = meta.getAlbumId();
             String albName     = meta.getAlbumName();
             String genName     = meta.getGenre();
@@ -965,7 +977,7 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
                     }
                 }
                 persistedAlbumId = deezerAlbumId;
-            }
+    }
 
             List<byte[]> covers = meta.getAlbumCoverBytesList();
             if (covers != null && !covers.isEmpty()) {
@@ -977,5 +989,27 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
                 if (artId != null) linkArtist(persistedAlbumId, artId);
             }
         }
+    }
+
+    /**
+     * Metadata arrives per track, while albums, covers and AlbumArtist links
+     * are shared. Persisting each album once prevents repeated selects and
+     * BLOB checks without changing the track-level song import.
+     */
+    private static List<DeezerApiMetaData> uniqueAlbumMetadata(List<DeezerApiMetaData> metas) {
+        if (metas == null || metas.isEmpty()) return List.of();
+
+        Map<String, DeezerApiMetaData> albums = new LinkedHashMap<>();
+        for (DeezerApiMetaData meta : metas) {
+            if (meta == null) continue;
+            String name = meta.getAlbumName();
+            if (name == null || name.isBlank()) continue;
+
+            String key = meta.getAlbumId() > 0
+                    ? "id:" + meta.getAlbumId()
+                    : "name:" + name.trim().toLowerCase(Locale.ROOT);
+            albums.putIfAbsent(key, meta);
+        }
+        return new ArrayList<>(albums.values());
     }
 }

@@ -2,6 +2,7 @@ package io.github.guillermodubon.musicplayer.services.startup.hydration;
 
 import javafx.collections.ObservableList;
 import io.github.guillermodubon.musicplayer.models.*;
+import io.github.guillermodubon.musicplayer.repository.dao.lyrics.LyricsDaoImpl;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 
 import java.sql.Connection;
@@ -59,6 +60,7 @@ final class AlbumModelHydrationService {
                             if (r2.next()) g = new Genre(r2.getInt(1), r2.getString(2));
                         }
                     } catch (Exception ignore) {}
+                    registerGenreInMemory(g);
                     refreshed = new Album(id, name, new ArrayList<>(), g, recordType, releaseDate, new ArrayList<>(), new ArrayList<>(), numberOfTracks);
                     albumById.put(id, refreshed);
                 }
@@ -90,7 +92,7 @@ final class AlbumModelHydrationService {
         } catch (Exception ignore) {}
 
         // 4) Load songs for the album (ordered)
-        try (PreparedStatement ps = conn.prepareStatement("SELECT SongID, Title, TrackOrder, IsLocal, FilePath FROM Song WHERE Album = ? ORDER BY TrackOrder")) {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT SongID, Title, TrackOrder, IsLocal, FilePath, DurationSeconds FROM Song WHERE Album = ? ORDER BY TrackOrder")) {
             ps.setLong(1, albumId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -101,6 +103,7 @@ final class AlbumModelHydrationService {
                     String filePath = null;
                     try { filePath = rs.getString("FilePath"); } catch (Exception ignored) {}
                     Song s = new Song(sid, title, new ArrayList<>(), refreshed, filePath, order, isLocal);
+                    s.setDurationSeconds(rs.getInt("DurationSeconds"));
                     songById.put(sid, s);
                     refreshed.getSongList().add(s);
                 }
@@ -175,6 +178,8 @@ final class AlbumModelHydrationService {
             }
         }
 
+        new LyricsDaoImpl(conn).hydrateSongs(refreshed.getSongList());
+
         // 6) MERGE into StartUpService memory safely
         synchronized (albums) {
             Album finalRefreshed = refreshed;
@@ -201,6 +206,8 @@ final class AlbumModelHydrationService {
                     Song o = old.get();
                     o.setFilePath(s.getFilePath());
                     o.setLocal(s.isLocal());
+                    o.setDurationSeconds(s.getDurationSeconds());
+                    o.setLyrics(s.getLyrics());
 
                     /*
                      * A Deezer track may be present in multiple editions.
@@ -265,6 +272,26 @@ final class AlbumModelHydrationService {
         }
 
         System.out.println("loadModelsForAlbum: finished loading album=" + albumId + " songs=" + refreshed.getSongList().size());
+    }
+
+    /**
+     * Focused album hydration does not run the full library model loader, so
+     * keep the newly persisted genre visible to listeners and recommendations.
+     */
+    private void registerGenreInMemory(Genre genre) {
+        if (genre == null || genre.getName() == null || genre.getName().isBlank()) return;
+
+        synchronized (owner.getGenres()) {
+            boolean alreadyPresent = owner.getGenres().stream().anyMatch(existing ->
+                    existing != null
+                            && ((existing.getGenreID() > 0
+                            && existing.getGenreID() == genre.getGenreID())
+                            || (existing.getName() != null
+                            && existing.getName().equalsIgnoreCase(genre.getName()))));
+            if (!alreadyPresent) {
+                owner.getGenres().add(genre);
+            }
+        }
     }
 
     static void mergeAlbumIntoExisting(Album existing, Album refreshed) {
