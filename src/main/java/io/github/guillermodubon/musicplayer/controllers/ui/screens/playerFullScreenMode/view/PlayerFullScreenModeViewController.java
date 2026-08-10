@@ -2,7 +2,6 @@ package io.github.guillermodubon.musicplayer.controllers.ui.screens.playerFullSc
 
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
-import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.StackPane;
 
@@ -15,10 +14,10 @@ public final class PlayerFullScreenModeViewController {
     private void initialize() {
         if (backgroundImageView == null || root == null) return;
         root.setAlignment(Pos.CENTER);
-        backgroundImageView.setPreserveRatio(true);
-        backgroundImageView.setSmooth(true);
+        // Preserve the original source pixels while the parent adapts to the
+        // current monitor. The visual flags already live in FXML, leaving
+        // this controller to do the one-time responsive wiring only.
         backgroundImageView.setCache(false);
-        backgroundImageView.setViewport(null);
         StackPane.setAlignment(backgroundImageView, Pos.CENTER);
         backgroundImageView.fitWidthProperty().bind(root.widthProperty());
         backgroundImageView.fitHeightProperty().bind(root.heightProperty());
