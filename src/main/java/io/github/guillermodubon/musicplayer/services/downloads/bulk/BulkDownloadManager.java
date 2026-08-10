@@ -124,12 +124,22 @@ public final class BulkDownloadManager {
             if (!belongsToSession(task, sessionId)) continue;
 
             if (!task.isDone() && !task.isCancelled()) {
-                task.cancel();
-                cleanupIncompleteTask(task);
+                task.cancelAndAwaitCleanup();
             }
         }
 
         finishIfComplete(session);
+    }
+
+    /**
+     * Requests cancellation for every bulk session currently known by the
+     * manager.  Requesting the session cancellation first prevents completion
+     * callbacks from scheduling new songs while the application is closing.
+     */
+    public void cancelAllSessions() {
+        for (String sessionId : new ArrayList<>(sessions.keySet())) {
+            cancelSession(sessionId);
+        }
     }
 
     private void scheduleMore(BulkDownloadSession session) {
@@ -187,8 +197,7 @@ public final class BulkDownloadManager {
                                 + ", songIndex=" + scheduledSong.index()
                 );
 
-                task.cancel();
-                cleanupIncompleteTask(task);
+                task.cancelAndAwaitCleanup();
 
                 session.markDownloadFinished();
                 session.markTaskIntegrated(
@@ -249,10 +258,6 @@ public final class BulkDownloadManager {
             if (!isTerminal(newState)) return;
 
             task.stateProperty().removeListener(ref[0]);
-
-            if (newState == Worker.State.CANCELLED || newState == Worker.State.FAILED) {
-                cleanupIncompleteTask(task);
-            }
 
             /*
              * DownloadTask now waits for the complete integration pipeline before
@@ -336,14 +341,6 @@ public final class BulkDownloadManager {
         return task != null
                 && task.getContext() != null
                 && Objects.equals(sessionId, task.getContext().getBulkSessionId());
-    }
-
-    private void cleanupIncompleteTask(DownloadTask task) {
-        if (task == null) return;
-
-        // DownloadTask owns the token-scoped cleanup and also knows whether a
-        // final MP3 was created by this task or existed before it started.
-        task.cleanupIncompleteArtifacts();
     }
 
     private List<Song> normalizeRemoteSongs(List<Song> sourceSongs) {
