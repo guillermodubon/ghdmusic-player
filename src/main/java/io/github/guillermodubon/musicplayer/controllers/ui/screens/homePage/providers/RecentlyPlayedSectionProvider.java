@@ -1,6 +1,7 @@
 package io.github.guillermodubon.musicplayer.controllers.ui.screens.homePage.providers;
 
 import com.google.gson.JsonObject;
+import javafx.beans.value.ChangeListener;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -27,6 +28,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 
@@ -43,6 +47,18 @@ public class RecentlyPlayedSectionProvider extends BaseHomePageSectionProvider {
     private static final double RECENT_COVER_DISPLAY_SIZE = 56;
     private static final double RECENT_COVER_CORNER_RADIUS = 10;
     private static final Map<String, CompletableFuture<Image>> REMOTE_COVER_IN_FLIGHT = new ConcurrentHashMap<>();
+    /**
+     * Artwork recovery is intentionally isolated from the shared home-page
+     * provider pool. A batch of missing covers must never delay playlist or
+     * artist discovery, which has a higher impact on the initial screen.
+     */
+    private static final AtomicInteger REMOTE_COVER_THREAD_ID = new AtomicInteger();
+    private static final ExecutorService REMOTE_COVER_IO = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable,
+                "home-recent-cover-io-" + REMOTE_COVER_THREAD_ID.incrementAndGet());
+        thread.setDaemon(true);
+        return thread;
+    });
 
     public RecentlyPlayedSectionProvider(HomePageContext context) {
         super(context);
@@ -258,20 +274,13 @@ public class RecentlyPlayedSectionProvider extends BaseHomePageSectionProvider {
              * direct query to Deezer does not block the JavaFX thread.
              */
             if (knownPlaylist == null) {
-                Image deezerCover = fetchRemoteCover(entry);
-
-                if (isUsable(deezerCover)) {
-                    return CoverResolution.available(deezerCover);
-                }
-
                 /*
-                 * If the direct query fails temporarily, retain the subsequent
-                 * asynchronous mechanism as a fallback.
+                 * The entry belongs to a remote playlist that is not in the
+                 * local model. Do not wait for network artwork before first
+                 * paint; upgradeCoverFromDeezer resolves it after the card is
+                 * visible and now waits for the image decode to finish.
                  */
-                return CoverResolution.fallback(
-                        true,
-                        defaultCover()
-                );
+                return CoverResolution.fallback(true, defaultCover());
             }
 
             /*
@@ -342,7 +351,7 @@ public class RecentlyPlayedSectionProvider extends BaseHomePageSectionProvider {
 
         CompletableFuture<Image> request = REMOTE_COVER_IN_FLIGHT.get(requestKey);
         if (request == null) {
-            CompletableFuture<Image> created = supplyAsync(() -> fetchRemoteCover(entry))
+            CompletableFuture<Image> created = fetchRemoteCoverAsync(entry)
                     .exceptionally(ignored -> null);
             CompletableFuture<Image> existing = REMOTE_COVER_IN_FLIGHT.putIfAbsent(requestKey, created);
             request = existing == null ? created : existing;
@@ -352,17 +361,55 @@ public class RecentlyPlayedSectionProvider extends BaseHomePageSectionProvider {
             }
         }
 
-        request.thenAccept(image -> Platform.runLater(() -> {
+        request.thenAccept(image -> Platform.runLater(
+                () -> publishRemoteCoverWhenReady(image, card, renderId)
+        ));
+    }
+
+    private CompletableFuture<Image> fetchRemoteCoverAsync(PlaybackHistory entry) {
+        return CompletableFuture.supplyAsync(() -> fetchRemoteCover(entry), REMOTE_COVER_IO);
+    }
+
+    /**
+     * MediaImageResolver intentionally creates remote images in background
+     * mode. The request future therefore completes before width and height
+     * are available. Listen for the decode completion instead of discarding
+     * an otherwise valid Deezer fallback as an "empty" image.
+     */
+    private void publishRemoteCoverWhenReady(Image image, Parent card, long renderId) {
+        if (image == null || image.isError()) return;
+        if (isUsable(image) || image.getProgress() >= 1.0) {
+            applyRemoteCover(image, card, renderId);
+            return;
+        }
+
+        image.progressProperty().addListener(new ChangeListener<>() {
+            @Override
+            public void changed(javafx.beans.value.ObservableValue<? extends Number> observable,
+                                Number oldValue,
+                                Number newValue) {
+                if (newValue == null || (newValue.doubleValue() < 1.0 && !image.isError())) {
+                    return;
+                }
+                image.progressProperty().removeListener(this);
+                applyRemoteCover(image, card, renderId);
+            }
+        });
+    }
+
+    private void applyRemoteCover(Image image, Parent card, long renderId) {
+        Platform.runLater(() -> {
             if (!isRenderActive(renderId) || !isUsable(image)) return;
             Object controller = card.getProperties().get("controller");
             if (controller instanceof RecentlyPlayedMusicCard recentCard) {
                 recentCard.updateCover(image);
             }
-        }));
+        });
     }
 
     private Image fetchRemoteCover(PlaybackHistory entry) {
-        if (entry == null || entry.getItemId() <= 0 || context.deezer() == null) return null;
+        if (entry == null || entry.getItemId() <= 0
+                || context.deezer() == null || context.endpoints() == null) return null;
 
         try {
             String type = entry.getItemType() == null ? "ALBUM" : entry.getItemType().trim().toUpperCase();
