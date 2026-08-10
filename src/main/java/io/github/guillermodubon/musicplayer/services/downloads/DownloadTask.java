@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DownloadTask extends Task<Void> {
 
@@ -117,6 +118,16 @@ public class DownloadTask extends Task<Void> {
     private volatile File activeTemporaryFile;
     private volatile File activeFinalFile;
     private volatile boolean preserveFinalFileOnFailure;
+
+    /*
+     * Task state can become CANCELLED before the worker that is running yt-dlp
+     * has actually returned.  The shutdown path must wait for that worker
+     * before deleting its files, otherwise yt-dlp could recreate a temporary
+     * artifact after the cleanup had already finished.
+     */
+    private final Object executionMonitor = new Object();
+    private final CompletableFuture<Void> executionCompletion = new CompletableFuture<>();
+    private final AtomicBoolean executionStarted = new AtomicBoolean(false);
 
     private final YtDlpRunner ytDlpRunner;
     private final DownloadFileFinalizer fileFinalizer;
@@ -253,8 +264,45 @@ public class DownloadTask extends Task<Void> {
         return postProcessingFuture;
     }
 
+    /**
+     * Indicates whether the worker-side execution and its final cleanup have
+     * completed. This is deliberately separate from JavaFX's Task state,
+     * because a cancelled Task may still be unwinding yt-dlp.
+     */
+    public boolean isExecutionComplete() {
+        return executionCompletion.isDone();
+    }
+
+    /**
+     * Requests cancellation and completes only after the task worker has
+     * stopped and its task-owned artifacts have been cleaned up.
+     *
+     * <p>The method is intentionally safe to call more than once. Existing
+     * downloads keep their normal cancellation behavior; callers that need to
+     * close the application can use the returned future to wait for the same
+     * cleanup protocol used by the regular cancel action.</p>
+     */
+    public CompletableFuture<Void> cancelAndAwaitCleanup() {
+        if (context != null) {
+            context.revokeDownloadPublication();
+        }
+
+        if (!isDone() && !isCancelled()) {
+            cancel();
+        }
+
+        return executionCompletion.handle((ignored, error) -> {
+            cleanupIncompleteArtifacts();
+            return null;
+        });
+    }
+
     @Override
     protected Void call() throws Exception {
+        if (!beginExecution()) {
+            return null;
+        }
+
         updateMessage("Starting");
         updateProgressSafely(0);
         DownloadLog.info("DownloadTask", "Starting " + DownloadLog.taskLabel(context));
@@ -487,6 +535,7 @@ public class DownloadTask extends Task<Void> {
                 context.revokeDownloadPublication();
             }
             cleanupIncompleteArtifacts();
+            completeExecution();
         }
     }
 
@@ -515,7 +564,15 @@ public class DownloadTask extends Task<Void> {
         updateProgressSafely(PROGRESS_POST_PROCESSING_STARTED);
 
         CompletableFuture<DeezerApiMetaData> preparationFuture =
-                fileFinalizer.prepareMetadataAsync(context, desiredBase, finalFile);
+                fileFinalizer.prepareMetadataAsync(
+                        context,
+                        desiredBase,
+                        finalFile,
+                        (message, progress) -> {
+                            updateMessage(message);
+                            updateProgressSafely(progress);
+                        }
+                );
 
         postProcessingFuture = preparationFuture.thenCompose(metadata -> {
             if (!isPublicationAllowed()) {
@@ -663,8 +720,35 @@ public class DownloadTask extends Task<Void> {
         if (context != null) {
             context.revokeDownloadPublication();
         }
-        cleanupIncompleteArtifacts();
+
+        /*
+         * If call() never started, there is no worker that can still create
+         * files and cleanup can happen immediately.  Otherwise call()'s
+         * finally block performs it after yt-dlp and post-processing return.
+         */
+        if (!executionStarted.get()) {
+            cleanupIncompleteArtifacts();
+            completeExecution();
+        }
         setTerminalResult(TerminalPresentation.CANCELLED);
+    }
+
+    private boolean beginExecution() {
+        synchronized (executionMonitor) {
+            if (isCancelled()) {
+                executionCompletion.complete(null);
+                return false;
+            }
+
+            executionStarted.set(true);
+            return true;
+        }
+    }
+
+    private void completeExecution() {
+        synchronized (executionMonitor) {
+            executionCompletion.complete(null);
+        }
     }
 
     @Override

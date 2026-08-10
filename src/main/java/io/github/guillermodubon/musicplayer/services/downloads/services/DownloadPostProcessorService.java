@@ -77,6 +77,18 @@ public class DownloadPostProcessorService {
             DeezerApiMetaData meta,
             File finalFile
     ) {
+        return prepareAsync(meta, finalFile, () -> { });
+    }
+
+    /**
+     * Persists lyrics only after the track itself is durable. The callback lets
+     * the owning download task expose this last network stage in its progress.
+     */
+    public CompletableFuture<Void> prepareAsync(
+            DeezerApiMetaData meta,
+            File finalFile,
+            Runnable beforeLyricsLookup
+    ) {
         if (finalFile == null) {
             return CompletableFuture.completedFuture(null);
         }
@@ -99,11 +111,21 @@ public class DownloadPostProcessorService {
                 return CompletableFuture.completedFuture(null);
             }
 
+            Runnable lyricsStageCallback = beforeLyricsLookup == null ? () -> { } : beforeLyricsLookup;
             CompletableFuture<Void> completion =
                     service.prepareDownloadedSongAsync(
                             meta,
                             finalFile
-                    );
+                    ).thenCompose(ignored -> {
+                        try {
+                            lyricsStageCallback.run();
+                        } catch (Exception ignoredCallbackError) {
+                            // Progress reporting must never affect persistence.
+                        }
+                        return service.lyricsSyncService()
+                                .syncDownloaded(meta, finalFile)
+                                .thenApply(ignoredLyrics -> null);
+                    });
 
             DownloadLog.info(
                     "DownloadPostProcessor",
