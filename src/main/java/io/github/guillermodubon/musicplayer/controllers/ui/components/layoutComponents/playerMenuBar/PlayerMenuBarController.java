@@ -25,7 +25,9 @@ import io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComp
 import io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.playerMenuBar.helpers.PlayerMenuBarLayoutCoordinator;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.playerMenuBar.managers.PlayerMenuBarTimeBinder;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.playerMenuBar.helpers.PlayerMenuBarTrackPresenter;
+import io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.playerMenuBar.helpers.PlayerLyricsButtonSupport;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.queuePane.QueueController;
+import io.github.guillermodubon.musicplayer.controllers.ui.screens.lyricsFullscreenMode.LyricsFullscreenController;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.playerFullScreenMode.PlayerFullScreenModeController;
 import io.github.guillermodubon.musicplayer.managers.componentsManagers.cardsActionsManagers.ArtistOpenCoordinator;
 import io.github.guillermodubon.musicplayer.managers.componentsManagers.cardsActionsManagers.MusicCardActionManager;
@@ -75,6 +77,7 @@ public class PlayerMenuBarController {
     @FXML private Label SongLengthLabel;
     @FXML private ToggleButton RandomToggleButton;
     @FXML private ToggleButton ReplayToggleButton;
+    @FXML private Button LyricsButton;
     @FXML private ToggleButton FullScreenToggleButton;
     @FXML private Button QueueButton;
     @FXML private Button actionsMenuButton;
@@ -103,6 +106,7 @@ public class PlayerMenuBarController {
     private PlayerMenuBarLayoutCoordinator layoutCoordinator;
     private final PlayerMenuBarActionCoordinator actionCoordinator =
             new PlayerMenuBarActionCoordinator();
+    private PlayerLyricsButtonSupport lyricsButtonSupport;
     private javafx.scene.control.ContextMenu actionsContextMenu;
     private boolean trackListenerRegistered;
     private KeyboardSliderTarget keyboardSliderTarget = KeyboardSliderTarget.TIME;
@@ -284,6 +288,15 @@ public class PlayerMenuBarController {
         iconManager.updateVolumeIcon();
         iconManager.updateVolumeSliderState();
         updateToggleTooltips();
+        lyricsButtonSupport = new PlayerLyricsButtonSupport(
+                LyricsButton,
+                () -> LyricsFullscreenController.getInstance().toggle(
+                        startUpService,
+                        parentRoot,
+                        pm.getCurrentSong()
+                )
+        );
+        lyricsButtonSupport.updateSong(pm.getCurrentSong());
     }
 
     private void setupUiHooks() {
@@ -328,6 +341,10 @@ public class PlayerMenuBarController {
         } else {
             if (timeBinder != null) timeBinder.unbind();
             if (iconManager != null) iconManager.unbindPlaybackStatus();
+        }
+
+        if (lyricsButtonSupport != null) {
+            lyricsButtonSupport.updateSong(current);
         }
 
         if (VolumeSlider != null) VolumeSlider.setValue(pm.getLastVolume() * 100);
@@ -379,6 +396,16 @@ public class PlayerMenuBarController {
     @FXML
     private void nextSong() {
         pm.next();
+    }
+
+    @FXML
+    private void onShowLyrics() {
+        if (lyricsButtonSupport == null || LyricsButton == null || LyricsButton.isDisabled()) return;
+        LyricsFullscreenController.getInstance().toggle(
+                startUpService,
+                parentRoot,
+                pm.getCurrentSong()
+        );
     }
 
     @FXML
@@ -441,6 +468,10 @@ public class PlayerMenuBarController {
         }
         if (layoutCoordinator != null) {
             layoutCoordinator.dispose();
+        }
+        if (lyricsButtonSupport != null) {
+            lyricsButtonSupport.dispose();
+            lyricsButtonSupport = null;
         }
     }
 
