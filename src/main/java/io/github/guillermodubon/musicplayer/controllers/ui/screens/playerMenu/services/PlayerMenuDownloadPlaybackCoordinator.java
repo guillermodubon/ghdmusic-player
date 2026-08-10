@@ -150,6 +150,11 @@ final class PlayerMenuDownloadPlaybackCoordinator {
             return false;
         }
 
+        // A batch can replace remote cells with local wrappers in arbitrary
+        // completion order. Reapply the album's Deezer track positions before
+        // deriving the playback source from the visible collection.
+        viewCoordinator.normalizeAlbumTrackOrder();
+
         List<Song> updatedSource = viewCoordinator.buildPlayableSourceFromCurrentView();
         if (updatedSource.isEmpty()) {
             return false;

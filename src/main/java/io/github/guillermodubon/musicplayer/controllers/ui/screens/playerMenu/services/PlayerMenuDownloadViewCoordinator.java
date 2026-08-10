@@ -40,6 +40,7 @@ final class PlayerMenuDownloadViewCoordinator {
         boolean changed = false;
         changed |= replaceSongInList(context.getMasterSongList(), remoteSong, localSong);
         changed |= replaceSongInList(context.getCurrentSongList(), remoteSong, localSong);
+        changed |= normalizeAlbumTrackOrder();
         return changed;
     }
 
@@ -61,7 +62,7 @@ final class PlayerMenuDownloadViewCoordinator {
         }
         boolean masterChanged = updateSongs(context.getMasterSongList(), metadata, finalFile);
         boolean currentChanged = updateSongs(context.getCurrentSongList(), metadata, finalFile);
-        return masterChanged || currentChanged;
+        return masterChanged || currentChanged || normalizeAlbumTrackOrder();
     }
 
     boolean updateVisibleLists(DeezerApiMetaData metadata, File finalFile) {
@@ -176,7 +177,32 @@ final class PlayerMenuDownloadViewCoordinator {
             }
             changed = true;
         }
+        changed |= normalizeAlbumTrackOrder();
         return changed;
+    }
+
+    /**
+     * Restores the Deezer order after a download updates one or more row
+     * instances. Local and remote cells deliberately share this path: their
+     * rendering state must never influence an album's track sequence.
+     */
+    boolean normalizeAlbumTrackOrder() {
+        if (context.getCurrentContentTypeInView() != PlayerMenuContext.ContentType.ALBUM) {
+            return false;
+        }
+
+        List<Song> current = context.getMasterSongList();
+        if (current == null || current.size() < 2) {
+            return false;
+        }
+
+        List<Song> ordered = PlayerMenuAlbumTrackOrder.order(current);
+        if (sameReferencesInOrder(current, ordered)) {
+            return false;
+        }
+
+        context.setMasterSongList(ordered);
+        return true;
     }
 
     boolean resultBelongsToCurrentView(IntegratedDownloadResult result) {
@@ -329,5 +355,20 @@ final class PlayerMenuDownloadViewCoordinator {
             }
         } catch (Exception ignored) {
         }
+    }
+
+    private boolean sameReferencesInOrder(List<Song> current, List<Song> ordered) {
+        if (current == ordered) {
+            return true;
+        }
+        if (current == null || ordered == null || current.size() != ordered.size()) {
+            return false;
+        }
+        for (int index = 0; index < current.size(); index++) {
+            if (current.get(index) != ordered.get(index)) {
+                return false;
+            }
+        }
+        return true;
     }
 }
