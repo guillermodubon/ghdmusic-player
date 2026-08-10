@@ -16,6 +16,7 @@ import io.github.guillermodubon.musicplayer.repository.dao.song.SongDaoImpl;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 import io.github.guillermodubon.musicplayer.services.manifest.ManifestService;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
+import io.github.guillermodubon.musicplayer.services.startup.library.AlbumGenreBackfillService;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -29,9 +30,11 @@ import java.util.Optional;
 public final class LibraryStartupCoordinator {
 
     private final StartUpService owner;
+    private final AlbumGenreBackfillService albumGenreBackfillService;
 
     public LibraryStartupCoordinator(StartUpService owner) {
         this.owner = java.util.Objects.requireNonNull(owner, "owner");
+        this.albumGenreBackfillService = new AlbumGenreBackfillService(owner.deezerService());
     }
     public void runStartup() throws SQLException {
     System.out.println("runStartup: initializing DB and loading models...");
@@ -45,6 +48,7 @@ public final class LibraryStartupCoordinator {
 
     synchronized (owner.titleToPathIndex()) {
         owner.titleToPathIndex().clear();
+        owner.clearSongIdentityPathIndex();
         if (scanned != null) {
             owner.titleToPathIndex().putAll(scanned);
         }
@@ -128,6 +132,12 @@ public final class LibraryStartupCoordinator {
             return null;
         });
 
+        // Artist biographies are supplementary metadata. The core library is
+        // already durable and visible, so enrich biographies in the background
+        // instead of keeping the splash screen open for remote Wikipedia calls.
+        owner.getArtistBiographyService().hydrateMissingBiographiesAsync(null, owner);
+        owner.lyricsSyncService().scheduleLibraryBackfill(owner.noMetadataSongs);
+
         System.out.println(
                 "runStartup: initial import finished -> artists="
                         + owner.getArtists().size()
@@ -149,6 +159,12 @@ public final class LibraryStartupCoordinator {
 
     if (manifestEmpty) {
         System.out.println("runStartup: manifest is empty but DB has local songs -> rebuilding through incremental sync");
+    }
+
+    owner.reportStartupStatus("Validating your album genres...");
+    int repairedAlbumGenres = albumGenreBackfillService.repairUnresolvedAlbumGenres();
+    if (repairedAlbumGenres > 0) {
+        System.out.println("runStartup: repaired album genres=" + repairedAlbumGenres);
     }
 
     synchronized (owner.getDbLock()) {
@@ -180,6 +196,14 @@ public final class LibraryStartupCoordinator {
 
                 return null;
             });
+
+            var biographyCandidates = owner.incrementalLibrarySyncService()
+                    .consumeDeferredBiographyCandidates();
+            if (!biographyCandidates.isEmpty()) {
+                owner.getArtistBiographyService()
+                        .hydrateMissingBiographiesAsync(biographyCandidates, owner);
+            }
+            owner.lyricsSyncService().scheduleLibraryBackfill(owner.noMetadataSongs);
 
             System.out.println(
                     "runStartup: syncExistingData finished -> artists="
@@ -268,5 +292,3 @@ private String quoteSqliteIdentifier(String identifier) {
 
 
 }
-
-
