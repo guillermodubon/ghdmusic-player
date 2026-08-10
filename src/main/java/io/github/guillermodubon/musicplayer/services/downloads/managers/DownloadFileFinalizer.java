@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.function.BiConsumer;
 
 public class DownloadFileFinalizer {
 
@@ -191,6 +192,17 @@ public class DownloadFileFinalizer {
     public CompletableFuture<DeezerApiMetaData> prepareMetadataAsync(DownloadTaskContext context,
                                                                        String desiredBase,
                                                                        File finalFile) {
+        return prepareMetadataAsync(context, desiredBase, finalFile, (ignoredMessage, ignoredProgress) -> { });
+    }
+
+    /**
+     * Same durable pipeline with optional stage updates for the visual
+     * download progress. It never executes on the JavaFX Application Thread.
+     */
+    public CompletableFuture<DeezerApiMetaData> prepareMetadataAsync(DownloadTaskContext context,
+                                                                       String desiredBase,
+                                                                       File finalFile,
+                                                                       BiConsumer<String, Double> stageReporter) {
         if (desiredBase == null || desiredBase.isBlank() || finalFile == null) {
             return CompletableFuture.completedFuture(null);
         }
@@ -268,7 +280,12 @@ public class DownloadFileFinalizer {
                                 finalFile
                         );
 
-                        return postProcessorService.prepareAsync(normalized, finalFile)
+                        reportStage(stageReporter, "Saving song metadata", 94.0);
+                        return postProcessorService.prepareAsync(
+                                        normalized,
+                                        finalFile,
+                                        () -> reportStage(stageReporter, "Fetching and saving lyrics", 96.0)
+                                )
                                 .thenApply(ignored -> normalized);
                     } catch (Exception ex) {
                         return CompletableFuture.failedFuture(ex);
@@ -290,6 +307,14 @@ public class DownloadFileFinalizer {
                         );
                     }
                 });
+    }
+
+    private static void reportStage(BiConsumer<String, Double> reporter, String message, double progress) {
+        if (reporter == null) return;
+        try {
+            reporter.accept(message, progress);
+        } catch (Exception ignored) {
+        }
     }
 
     /**
