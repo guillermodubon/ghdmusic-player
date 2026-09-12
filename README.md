@@ -90,72 +90,19 @@ full-screen playback experiences in GHDMusic.
 
 ## What GHDMusic does
 
-### A library built around your files
-
-GHDMusic scans for audio files in the Windows **Downloads**, **Music** and
-**Desktop** folders. When a song is found, the app tries to enrich it with
-metadata from Deezer: title, artists, album, genre, release information and
-cover art. Songs that cannot be identified are still kept playable instead of
-being discarded.
-
-Your local files remain the foundation of the experience. The app organizes
-them into a searchable library of albums, singles, artists and playlists while
-keeping the visual details that make browsing enjoyable.
-
-### Playback that stays in your hands
-
-- Play local audio files through a persistent playback flow.
-- Stream song previews when a remote preview is available.
-- Manage `Next in queue` and `Next from` playback sections.
-- Reorder queue items with drag-and-drop and auto-scroll.
-- Switch between normal and shuffle playback.
-- Customize the order of local playlists and keep it between sessions.
-- Continue smoothly when downloaded and remote songs coexist in the same list.
-
-### Lyrics that move with the music
-
-When lyrics are available, GHDMusic prioritizes synchronized lyrics so the
-current line follows playback in real time. If synchronized lyrics are not
-available, the app falls back to a clean plain-text version. Lyrics are saved
-with the local library, making them available offline and avoiding repeated
-requests for songs that have already been resolved.
-
-The full-screen lyrics experience keeps the presentation focused: click a
-synchronized line to seek directly to that moment, or scroll through plain
-lyrics when timing data is unavailable.
-
-### Playlists with personality
-
-Create playlists, edit their names and covers, description, remove tracks, and shape their
-order exactly as you want. Local playlists support custom sorting, including
-title, artist, album, and custom order with drag-and-drop and auto-scroll.
-
-The same playlist tools are available without making the experience feel like
-a spreadsheet: clear headers, visual cards, quick search, contextual actions
-and cover art that remains tied to the playlist you are viewing.
-
-### Discover something new
-
-The Home and Discover screens combine your library, favorite genres and
-favorite artists with remote content. The result is a personalized feed of
-albums, playlists, songs and recommendations rather than a generic catalog.
-
-Artist and genre pages add more context through related releases, playlists,
-top tracks and artist information supplied through the Wikipedia API.
-
-### A desktop experience made to disappear into the music
-
-- Responsive layouts for different window sizes.
-- Full-screen playback modes.
-- Animated full-screen playback and lyrics screens with a soft, cover-driven
-  ambient background.
-- Search and filtering across library catalogs.
-- High-quality covers from local files, cache, database or Deezer.
-- Marquee text for long titles and artist lists.
-- Synchronized and plain-text lyrics with offline persistence and interactive
-  playback seeking.
-- Progressive card rendering so large sections do not freeze the interface.
-- Consistent visual styling with JavaFX, FXML, CSS and SVG icons.
+- Scans the Windows **Downloads**, **Music** and **Desktop** folders for audio.
+- Keeps every discovered file playable and enriches identified tracks with Deezer metadata: title, artist, album, genre, release details and cover art.
+- Organizes local music into a searchable library of albums, singles, artists and playlists.
+- Plays local files in a persistent player and streams remote previews when available, including mixed downloaded and remote lists.
+- Supports normal and shuffle playback, plus `Next in queue` and `Next from` sections with drag-and-drop reordering and auto-scroll.
+- Creates playlists and lets you edit their name, cover and description, remove tracks, and sort by title, artist, album or a custom drag-and-drop order that is saved between sessions.
+- Shows playlist content through clear headers, cover-based cards, quick search and contextual actions.
+- Displays synchronized lyrics when available, falls back to plain text when needed, and saves resolved lyrics locally for offline use.
+- Offers a full-screen lyrics view where you can seek from a synchronized line or scroll plain lyrics.
+- Builds Home and Discover feeds from your library, favorite artists and genres, and remote albums, playlists, tracks and recommendations.
+- Adds artist and genre pages with related releases, playlists, top tracks and Wikipedia-provided artist information.
+- Adapts to different window sizes with full-screen player and lyrics modes, animated cover-driven ambient backgrounds, and consistent JavaFX, FXML, CSS and SVG styling.
+- Includes search and filtering across the library, high-quality covers from local files, cache, database or Deezer, marquee text for long titles and artist lists, and progressive card rendering for smooth browsing.
 
 ## Download and media processing
 
