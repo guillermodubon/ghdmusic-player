@@ -26,11 +26,10 @@ public final class BundledMediaTools {
 
     private static final String RESOURCE_ROOT = "/io/github/guillermodubon/musicplayer/dependencies/";
     private static final String YT_DLP_RESOURCE = RESOURCE_ROOT + "yt-dlp.exe";
-    private static final String FFMPEG_BIN_RESOURCE = RESOURCE_ROOT
-            + "ffmpeg-2026-04-22-git-162ad61486-essentials_build/bin/";
+    private static final String FFMPEG_BIN_RESOURCE = RESOURCE_ROOT + "ffmpeg/bin/";
     private static final String FFMPEG_RESOURCE = FFMPEG_BIN_RESOURCE + "ffmpeg.exe";
     private static final String FFPROBE_RESOURCE = FFMPEG_BIN_RESOURCE + "ffprobe.exe";
-    private static final String RUNTIME_BUNDLE_DIRECTORY = "media-tools-2026-04-22";
+    private static final String RUNTIME_BUNDLE_DIRECTORY = "media-tools";
 
     private static final Object RESOLUTION_LOCK = new Object();
     private static volatile ToolPaths resolvedPaths;

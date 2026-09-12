@@ -52,6 +52,9 @@ secrets/
 *.pem
 *.p12
 
+# Media tools installed locally for source builds
+src/main/resources/io/github/guillermodubon/musicplayer/dependencies/
+
 # User-owned music library data
 src/main/java/**/repository/userData/*.db
 src/main/java/**/repository/userData/*.db-*

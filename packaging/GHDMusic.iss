@@ -34,8 +34,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Source: "..\target\jpackage\app-image\GHDMusic\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "licenses\THIRD-PARTY-NOTICES.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "licenses\YT-DLP-LICENSE.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
-Source: "..\src\main\resources\io\github\guillermodubon\musicplayer\dependencies\ffmpeg-2026-04-22-git-162ad61486-essentials_build\LICENSE"; DestDir: "{app}\licenses"; DestName: "FFmpeg-GPLv3.txt"; Flags: ignoreversion
-Source: "..\src\main\resources\io\github\guillermodubon\musicplayer\dependencies\ffmpeg-2026-04-22-git-162ad61486-essentials_build\README.txt"; DestDir: "{app}\licenses"; DestName: "FFmpeg-BUILD-INFO.txt"; Flags: ignoreversion
+Source: "..\src\main\resources\io\github\guillermodubon\musicplayer\dependencies\ffmpeg\LICENSE"; DestDir: "{app}\licenses"; DestName: "FFmpeg-GPLv3.txt"; Flags: ignoreversion
+Source: "..\src\main\resources\io\github\guillermodubon\musicplayer\dependencies\ffmpeg\README.txt"; DestDir: "{app}\licenses"; DestName: "FFmpeg-BUILD-INFO.txt"; Flags: ignoreversion
 
 [Icons]
 Name: "{userprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

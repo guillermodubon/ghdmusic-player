@@ -146,8 +146,7 @@ metadata, discovery and preview features depend on network availability.
   for a self-contained Windows application image
 - [Inno Setup](https://jrsoftware.org/isinfo.php) for the Windows installer
 
-The bundled media tools and their notices are kept under
-[`packaging/licenses`](packaging/licenses).
+Third-party license notices are included with the Windows installer.
 
 ## How it is built
 
@@ -204,45 +203,30 @@ through LRCLIB, synchronized lyrics are preferred, plain text is used as a
 fallback, and the result is persisted for offline playback.
 
 
-## Requirements
-
-- Windows x64.
-- JDK 21 available through `JAVA_HOME` or `PATH`.
-- Internet access for Deezer, Wikipedia, discovery and remote previews.
-- Inno Setup 6 only when creating the installer.
 
 ## Run from source
 
-From the repository root:
+The [Windows installer](https://github.com/guillermodubon/ghdmusic-player/releases) already includes yt-dlp and FFmpeg. For a source build, download [yt-dlp.exe](https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe) and the FFmpeg [Essentials build](https://www.gyan.dev/ffmpeg/builds/), then place the files here:
+
+```text
+src/main/resources/io/github/guillermodubon/musicplayer/dependencies/
+├── yt-dlp.exe
+└── ffmpeg/
+    ├── LICENSE
+    ├── README.txt
+    └── bin/
+        ├── ffmpeg.exe
+        └── ffprobe.exe
+```
+
+They enable downloads, media processing and Windows packaging. From the repository root, compile and run:
 
 ```powershell
 .\mvnw.cmd -DskipTests compile
 .\mvnw.cmd clean javafx:run
 ```
 
-The JavaFX entry point is:
-
-```text
-io.github.guillermodubon.musicplayer.MusicPlayer
-```
-
-## Windows packaging
-
-Build a self-contained application image:
-
-```powershell
-.\packaging\build-app-image.ps1
-```
-
-Build the installer with Inno Setup 6:
-
-```powershell
-.\packaging\build-installer.ps1
-```
-
-Generated files are placed under `target\jpackage\`.
-More packaging details are available in
-[`packaging/README.md`](packaging/README.md).
+The JavaFX entry point is `io.github.guillermodubon.musicplayer.MusicPlayer`.
 
 ## Local data
 

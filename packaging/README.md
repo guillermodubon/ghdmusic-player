@@ -28,8 +28,9 @@ The image is created at:
 target\jpackage\app-image\GHDMusic\
 ```
 
-It already includes the application, the Java runtime and the bundled
-`yt-dlp.exe`/FFmpeg resources inside the application module.
+It includes the application, the Java runtime and the media tools prepared
+locally for the source build. See the repository README for the required
+`yt-dlp.exe` and FFmpeg files.
 
 ## Build the installer
 
@@ -58,19 +59,22 @@ Existing development files are copied once when no external file exists. The
 repository's database and manifest are excluded by `.gitignore` and are not
 part of the packaged application.
 
-## Repository contents and exclusions
+## Repository hygiene
 
 The repository tracks source code, JavaFX views, stylesheets, application
-assets, required bundled media tools, packaging scripts, and third-party
-license notices.
+assets, packaging scripts, and third-party license notices.
 
 The following files are intentionally not tracked:
 
 - Maven, IntelliJ IDEA, and jpackage build output under `target\`, `build\`,
   `dist\`, and `out\`.
 - Local IDE metadata and workspace-specific settings.
+- Locally installed yt-dlp and FFmpeg files required for source builds.
 - User databases, manifests, downloaded music, logs, and temporary files.
 - Environment files, credentials, private keys, and local secrets.
 
-The FFmpeg and yt-dlp executables are kept in the source tree because the
-application and packaging scripts require them.
+## Third-party components
+
+The installer includes license information for yt-dlp and FFmpeg under the
+installed application's `licenses` directory. Keep the applicable notices and
+FFmpeg build metadata when packaging the application.
