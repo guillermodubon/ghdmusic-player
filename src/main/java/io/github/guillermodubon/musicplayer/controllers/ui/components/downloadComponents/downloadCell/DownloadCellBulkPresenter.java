@@ -7,6 +7,9 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
+import javafx.util.Duration;
 import javafx.beans.value.ChangeListener;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.effects.TextShimmerEffect;
 import io.github.guillermodubon.musicplayer.services.downloads.DownloadTask;
@@ -25,6 +28,7 @@ final class DownloadCellBulkPresenter {
     private final Label bulkQueueLabel;
     private final StackPane bulkStatusIconPane;
     private final Button bulkCancelButton;
+    private final Button bulkResumeButton;
     private final Region bulkSectionSeparator;
 
     private BulkDownloadSession boundBulkSession;
@@ -33,18 +37,21 @@ final class DownloadCellBulkPresenter {
     private DownloadTask currentTask;
     private List<DownloadTask> backingList;
     private Node sceneProbe;
+    private Timeline providerCountdown;
 
     DownloadCellBulkPresenter(VBox bulkSectionHeader,
                               Label bulkTitleLabel,
                               Label bulkQueueLabel,
                               StackPane bulkStatusIconPane,
                               Button bulkCancelButton,
+                              Button bulkResumeButton,
                               Region bulkSectionSeparator) {
         this.bulkSectionHeader = bulkSectionHeader;
         this.bulkTitleLabel = bulkTitleLabel;
         this.bulkQueueLabel = bulkQueueLabel;
         this.bulkStatusIconPane = bulkStatusIconPane;
         this.bulkCancelButton = bulkCancelButton;
+        this.bulkResumeButton = bulkResumeButton;
         this.bulkSectionSeparator = bulkSectionSeparator;
         configureTitleLabel();
     }
@@ -59,6 +66,7 @@ final class DownloadCellBulkPresenter {
 
         DownloadCellUi.setManagedVisible(bulkSectionHeader, false);
         DownloadCellUi.setManagedVisible(bulkSectionSeparator, false);
+        DownloadCellUi.setManagedVisible(bulkResumeButton, false);
 
         if (task == null
                 || task.getContext() == null
@@ -117,6 +125,7 @@ final class DownloadCellBulkPresenter {
     }
 
     void clear() {
+        stopProviderCountdown();
         detachSessionListeners();
         currentTask = null;
         backingList = null;
@@ -126,6 +135,7 @@ final class DownloadCellBulkPresenter {
         DownloadCellUi.setManagedVisible(bulkSectionHeader, false);
         DownloadCellUi.setManagedVisible(bulkSectionSeparator, false);
         DownloadCellUi.setManagedVisible(bulkStatusIconPane, false);
+        DownloadCellUi.setManagedVisible(bulkResumeButton, false);
         if (bulkStatusIconPane != null) {
             bulkStatusIconPane.getChildren().clear();
         }
@@ -238,6 +248,8 @@ final class DownloadCellBulkPresenter {
                 : session.getStatus();
 
         if (status == BulkDownloadSession.Status.RUNNING) {
+            stopProviderCountdown();
+            DownloadCellUi.setManagedVisible(bulkResumeButton, false);
             int queued = session == null
                     ? Math.max(0, fallbackTotal - 1)
                     : session.getQueuedCount();
@@ -261,6 +273,56 @@ final class DownloadCellBulkPresenter {
             return;
         }
 
+        if (status == BulkDownloadSession.Status.WAITING_FOR_PROVIDER) {
+            TextShimmerEffect.stop(bulkQueueLabel);
+            bulkQueueLabel.setText(providerWaitMessage(session));
+            bulkQueueLabel.getStyleClass().add("download-bulk-queue-label-warning");
+            DownloadCellUi.setBulkStatusIcon(
+                    bulkStatusIconPane,
+                    DownloadCellUi.ICON_ERROR,
+                    "download-bulk-status-icon-warning"
+            );
+            bulkCancelButton.setText("Cancel");
+            bulkCancelButton.setOnAction(event -> cancelCurrentSession());
+            DownloadCellUi.setManagedVisible(bulkResumeButton, false);
+            startProviderCountdown(session, fallbackTotal, fallbackTitle);
+            return;
+        }
+
+        if (status == BulkDownloadSession.Status.RECOVERING_PROVIDER) {
+            stopProviderCountdown();
+            bulkQueueLabel.setText("Downloads resumed · increasing speed gradually.");
+            bulkCancelButton.setText("Cancel");
+            bulkCancelButton.setOnAction(event -> cancelCurrentSession());
+            DownloadCellUi.setManagedVisible(bulkResumeButton, false);
+            TextShimmerEffect.apply(
+                    bulkQueueLabel,
+                    Color.web("#AFAFAF"),
+                    Color.web("#FFFFFF")
+            );
+            return;
+        }
+
+        if (status == BulkDownloadSession.Status.PAUSED_PROVIDER) {
+            stopProviderCountdown();
+            TextShimmerEffect.stop(bulkQueueLabel);
+            bulkQueueLabel.setText("Downloads paused by YouTube · resume later");
+            bulkQueueLabel.getStyleClass().add("download-bulk-queue-label-warning");
+            DownloadCellUi.setBulkStatusIcon(
+                    bulkStatusIconPane,
+                    DownloadCellUi.ICON_ERROR,
+                    "download-bulk-status-icon-warning"
+            );
+            bulkCancelButton.setText("Cancel");
+            bulkCancelButton.setOnAction(event -> cancelCurrentSession());
+            DownloadCellUi.setManagedVisible(bulkResumeButton, true);
+            bulkResumeButton.setText("Resume");
+            bulkResumeButton.setOnAction(event -> resumeCurrentSession());
+            return;
+        }
+
+        stopProviderCountdown();
+        DownloadCellUi.setManagedVisible(bulkResumeButton, false);
         TextShimmerEffect.stop(bulkQueueLabel);
         switch (status) {
             case COMPLETED -> {
@@ -310,6 +372,35 @@ final class DownloadCellBulkPresenter {
         }
     }
 
+    private void startProviderCountdown(BulkDownloadSession session,
+                                        int fallbackTotal,
+                                        String fallbackTitle) {
+        if (providerCountdown != null) return;
+        providerCountdown = new Timeline(new KeyFrame(Duration.seconds(1), event ->
+                refreshSessionHeader(session, fallbackTotal, fallbackTitle)));
+        providerCountdown.setCycleCount(Timeline.INDEFINITE);
+        providerCountdown.play();
+    }
+
+    private void stopProviderCountdown() {
+        if (providerCountdown != null) {
+            providerCountdown.stop();
+            providerCountdown = null;
+        }
+    }
+
+    private String providerWaitMessage(BulkDownloadSession session) {
+        if (session == null || session.getProviderResumeAtMillis() <= 0) {
+            return "YouTube temporarily paused requests · retrying soon";
+        }
+        long remainingSeconds = Math.max(0L,
+                (session.getProviderResumeAtMillis() - System.currentTimeMillis() + 999L) / 1_000L);
+        long minutes = remainingSeconds / 60L;
+        long seconds = remainingSeconds % 60L;
+        return "YouTube temporarily paused requests · retrying in "
+                + String.format("%02d:%02d", minutes, seconds);
+    }
+
     private void cancelCurrentSession() {
         if (currentTask == null
                 || currentTask.getContext() == null) {
@@ -341,6 +432,13 @@ final class DownloadCellBulkPresenter {
                 sceneProbe.getScene() == null
                         ? null
                         : sceneProbe.getScene().getRoot()
+        );
+    }
+
+    private void resumeCurrentSession() {
+        if (currentTask == null || currentTask.getContext() == null) return;
+        BulkDownloadManager.getInstance().resumeProviderSession(
+                currentTask.getContext().getBulkSessionId()
         );
     }
 
@@ -417,6 +515,7 @@ final class DownloadCellBulkPresenter {
     }
 
     private void detachSessionListeners() {
+        stopProviderCountdown();
         if (boundBulkSession != null) {
             if (bulkQueuedListener != null) {
                 boundBulkSession.queuedCountProperty()
