@@ -6,9 +6,16 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.github.guillermodubon.musicplayer.services.downloads.context.DownloadTaskContext;
 import io.github.guillermodubon.musicplayer.services.downloads.dependencies.BundledMediaTools;
+import io.github.guillermodubon.musicplayer.services.downloads.dependencies.MediaToolsDiagnosticService;
 import io.github.guillermodubon.musicplayer.services.downloads.helpers.DownloadFileNameHelper;
 import io.github.guillermodubon.musicplayer.services.downloads.helpers.YTDLPApiHelpers.YtDlpCommandBuilder;
 import io.github.guillermodubon.musicplayer.services.downloads.logging.DownloadLog;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.ProviderCooldownState;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.ProviderOperation;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YouTubeRequestCoordinator;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YtDlpFailureClassifier;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YtDlpFailureKind;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YtDlpProcessGuard;
 
 import java.nio.charset.StandardCharsets;
 import java.util.function.BooleanSupplier;
@@ -27,6 +34,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class YtDlpRunner {
 
+    @FunctionalInterface
+    public interface ProcessStarter {
+        Process start(List<String> arguments, File workingDirectory) throws IOException;
+    }
+
     private static final Pattern VIDEO_ID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{11}$");
 
     public static final class AttemptResult {
@@ -37,6 +49,8 @@ public class YtDlpRunner {
         private final File createdTmp;
         private final IOException ioException;
         private final boolean networkFailure;
+        private final YtDlpFailureKind failureKind;
+        private final ProviderCooldownState cooldownState;
 
         public AttemptResult(boolean cancelled,
                              boolean exists,
@@ -45,6 +59,21 @@ public class YtDlpRunner {
                              File createdTmp,
                              IOException ioException,
                              boolean networkFailure) {
+            this(cancelled, exists, fatal, exitCode, createdTmp, ioException, networkFailure,
+                    networkFailure ? YtDlpFailureKind.TRANSIENT_NETWORK
+                            : fatal ? YtDlpFailureKind.UNKNOWN : YtDlpFailureKind.NONE,
+                    null);
+        }
+
+        public AttemptResult(boolean cancelled,
+                             boolean exists,
+                             boolean fatal,
+                             int exitCode,
+                             File createdTmp,
+                             IOException ioException,
+                             boolean networkFailure,
+                             YtDlpFailureKind failureKind,
+                             ProviderCooldownState cooldownState) {
             this.cancelled = cancelled;
             this.exists = exists;
             this.fatal = fatal;
@@ -52,6 +81,8 @@ public class YtDlpRunner {
             this.createdTmp = createdTmp;
             this.ioException = ioException;
             this.networkFailure = networkFailure;
+            this.failureKind = failureKind == null ? YtDlpFailureKind.UNKNOWN : failureKind;
+            this.cooldownState = cooldownState;
         }
 
         public boolean isCancelled() {
@@ -82,14 +113,72 @@ public class YtDlpRunner {
             return networkFailure;
         }
 
+        public YtDlpFailureKind getFailureKind() {
+            return failureKind;
+        }
+
+        public ProviderCooldownState getCooldownState() {
+            return cooldownState;
+        }
+
         public boolean isSuccessfulCandidate() {
             return !cancelled
                     && !exists
                     && exitCode == 0
                     && createdTmp != null
                     && createdTmp.exists()
+                    && failureKind == YtDlpFailureKind.NONE
                     && !fatal;
         }
+    }
+
+    private static final int MAX_DIAGNOSTIC_TAIL_LENGTH = 8_192;
+    private final YouTubeRequestCoordinator coordinator;
+    private final YtDlpFailureClassifier failureClassifier;
+    private final ProcessStarter processStarter;
+    private final Runnable diagnosticsCheck;
+    private final ThreadLocal<Integer> currentAttemptNumber = ThreadLocal.withInitial(() -> 0);
+
+    public YtDlpRunner() {
+        this(YouTubeRequestCoordinator.getInstance(), new YtDlpFailureClassifier(),
+                (arguments, directory) -> BundledMediaTools.ytDlpProcessBuilder(arguments, directory)
+                        .redirectErrorStream(true)
+                        .start(),
+                () -> MediaToolsDiagnosticService.getInstance().inspectAsync());
+    }
+
+    public YtDlpRunner(YouTubeRequestCoordinator coordinator,
+                       YtDlpFailureClassifier failureClassifier) {
+        this(coordinator, failureClassifier,
+                (arguments, directory) -> BundledMediaTools.ytDlpProcessBuilder(arguments, directory)
+                        .redirectErrorStream(true)
+                        .start(),
+                () -> MediaToolsDiagnosticService.getInstance().inspectAsync());
+    }
+
+    public YtDlpRunner(YouTubeRequestCoordinator coordinator,
+                       YtDlpFailureClassifier failureClassifier,
+                       ProcessStarter processStarter) {
+        this(coordinator, failureClassifier, processStarter,
+                () -> MediaToolsDiagnosticService.getInstance().inspectAsync());
+    }
+
+    public YtDlpRunner(YouTubeRequestCoordinator coordinator,
+                       YtDlpFailureClassifier failureClassifier,
+                       ProcessStarter processStarter,
+                       Runnable diagnosticsCheck) {
+        this.coordinator = coordinator == null
+                ? YouTubeRequestCoordinator.getInstance()
+                : coordinator;
+        this.failureClassifier = failureClassifier == null
+                ? new YtDlpFailureClassifier()
+                : failureClassifier;
+        this.processStarter = processStarter == null
+                ? (arguments, directory) -> BundledMediaTools.ytDlpProcessBuilder(arguments, directory)
+                        .redirectErrorStream(true)
+                        .start()
+                : processStarter;
+        this.diagnosticsCheck = diagnosticsCheck == null ? () -> { } : diagnosticsCheck;
     }
 
     public AttemptResult executeAttempt(
@@ -123,22 +212,27 @@ public class YtDlpRunner {
         }
 
         ensureTargetDir(context.getTargetDir());
-
-        List<String> baseArgs = YtDlpCommandBuilder.buildBaseArgs(
-                searchQuery,
-                context.getTargetDir(),
-                candidateIndex,
-                context.getDownloadToken(),
-                context.getAudioPreset()
-        );
-
-        DownloadLog.info(
-                "YtDlpRunner",
-                "Using search candidate index=" + candidateIndex + ", query=\"" + searchQuery + "\""
-        );
+        diagnosticsCheck.run();
 
         IOException lastIoEx = null;
         Process p = null;
+        YtDlpProcessGuard processGuard = null;
+        ProviderOperation operation = context.isBulkDownload()
+                ? ProviderOperation.DOWNLOAD_BULK
+                : ProviderOperation.DOWNLOAD_SINGLE;
+        YouTubeRequestCoordinator.Acquisition acquisition = coordinator.acquire(operation, cancelledSupplier);
+        if (acquisition.cancelled()) {
+            return new AttemptResult(true, false, false, -1, null, null, false,
+                    YtDlpFailureKind.NONE, null);
+        }
+        if (!acquisition.granted()) {
+            return new AttemptResult(false, false, true, -1, null, null, false,
+                    acquisition.failureKind(), acquisition.cooldownState());
+        }
+
+        YouTubeRequestCoordinator.Lease lease = acquisition.lease();
+        StringBuilder diagnosticTail = new StringBuilder();
+        YtDlpFailureKind observedFailure = YtDlpFailureKind.NONE;
 
         /*
          * Important:
@@ -152,10 +246,28 @@ public class YtDlpRunner {
         AtomicInteger lastEmittedProgress = new AtomicInteger(-1);
 
         try {
-            ProcessBuilder pb = BundledMediaTools.ytDlpProcessBuilder(baseArgs, context.getTargetDir());
-            pb.redirectErrorStream(true);
+            List<String> baseArgs = YtDlpCommandBuilder.buildBaseArgs(
+                    searchQuery,
+                    context.getTargetDir(),
+                    candidateIndex,
+                    context.getDownloadToken(),
+                    context.getAudioPreset(),
+                    context.isBulkDownload(),
+                    coordinator.policy()
+            );
 
-            p = pb.start();
+            DownloadLog.info(
+                    "YtDlpRunner",
+                    "Starting " + operation + " attempt=" + currentAttemptNumber.get()
+                            + ", candidate=" + candidateIndex
+                            + ", session=" + context.getBulkSessionId()
+            );
+
+            p = processStarter.start(baseArgs, context.getTargetDir());
+            Thread executionThread = Thread.currentThread();
+            processGuard = YtDlpProcessGuard.watch(p,
+                    () -> executionThread.isInterrupted()
+                            || (cancelledSupplier != null && cancelledSupplier.getAsBoolean()));
 
             DownloadLog.info("YtDlpRunner", "yt-dlp process started, pid=" + p.pid());
 
@@ -193,6 +305,13 @@ public class YtDlpRunner {
                     }
 
                     DownloadLog.processOutput("yt-dlp", line);
+                    appendDiagnostic(diagnosticTail, line);
+
+                    YtDlpFailureKind lineFailure = failureClassifier.classifyLine(line);
+                    observedFailure = preferFailure(observedFailure, lineFailure);
+                    if (lineFailure.isProviderRejection()) {
+                        lease.reportFailure(lineFailure);
+                    }
 
                     emitDownloadProgressIfPresent(line, progressConsumer, lastEmittedProgress);
 
@@ -243,6 +362,28 @@ public class YtDlpRunner {
             }
 
             int exitCode = p.waitFor();
+            YtDlpFailureKind finalFailure = failureClassifier.classify(
+                    diagnosticTail.toString(),
+                    exitCode,
+                    lastIoEx
+            );
+            observedFailure = preferFailure(observedFailure, finalFailure);
+            if (sawFatal && observedFailure == YtDlpFailureKind.NONE) {
+                observedFailure = YtDlpFailureKind.UNKNOWN;
+            }
+            if (observedFailure.isProviderRejection()) {
+                lease.reportFailure(observedFailure);
+            }
+            if (lease.cooldownState() != null) {
+                failureClassifier.retryAfter(diagnosticTail.toString())
+                        .ifPresent(lease::reportRetryAfter);
+            }
+            MediaToolsDiagnosticService.getInstance().reportRuntimeFailure(observedFailure);
+            DownloadLog.info("YtDlpRunner", "Attempt finished: classification=" + observedFailure
+                    + ", exitCode=" + exitCode
+                    + ", attempt=" + currentAttemptNumber.get()
+                    + ", candidate=" + candidateIndex
+                    + ", session=" + context.getBulkSessionId());
 
             File createdTmp = DownloadFileNameHelper.findLatestTmpFile(
                     context.getTargetDir(),
@@ -255,15 +396,39 @@ public class YtDlpRunner {
                             + ", temporaryFile=" + DownloadLog.pathOf(createdTmp)
             );
 
-            if (sawExists) {
-                return new AttemptResult(false, true, false, exitCode, createdTmp, lastIoEx, false);
+            if (sawExists && observedFailure == YtDlpFailureKind.NONE) {
+                lease.complete(YtDlpFailureKind.NONE);
+                return new AttemptResult(false, true, false, exitCode, createdTmp, lastIoEx, false,
+                        YtDlpFailureKind.NONE, null);
             }
 
-            return new AttemptResult(false, false, sawFatal, exitCode, createdTmp, lastIoEx, sawNetworkFailure);
+            boolean success = exitCode == 0
+                    && createdTmp != null
+                    && createdTmp.exists()
+                    && observedFailure == YtDlpFailureKind.NONE
+                    && !sawFatal;
+            if (success) {
+                lease.complete(YtDlpFailureKind.NONE);
+            } else {
+                lease.complete(observedFailure);
+            }
+            return new AttemptResult(false, false, sawFatal || observedFailure != YtDlpFailureKind.NONE,
+                    exitCode, createdTmp, lastIoEx,
+                    observedFailure == YtDlpFailureKind.TRANSIENT_NETWORK || sawNetworkFailure,
+                    observedFailure, lease.cooldownState());
 
         } catch (IOException io) {
             DownloadLog.error("YtDlpRunner", "Bundled yt-dlp failed to start", io);
-            throw new IOException("Bundled yt-dlp failed to start: " + io.getMessage(), io);
+            YtDlpFailureKind failure = failureClassifier.classify(
+                    diagnosticTail.toString(), -1, io
+            );
+            if (failure == YtDlpFailureKind.UNKNOWN) {
+                failure = YtDlpFailureKind.PROCESS_START_FAILURE;
+            }
+            MediaToolsDiagnosticService.getInstance().reportRuntimeFailure(failure);
+            lease.complete(failure);
+            return new AttemptResult(false, false, true, -1, null, io, false,
+                    failure, lease.cooldownState());
         } finally {
             if (p != null && p.isAlive()) {
                 try {
@@ -271,6 +436,25 @@ public class YtDlpRunner {
                 } catch (Exception ignored) {
                 }
             }
+            lease.close();
+        }
+    }
+
+    public AttemptResult executeAttempt(
+            DownloadTaskContext context,
+            String searchQuery,
+            int candidateIndex,
+            int attemptNumber,
+            BooleanSupplier cancelledSupplier,
+            IntConsumer progressConsumer,
+            Consumer<String> messageConsumer
+    ) throws IOException, InterruptedException {
+        currentAttemptNumber.set(Math.max(0, attemptNumber));
+        try {
+            return executeAttempt(context, searchQuery, candidateIndex,
+                    cancelledSupplier, progressConsumer, messageConsumer);
+        } finally {
+            currentAttemptNumber.remove();
         }
     }
 
@@ -278,6 +462,20 @@ public class YtDlpRunner {
         if (videoUrl == null || videoUrl.isBlank()) {
             return Optional.empty();
         }
+
+        YouTubeRequestCoordinator.Acquisition acquisition;
+        try {
+            acquisition = coordinator.acquire(ProviderOperation.FORMAT_PROBE, () -> false);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return Optional.empty();
+        }
+        if (!acquisition.granted()) return Optional.empty();
+
+        YouTubeRequestCoordinator.Lease lease = acquisition.lease();
+        StringBuilder diagnostic = new StringBuilder();
+        Process p = null;
+        YtDlpProcessGuard processGuard = null;
 
         try {
             DownloadLog.info("YtDlpRunner", "Probing best audio format for " + videoUrl);
@@ -287,10 +485,9 @@ public class YtDlpRunner {
             args.add("--no-warnings");
             args.add(videoUrl);
 
-            ProcessBuilder pb = BundledMediaTools.ytDlpProcessBuilder(args, targetDir);
-            pb.redirectErrorStream(true);
-
-            Process p = pb.start();
+            p = processStarter.start(args, targetDir);
+            Thread executionThread = Thread.currentThread();
+            processGuard = YtDlpProcessGuard.watch(p, executionThread::isInterrupted);
 
             DownloadLog.info("YtDlpRunner", "Format probe process started, pid=" + p.pid());
 
@@ -302,10 +499,18 @@ public class YtDlpRunner {
 
                 while ((line = r.readLine()) != null) {
                     out.append(line).append('\n');
+                    appendDiagnostic(diagnostic, line);
+                    YtDlpFailureKind lineFailure = failureClassifier.classifyLine(line);
+                    if (lineFailure.isProviderRejection()) lease.reportFailure(lineFailure);
                 }
             }
 
             int exit = p.waitFor();
+            YtDlpFailureKind failure = failureClassifier.classify(diagnostic.toString(), exit, null);
+            if (failure.isProviderRejection()) lease.reportFailure(failure);
+            lease.complete(exit == 0 && failure == YtDlpFailureKind.NONE
+                    ? YtDlpFailureKind.NONE : failure == YtDlpFailureKind.NONE
+                    ? YtDlpFailureKind.UNKNOWN : failure);
 
             DownloadLog.info("YtDlpRunner", "Format probe finished with exitCode=" + exit);
 
@@ -397,11 +602,17 @@ public class YtDlpRunner {
                     if (fid != null && !fid.isBlank()) {
                         DownloadLog.info("YtDlpRunner", "Selected audio format id=" + fid);
                         return Optional.of(fid);
-                    }
                 }
             }
+            if (processGuard != null) processGuard.close();
+        }
         } catch (Throwable error) {
+            lease.complete(failureClassifier.classify(diagnostic.toString(), -1, error));
             DownloadLog.error("YtDlpRunner", "Could not probe audio format", error);
+        } finally {
+            if (p != null && p.isAlive()) p.destroyForcibly();
+            if (processGuard != null) processGuard.close();
+            lease.close();
         }
 
         return Optional.empty();
@@ -476,5 +687,38 @@ public class YtDlpRunner {
                 || message.contains("timed out")
                 || message.contains("timeout")
                 || message.contains("dns");
+    }
+
+    private void appendDiagnostic(StringBuilder output, String line) {
+        if (line == null) return;
+        if (output.length() > 0) output.append('\n');
+        output.append(line);
+        if (output.length() > MAX_DIAGNOSTIC_TAIL_LENGTH) {
+            output.delete(0, output.length() - MAX_DIAGNOSTIC_TAIL_LENGTH);
+        }
+    }
+
+    private YtDlpFailureKind preferFailure(YtDlpFailureKind current,
+                                           YtDlpFailureKind candidate) {
+        if (candidate == null || candidate == YtDlpFailureKind.NONE) return current;
+        if (current == null || current == YtDlpFailureKind.NONE) return candidate;
+        return failurePriority(candidate) > failurePriority(current) ? candidate : current;
+    }
+
+    private int failurePriority(YtDlpFailureKind kind) {
+        return switch (kind) {
+            case BOT_CHALLENGE -> 100;
+            case PROVIDER_RATE_LIMITED -> 95;
+            case JAVASCRIPT_RUNTIME_REQUIRED -> 92;
+            case PROVIDER_FORBIDDEN -> 90;
+            case AUTHENTICATION_REQUIRED -> 75;
+            case CONTENT_RESTRICTED -> 70;
+            case CONTENT_UNAVAILABLE -> 65;
+            case TOOL_CONFIGURATION -> 60;
+            case PROCESS_START_FAILURE -> 55;
+            case TRANSIENT_NETWORK -> 50;
+            case UNKNOWN -> 10;
+            default -> 0;
+        };
     }
 }

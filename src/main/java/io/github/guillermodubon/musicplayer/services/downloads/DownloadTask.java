@@ -16,6 +16,9 @@ import io.github.guillermodubon.musicplayer.services.downloads.managers.Download
 import io.github.guillermodubon.musicplayer.services.downloads.managers.YtDlpRunner;
 import io.github.guillermodubon.musicplayer.services.downloads.helpers.DownloadFileNameHelper;
 import io.github.guillermodubon.musicplayer.services.downloads.logging.DownloadLog;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YouTubeRequestCoordinator;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YtDlpFailureClassifier;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YtDlpFailureKind;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 
 import java.io.File;
@@ -24,6 +27,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public class DownloadTask extends Task<Void> {
 
@@ -40,6 +44,14 @@ public class DownloadTask extends Task<Void> {
     public static final String MESSAGE_ALREADY_EXISTS =
             "This song is already downloaded and saved in the selected folder.";
     public static final String MESSAGE_CANCELLED = "The download has been cancelled";
+    public static final String MESSAGE_PROVIDER_PAUSED =
+            "YouTube is temporarily limiting downloads. Try again later.";
+    public static final String MESSAGE_MEDIA_TOOLS =
+            "Media tools need attention. Check yt-dlp, FFmpeg and JavaScript runtime setup.";
+    public static final String MESSAGE_UNSUPPORTED =
+            "This item cannot be downloaded anonymously.";
+    public static final String MESSAGE_UNAVAILABLE =
+            "This item is unavailable on YouTube.";
 
     /*
      * Progress distribution:
@@ -67,7 +79,11 @@ public class DownloadTask extends Task<Void> {
         ALREADY_EXISTS(ResultStatus.WARNING, MESSAGE_ALREADY_EXISTS, "#FFB300", ICON_ERROR),
         CANCELLED(ResultStatus.CANCELLED, MESSAGE_CANCELLED, "#FFB300", ICON_ERROR),
         YT_DLP_ERROR(ResultStatus.ERROR, MESSAGE_YT_DLP_ERROR, "#D32F2F", ICON_ERROR),
-        CONNECTION_ERROR(ResultStatus.ERROR, MESSAGE_CONNECTION_ERROR, "#D32F2F", ICON_ERROR);
+        CONNECTION_ERROR(ResultStatus.ERROR, MESSAGE_CONNECTION_ERROR, "#D32F2F", ICON_ERROR),
+        PROVIDER_PAUSED(ResultStatus.WARNING, MESSAGE_PROVIDER_PAUSED, "#FFB300", ICON_ERROR),
+        MEDIA_TOOLS_ERROR(ResultStatus.ERROR, MESSAGE_MEDIA_TOOLS, "#D32F2F", ICON_ERROR),
+        UNSUPPORTED_CONTENT(ResultStatus.ERROR, MESSAGE_UNSUPPORTED, "#D32F2F", ICON_ERROR),
+        UNAVAILABLE_CONTENT(ResultStatus.ERROR, MESSAGE_UNAVAILABLE, "#D32F2F", ICON_ERROR);
 
         private final ResultStatus status;
         private final String message;
@@ -106,6 +122,8 @@ public class DownloadTask extends Task<Void> {
     private final StringProperty resultMessage = new SimpleStringProperty("");
     private final ObjectProperty<TerminalPresentation> terminalPresentation = new SimpleObjectProperty<>();
     private final BooleanProperty deferredByExclusiveSession = new SimpleBooleanProperty(false);
+    private volatile boolean deferredByProvider;
+    private volatile YtDlpFailureKind failureKind = YtDlpFailureKind.NONE;
 
     private volatile CompletableFuture<Void> postProcessingFuture = CompletableFuture.completedFuture(null);
     private volatile boolean networkFailure;
@@ -128,6 +146,9 @@ public class DownloadTask extends Task<Void> {
     private final Object executionMonitor = new Object();
     private final CompletableFuture<Void> executionCompletion = new CompletableFuture<>();
     private final AtomicBoolean executionStarted = new AtomicBoolean(false);
+    private final AtomicBoolean providerPhaseCompleted = new AtomicBoolean(false);
+    private final AtomicBoolean bulkSessionTaskFinished = new AtomicBoolean(false);
+    private volatile Consumer<YtDlpFailureKind> providerPhaseCompletionListener = ignored -> { };
 
     private final YtDlpRunner ytDlpRunner;
     private final DownloadFileFinalizer fileFinalizer;
@@ -256,12 +277,39 @@ public class DownloadTask extends Task<Void> {
         return deferredByExclusiveSession;
     }
 
+    public boolean isDeferredByProvider() {
+        return deferredByProvider;
+    }
+
+    public YtDlpFailureKind getFailureKind() {
+        return failureKind;
+    }
+
     public void setDeferredByExclusiveSession(boolean deferred) {
         deferredByExclusiveSession.set(deferred);
     }
 
     public CompletableFuture<Void> getPostProcessingFuture() {
         return postProcessingFuture;
+    }
+
+    public void setProviderPhaseCompletionListener(Consumer<YtDlpFailureKind> listener) {
+        providerPhaseCompletionListener = listener == null ? ignored -> { } : listener;
+    }
+
+    public void completeProviderPhase() {
+        if (!providerPhaseCompleted.compareAndSet(false, true)) return;
+        Consumer<YtDlpFailureKind> listener = providerPhaseCompletionListener;
+        providerPhaseCompletionListener = ignored -> { };
+        try {
+            listener.accept(failureKind);
+        } catch (RuntimeException error) {
+            DownloadLog.error("DownloadTask", "Provider phase callback failed", error);
+        }
+    }
+
+    public boolean markBulkSessionTaskFinished() {
+        return bulkSessionTaskFinished.compareAndSet(false, true);
     }
 
     /**
@@ -271,6 +319,10 @@ public class DownloadTask extends Task<Void> {
      */
     public boolean isExecutionComplete() {
         return executionCompletion.isDone();
+    }
+
+    public CompletableFuture<Void> getExecutionCompletion() {
+        return executionCompletion;
     }
 
     /**
@@ -300,241 +352,301 @@ public class DownloadTask extends Task<Void> {
     @Override
     protected Void call() throws Exception {
         if (!beginExecution()) {
+            completeProviderPhase();
             return null;
         }
-
-        updateMessage("Starting");
-        updateProgressSafely(0);
-        DownloadLog.info("DownloadTask", "Starting " + DownloadLog.taskLabel(context));
-
-        String desiredBase = DownloadFileNameHelper.computeDesiredBaseName(
-                context.getArtistForFile(),
-                context.getFetchedTitle(),
-                context.getCleanSongName()
-        );
 
         try {
+            updateMessage("Starting");
+            updateProgressSafely(0);
+            DownloadLog.info("DownloadTask", "Starting " + DownloadLog.taskLabel(context));
+
+            String desiredBase = DownloadFileNameHelper.computeDesiredBaseName(
+                    context.getArtistForFile(),
+                    context.getFetchedTitle(),
+                    context.getCleanSongName()
+            );
             DownloadLog.info("DownloadTask", "Resolved output base name: \"" + desiredBase + "\"");
 
-        if (fileFinalizer.alreadyExists(context, desiredBase)) {
-            DownloadLog.info("DownloadTask", "Final file already exists; skipping download");
-            File existingFile = fileFinalizer.resolveFinalTarget(context, desiredBase);
-            activeFinalFile = existingFile;
-            // This file belongs to a previous download and must never be
-            // removed if metadata or library integration fails now.
-            preserveFinalFileOnFailure = true;
+            if (fileFinalizer.alreadyExists(context, desiredBase)) {
+                completeProviderPhase();
+                DownloadLog.info("DownloadTask", "Final file already exists; skipping download");
+                File existingFile = fileFinalizer.resolveFinalTarget(context, desiredBase);
+                activeFinalFile = existingFile;
+                // This file belongs to a previous download and must never be
+                // removed if metadata or library integration fails now.
+                preserveFinalFileOnFailure = true;
 
-            publishPlayableAndCompleteIntegration(
-                    desiredBase,
-                    existingFile,
-                    TerminalPresentation.ALREADY_EXISTS
-            );
-
-            return null;
-        }
-
-        boolean finishedSuccessfully = false;
-        IOException lastIoEx = null;
-        List<String> searchQueries = context.getSearchQueries();
-        int attemptsPerQuery = context.getMaxAttempts();
-        int totalAttempts = Math.max(1, searchQueries.size() * attemptsPerQuery);
-
-        for (int attempt = 1; attempt <= totalAttempts && !isCancelled(); attempt++) {
-            int queryIndex = Math.min(searchQueries.size() - 1, (attempt - 1) / attemptsPerQuery);
-            int candidateIndex = ((attempt - 1) % attemptsPerQuery) + 1;
-            String searchQuery = searchQueries.get(queryIndex);
-
-            DownloadLog.info(
-                    "DownloadTask",
-                    "Starting attempt " + attempt + "/" + totalAttempts + " for "
-                            + DownloadLog.taskLabel(context)
-                            + " using search variant " + (queryIndex + 1) + "/" + searchQueries.size()
-            );
-
-            YtDlpRunner.AttemptResult result;
-
-            try {
-                result = ytDlpRunner.executeAttempt(
-                        context,
-                        searchQuery,
-                        candidateIndex,
-                        this::isCancelled,
-                        pct -> {
-                            double mapped = mapDownloadToolProgress(pct);
-                            updateProgressSafely(mapped);
-                            DownloadLog.progress(context, pct);
-                        },
-                        msg -> {
-                            if (msg != null && !msg.isBlank()) {
-                                updateMessage(msg);
-                            }
-                        }
+                publishPlayableAndCompleteIntegration(
+                        desiredBase,
+                        existingFile,
+                        TerminalPresentation.ALREADY_EXISTS
                 );
-            } catch (IOException io) {
-                lastIoEx = io;
-                networkFailure |= isNetworkFailure(io);
-                DownloadLog.error("DownloadTask", "Attempt " + attempt + " failed with IO error", io);
-                updateMessage("Error: " + (io.getMessage() == null ? "IO" : io.getMessage()));
-                result = null;
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
+
                 return null;
             }
 
-            if (isCancelled()) {
-                DownloadLog.warn("DownloadTask", "Task cancelled: " + DownloadLog.taskLabel(context));
-                setTerminalResult(TerminalPresentation.CANCELLED);
-                return null;
-            }
+            boolean finishedSuccessfully = false;
+            IOException lastIoEx = null;
+            int transientRetries = 0;
+            int unknownRetries = 0;
+            List<String> searchQueries = context.getSearchQueries();
+            int attemptsPerQuery = context.getMaxAttempts();
+            int totalAttempts = Math.max(1, searchQueries.size() * attemptsPerQuery);
 
-            if (result == null) {
-                DownloadLog.warn("DownloadTask", "Attempt returned no result");
-                cleanupIncompleteArtifacts();
+            for (int attempt = 1; attempt <= totalAttempts && !isCancelled(); attempt++) {
+                int queryIndex = Math.min(searchQueries.size() - 1, (attempt - 1) / attemptsPerQuery);
+                int candidateIndex = ((attempt - 1) % attemptsPerQuery) + 1;
+                String searchQuery = searchQueries.get(queryIndex);
 
-                if (candidateIndex < attemptsPerQuery) {
-                    long sleepMs = retryPolicy.computeDelayMillis(candidateIndex);
-                    DownloadLog.info("DownloadTask", "Retry scheduled in " + sleepMs + " ms after empty result");
-                    updateMessage(retryPolicy.buildRetryMessage(candidateIndex, attemptsPerQuery, sleepMs));
+                DownloadLog.info(
+                        "DownloadTask",
+                        "Starting attempt " + attempt + "/" + totalAttempts + " for "
+                                + DownloadLog.taskLabel(context)
+                                + " using search variant " + (queryIndex + 1) + "/" + searchQueries.size()
+                );
 
+                YtDlpRunner.AttemptResult result;
+
+                try {
+                    result = ytDlpRunner.executeAttempt(
+                            context,
+                            searchQuery,
+                            candidateIndex,
+                            attempt,
+                            this::isCancelled,
+                            pct -> {
+                                double mapped = mapDownloadToolProgress(pct);
+                                updateProgressSafely(mapped);
+                                DownloadLog.progress(context, pct);
+                            },
+                            msg -> {
+                                if (msg != null && !msg.isBlank()) {
+                                    updateMessage(msg);
+                                }
+                            }
+                    );
+                } catch (IOException io) {
+                    lastIoEx = io;
+                    networkFailure |= isNetworkFailure(io);
+                    DownloadLog.error("DownloadTask", "Attempt " + attempt + " failed with IO error", io);
+                    updateMessage("Error: " + (io.getMessage() == null ? "IO" : io.getMessage()));
+                    YtDlpFailureKind kind = new YtDlpFailureClassifier()
+                            .classify(io.getMessage(), -1, io);
+                    result = new YtDlpRunner.AttemptResult(false, false, true, -1, null, io,
+                            kind == YtDlpFailureKind.TRANSIENT_NETWORK, kind, null);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+
+                if (isCancelled()) {
+                    DownloadLog.warn("DownloadTask", "Task cancelled: " + DownloadLog.taskLabel(context));
+                    setTerminalResult(TerminalPresentation.CANCELLED);
+                    return null;
+                }
+
+                if (result == null) {
+                    DownloadLog.warn("DownloadTask", "Attempt returned no result");
+                    cleanupIncompleteArtifacts();
+
+                    if (candidateIndex < attemptsPerQuery) {
+                        long sleepMs = retryPolicy.computeDelayMillis(candidateIndex);
+                        DownloadLog.info("DownloadTask", "Retry scheduled in " + sleepMs + " ms after empty result");
+                        updateMessage(retryPolicy.buildRetryMessage(candidateIndex, attemptsPerQuery, sleepMs));
+
+                        try {
+                            Thread.sleep(sleepMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            return null;
+                        }
+                    } else if (networkFailure) {
+                        break;
+                    } else if (queryIndex < searchQueries.size() - 1) {
+                        DownloadLog.info("DownloadTask", "Trying fallback artist query after primary search candidates failed");
+                        updateMessage("Trying another artist");
+                    }
+
+                    continue;
+                }
+
+                DownloadLog.info(
+                        "DownloadTask",
+                        "Attempt result: exitCode=" + result.getExitCode()
+                                + ", exists=" + result.isExists()
+                                + ", fatal=" + result.isFatal()
+                                + ", candidate=" + DownloadLog.pathOf(result.getCreatedTmp())
+                );
+
+                activeTemporaryFile = result.getCreatedTmp();
+
+                if (result.getIoException() != null) {
+                    lastIoEx = result.getIoException();
+                }
+
+                networkFailure |= result.isNetworkFailure();
+                failureKind = result.getFailureKind();
+
+                if (failureKind.isProviderCooldown()) {
+                    DownloadLog.warn("DownloadTask", "Deferred after provider rejection: kind="
+                            + failureKind + ", session=" + context.getBulkSessionId());
+                    deferredByProvider = true;
+                    setTerminalResult(TerminalPresentation.PROVIDER_PAUSED);
+                    return null;
+                }
+
+                if (failureKind == YtDlpFailureKind.JAVASCRIPT_RUNTIME_REQUIRED
+                        || failureKind == YtDlpFailureKind.TOOL_CONFIGURATION
+                        || failureKind == YtDlpFailureKind.PROCESS_START_FAILURE) {
+                    setTerminalResult(TerminalPresentation.MEDIA_TOOLS_ERROR);
+                    return null;
+                }
+                if (failureKind == YtDlpFailureKind.AUTHENTICATION_REQUIRED
+                        || failureKind == YtDlpFailureKind.CONTENT_RESTRICTED) {
+                    setTerminalResult(TerminalPresentation.UNSUPPORTED_CONTENT);
+                    return null;
+                }
+                if (failureKind == YtDlpFailureKind.CONTENT_UNAVAILABLE) {
+                    setTerminalResult(TerminalPresentation.UNAVAILABLE_CONTENT);
+                    return null;
+                }
+
+                if (result.isExists()) {
+                    completeProviderPhase();
+                    DownloadLog.info("DownloadTask", "yt-dlp reported that the file already exists");
+
+                    activeFinalFile = fileFinalizer.resolveFinalTarget(context, desiredBase);
+                    preserveFinalFileOnFailure = true;
+                    cleanupIncompleteArtifacts();
+
+                    publishPlayableAndCompleteIntegration(
+                            desiredBase,
+                            fileFinalizer.resolveFinalTarget(context, desiredBase),
+                            TerminalPresentation.ALREADY_EXISTS
+                    );
+
+                    finishedSuccessfully = terminalPresentation.get() == TerminalPresentation.ALREADY_EXISTS;
+
+                    break;
+                }
+
+                if (result.isSuccessfulCandidate()) {
+                    completeProviderPhase();
+                    updateMessage("Finalizing file");
+                    updateProgressSafely(PROGRESS_FILE_FINALIZED - 2);
+
+                    File finalFile = fileFinalizer.finalizeDownloadedFile(
+                            context,
+                            desiredBase,
+                            result.getCreatedTmp()
+                    );
+
+                    if (finalFile != null) {
+                        DownloadLog.info("DownloadTask", "Download finalized at " + DownloadLog.pathOf(finalFile));
+                        activeFinalFile = finalFile;
+
+                        publishPlayableAndCompleteIntegration(
+                                desiredBase,
+                                finalFile,
+                                TerminalPresentation.COMPLETED
+                        );
+
+                        preserveFinalFileOnFailure = true;
+                        finishedSuccessfully = true;
+
+                        break;
+                    } else {
+                        DownloadLog.warn("DownloadTask", "Could not finalize downloaded temporary file");
+                        updateMessage("Error renaming file");
+                        cleanupIncompleteArtifacts();
+                    }
+                } else {
+                    updateMessage("Attempt failed (" + attempt + ")");
+                    cleanupIncompleteArtifacts();
+                }
+
+                if (failureKind == YtDlpFailureKind.TRANSIENT_NETWORK
+                        || failureKind == YtDlpFailureKind.UNKNOWN) {
+                    int retryCount;
+                    int retryLimit;
+                    if (failureKind == YtDlpFailureKind.TRANSIENT_NETWORK) {
+                        retryCount = ++transientRetries;
+                        retryLimit = YouTubeRequestCoordinator.getInstance()
+                                .policy().maximumTransientRetries();
+                    } else {
+                        retryCount = ++unknownRetries;
+                        retryLimit = 1;
+                    }
+
+                    if (retryCount > retryLimit) break;
+                    long sleepMs = retryPolicy.computeDelayMillis(retryCount);
+                    updateMessage(retryPolicy.buildRetryMessage(retryCount, retryLimit, sleepMs));
                     try {
                         Thread.sleep(sleepMs);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                         return null;
                     }
-                } else if (networkFailure) {
+                    continue;
+                }
+
+                if (candidateIndex < attemptsPerQuery) {
+                    boolean transientFailure = result.isNetworkFailure()
+                            || result.getIoException() != null;
+                    long sleepMs = transientFailure ? retryPolicy.computeDelayMillis(candidateIndex) : 0L;
+
+                    if (sleepMs > 0) {
+                        DownloadLog.info("DownloadTask", "Retry scheduled in " + sleepMs + " ms");
+                        updateMessage(retryPolicy.buildRetryMessage(candidateIndex, attemptsPerQuery, sleepMs));
+
+                        try {
+                            Thread.sleep(sleepMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            return null;
+                        }
+                    } else {
+                        DownloadLog.info("DownloadTask", "Trying next search candidate without delay");
+                        updateMessage("Trying another result (" + (candidateIndex + 1) + "/" + attemptsPerQuery + ")");
+                    }
+                } else if (result.isNetworkFailure()) {
                     break;
                 } else if (queryIndex < searchQueries.size() - 1) {
                     DownloadLog.info("DownloadTask", "Trying fallback artist query after primary search candidates failed");
                     updateMessage("Trying another artist");
                 }
-
-                continue;
             }
 
-            DownloadLog.info(
-                    "DownloadTask",
-                    "Attempt result: exitCode=" + result.getExitCode()
-                            + ", exists=" + result.isExists()
-                            + ", fatal=" + result.isFatal()
-                            + ", candidate=" + DownloadLog.pathOf(result.getCreatedTmp())
-            );
-
-            activeTemporaryFile = result.getCreatedTmp();
-
-            if (result.getIoException() != null) {
-                lastIoEx = result.getIoException();
+            if (isCancelled()) {
+                DownloadLog.warn("DownloadTask", "Task cancelled after attempts: " + DownloadLog.taskLabel(context));
+                setTerminalResult(TerminalPresentation.CANCELLED);
+                return null;
             }
 
-            networkFailure |= result.isNetworkFailure();
-
-            if (result.isExists()) {
-                DownloadLog.info("DownloadTask", "yt-dlp reported that the file already exists");
-
-                activeFinalFile = fileFinalizer.resolveFinalTarget(context, desiredBase);
-                preserveFinalFileOnFailure = true;
-                cleanupIncompleteArtifacts();
-
-                publishPlayableAndCompleteIntegration(
-                        desiredBase,
-                        fileFinalizer.resolveFinalTarget(context, desiredBase),
-                        TerminalPresentation.ALREADY_EXISTS
-                );
-
-                finishedSuccessfully = terminalPresentation.get() == TerminalPresentation.ALREADY_EXISTS;
-
-                break;
+            if (finishedSuccessfully) {
+                DownloadLog.info("DownloadTask", "Task completed successfully: " + DownloadLog.taskLabel(context));
+                return null;
             }
 
-            if (result.isSuccessfulCandidate()) {
-                updateMessage("Finalizing file");
-                updateProgressSafely(PROGRESS_FILE_FINALIZED - 2);
+            setTerminalResult(terminalForFailure(failureKind, networkFailure));
 
-                File finalFile = fileFinalizer.finalizeDownloadedFile(
-                        context,
-                        desiredBase,
-                        result.getCreatedTmp()
-                );
+            String message = "yt-dlp failed after retries";
 
-                if (finalFile != null) {
-                    DownloadLog.info("DownloadTask", "Download finalized at " + DownloadLog.pathOf(finalFile));
-                    activeFinalFile = finalFile;
-
-                    publishPlayableAndCompleteIntegration(
-                            desiredBase,
-                            finalFile,
-                            TerminalPresentation.COMPLETED
-                    );
-
-                    preserveFinalFileOnFailure = true;
-                    finishedSuccessfully = true;
-
-                    break;
-                } else {
-                    DownloadLog.warn("DownloadTask", "Could not finalize downloaded temporary file");
-                    updateMessage("Error renaming file");
-                    cleanupIncompleteArtifacts();
-                }
-            } else {
-                updateMessage("Attempt failed (" + attempt + ")");
-                cleanupIncompleteArtifacts();
+            if (lastIoEx != null) {
+                message += " -> " + lastIoEx.getMessage();
             }
 
-            if (candidateIndex < attemptsPerQuery) {
-                boolean transientFailure = result.isNetworkFailure()
-                        || result.getIoException() != null;
-                long sleepMs = transientFailure ? retryPolicy.computeDelayMillis(candidateIndex) : 0L;
-
-                if (sleepMs > 0) {
-                    DownloadLog.info("DownloadTask", "Retry scheduled in " + sleepMs + " ms");
-                    updateMessage(retryPolicy.buildRetryMessage(candidateIndex, attemptsPerQuery, sleepMs));
-
-                    try {
-                        Thread.sleep(sleepMs);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        return null;
-                    }
-                } else {
-                    DownloadLog.info("DownloadTask", "Trying next search candidate without delay");
-                    updateMessage("Trying another result (" + (candidateIndex + 1) + "/" + attemptsPerQuery + ")");
-                }
-            } else if (result.isNetworkFailure()) {
-                break;
-            } else if (queryIndex < searchQueries.size() - 1) {
-                DownloadLog.info("DownloadTask", "Trying fallback artist query after primary search candidates failed");
-                updateMessage("Trying another artist");
-            }
-        }
-
-        if (isCancelled()) {
-            DownloadLog.warn("DownloadTask", "Task cancelled after attempts: " + DownloadLog.taskLabel(context));
-            setTerminalResult(TerminalPresentation.CANCELLED);
-            return null;
-        }
-
-        if (finishedSuccessfully) {
-            DownloadLog.info("DownloadTask", "Task completed successfully: " + DownloadLog.taskLabel(context));
-            return null;
-        }
-
-        setTerminalResult(networkFailure
-                ? TerminalPresentation.CONNECTION_ERROR
-                : TerminalPresentation.YT_DLP_ERROR);
-
-        String message = "yt-dlp failed after retries";
-
-        if (lastIoEx != null) {
-            message += " -> " + lastIoEx.getMessage();
-        }
-
-        DownloadLog.error("DownloadTask", message, lastIoEx);
-        throw new Exception(message);
+            DownloadLog.error("DownloadTask", message, lastIoEx);
+            throw new Exception(message);
         } finally {
+            completeProviderPhase();
             if (!preserveFinalFileOnFailure && context != null) {
                 context.revokeDownloadPublication();
             }
             cleanupIncompleteArtifacts();
+            activeTemporaryFile = null;
+            activeFinalFile = null;
             completeExecution();
         }
     }
@@ -603,6 +715,7 @@ public class DownloadTask extends Task<Void> {
         });
 
         awaitPostProcessing(postProcessingFuture);
+        postProcessingFuture = CompletableFuture.completedFuture(null);
 
         setTerminalResult(presentation);
     }
@@ -727,6 +840,7 @@ public class DownloadTask extends Task<Void> {
          * finally block performs it after yt-dlp and post-processing return.
          */
         if (!executionStarted.get()) {
+            completeProviderPhase();
             cleanupIncompleteArtifacts();
             completeExecution();
         }
@@ -773,6 +887,25 @@ public class DownloadTask extends Task<Void> {
         resultMessage.set(presentation.getMessage());
         updateMessage(presentation.getMessage());
         resultStatus.set(presentation.getStatus());
+    }
+
+    private TerminalPresentation terminalForFailure(YtDlpFailureKind kind,
+                                                    boolean wasNetworkFailure) {
+        if (kind == YtDlpFailureKind.JAVASCRIPT_RUNTIME_REQUIRED
+                || kind == YtDlpFailureKind.TOOL_CONFIGURATION
+                || kind == YtDlpFailureKind.PROCESS_START_FAILURE) {
+            return TerminalPresentation.MEDIA_TOOLS_ERROR;
+        }
+        if (kind == YtDlpFailureKind.AUTHENTICATION_REQUIRED
+                || kind == YtDlpFailureKind.CONTENT_RESTRICTED) {
+            return TerminalPresentation.UNSUPPORTED_CONTENT;
+        }
+        if (kind == YtDlpFailureKind.CONTENT_UNAVAILABLE) {
+            return TerminalPresentation.UNAVAILABLE_CONTENT;
+        }
+        return wasNetworkFailure || kind == YtDlpFailureKind.TRANSIENT_NETWORK
+                ? TerminalPresentation.CONNECTION_ERROR
+                : TerminalPresentation.YT_DLP_ERROR;
     }
 
     private boolean isNetworkFailure(Throwable error) {

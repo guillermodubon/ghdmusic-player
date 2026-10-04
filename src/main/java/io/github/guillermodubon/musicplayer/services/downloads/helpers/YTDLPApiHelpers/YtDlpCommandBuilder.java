@@ -3,6 +3,7 @@ package io.github.guillermodubon.musicplayer.services.downloads.helpers.YTDLPApi
 import io.github.guillermodubon.musicplayer.services.downloads.helpers.DownloadFileNameHelper;
 import io.github.guillermodubon.musicplayer.services.downloads.preferences.DownloadAudioPreset;
 import io.github.guillermodubon.musicplayer.services.downloads.preferences.DownloadPreferences;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YouTubeExecutionPolicy;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -35,6 +36,19 @@ public final class YtDlpCommandBuilder {
             int candidateIndex,
             String downloadToken,
             DownloadAudioPreset audioPreset
+    ) {
+        return buildBaseArgs(query, targetDir, candidateIndex, downloadToken, audioPreset, false,
+                YouTubeExecutionPolicy.defaults());
+    }
+
+    public static List<String> buildBaseArgs(
+            String query,
+            File targetDir,
+            int candidateIndex,
+            String downloadToken,
+            DownloadAudioPreset audioPreset,
+            boolean bulkDownload,
+            YouTubeExecutionPolicy policy
     ) {
         String raw = query == null ? "" : query.trim();
         String sanitizedQuery = DownloadFileNameHelper.sanitizeSearchQuery(raw);
@@ -80,11 +94,17 @@ public final class YtDlpCommandBuilder {
         args.add("-o");
         args.add(buildOutputTemplate(targetDir, downloadToken));
         args.add("--retries");
-        args.add(String.valueOf(YtDlpDownloadOptions.RETRIES));
+        args.add(String.valueOf(bulkDownload
+                ? selectedPolicy(policy).bulkHttpRetries()
+                : YtDlpDownloadOptions.RETRIES));
         args.add("--fragment-retries");
-        args.add(String.valueOf(YtDlpDownloadOptions.FRAGMENT_RETRIES));
+        args.add(String.valueOf(bulkDownload
+                ? selectedPolicy(policy).bulkFragmentRetries()
+                : YtDlpDownloadOptions.FRAGMENT_RETRIES));
         args.add("--file-access-retries");
-        args.add(String.valueOf(YtDlpDownloadOptions.FILE_ACCESS_RETRIES));
+        args.add(String.valueOf(bulkDownload
+                ? selectedPolicy(policy).bulkFileAccessRetries()
+                : YtDlpDownloadOptions.FILE_ACCESS_RETRIES));
         args.add("--retry-sleep");
         args.add("http:linear=1:4:1");
         args.add("--retry-sleep");
@@ -94,7 +114,16 @@ public final class YtDlpCommandBuilder {
         args.add("--socket-timeout");
         args.add(String.valueOf(YtDlpDownloadOptions.SOCKET_TIMEOUT_SECONDS));
         args.add("--concurrent-fragments");
-        args.add(String.valueOf(YtDlpDownloadOptions.CONCURRENT_FRAGMENTS));
+        YouTubeExecutionPolicy selectedPolicy = selectedPolicy(policy);
+        args.add(String.valueOf(selectedPolicy.maximumConcurrentFragments()));
+        if (bulkDownload) {
+            args.add("--sleep-requests");
+            args.add(String.valueOf(selectedPolicy.requestSleepSeconds()));
+            args.add("--sleep-interval");
+            args.add(String.valueOf(selectedPolicy.bulkDownloadSleepMinimumSeconds()));
+            args.add("--max-sleep-interval");
+            args.add(String.valueOf(selectedPolicy.bulkDownloadSleepMaximumSeconds()));
+        }
         args.add("--skip-unavailable-fragments");
         args.add("--progress-delta");
         args.add(YtDlpDownloadOptions.PROGRESS_DELTA_SECONDS);
@@ -105,5 +134,9 @@ public final class YtDlpCommandBuilder {
         args.add(sourceArg);
 
         return args;
+    }
+
+    private static YouTubeExecutionPolicy selectedPolicy(YouTubeExecutionPolicy policy) {
+        return policy == null ? YouTubeExecutionPolicy.defaults() : policy;
     }
 }
