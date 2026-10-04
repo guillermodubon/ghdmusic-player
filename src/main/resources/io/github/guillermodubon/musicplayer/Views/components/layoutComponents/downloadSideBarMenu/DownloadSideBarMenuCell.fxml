@@ -73,6 +73,17 @@
                         mnemonicParsing="false"
                         styleClass="download-bulk-cancel-button"/>
 
+                <Button fx:id="bulkResumeButton"
+                        text="Resume"
+                        visible="false"
+                        managed="false"
+                        minWidth="-Infinity"
+                        prefWidth="-1"
+                        maxWidth="-Infinity"
+                        focusTraversable="false"
+                        mnemonicParsing="false"
+                        styleClass="download-bulk-cancel-button"/>
+
             </HBox>
 
             <HBox alignment="CENTER_LEFT"

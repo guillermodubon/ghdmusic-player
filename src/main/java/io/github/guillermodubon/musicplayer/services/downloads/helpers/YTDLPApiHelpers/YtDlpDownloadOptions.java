@@ -11,7 +11,6 @@ public final class YtDlpDownloadOptions {
     public static final int FRAGMENT_RETRIES = 4;
     public static final int FILE_ACCESS_RETRIES = 5;
     public static final int SOCKET_TIMEOUT_SECONDS = 25;
-    public static final int CONCURRENT_FRAGMENTS = 4;
     public static final int TRIM_FILENAMES_LENGTH = 180;
 
     public static final String FORMAT = "bestaudio[acodec!=none]/bestaudio/best";

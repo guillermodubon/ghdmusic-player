@@ -161,12 +161,18 @@ final class DownloadCellProgressPresenter {
         DownloadTask.ResultStatus result = presentation.getStatus();
 
         if (result == DownloadTask.ResultStatus.COMPLETED
-                || result == DownloadTask.ResultStatus.WARNING) {
+                || (result == DownloadTask.ResultStatus.WARNING
+                && presentation != DownloadTask.TerminalPresentation.PROVIDER_PAUSED)) {
             animateProgress(1);
             File completedFile = task.getCompletedFile();
             DownloadCellUi.setManagedVisible(
                     openLocationButton,
                     completedFile != null && completedFile.exists()
+            );
+        } else if (presentation == DownloadTask.TerminalPresentation.PROVIDER_PAUSED) {
+            DownloadCellUi.setManagedVisible(
+                    actionButton,
+                    task.getContext() != null && !task.getContext().isBulkDownload()
             );
         } else {
             DownloadCellUi.setManagedVisible(actionButton, true);

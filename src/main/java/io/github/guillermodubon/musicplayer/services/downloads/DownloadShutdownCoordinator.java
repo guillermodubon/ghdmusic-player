@@ -5,6 +5,9 @@ import javafx.beans.property.ReadOnlyDoubleProperty;
 import javafx.beans.property.ReadOnlyDoubleWrapper;
 import io.github.guillermodubon.musicplayer.services.downloads.bulk.BulkDownloadManager;
 import io.github.guillermodubon.musicplayer.services.downloads.logging.DownloadLog;
+import io.github.guillermodubon.musicplayer.services.downloads.helpers.YTDLPApiHelpers.YTDLPHelper;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YouTubeRequestCoordinator;
+import io.github.guillermodubon.musicplayer.services.downloads.dependencies.MediaToolsDiagnosticService;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -94,6 +97,10 @@ public final class DownloadShutdownCoordinator {
                 cleanupFutures.toArray(new CompletableFuture[0])
         ).handle((ignored, error) -> {
             cleanupProgressOnFxThread(1.0);
+            BulkDownloadManager.getInstance().shutdown();
+            YTDLPHelper.shutdown();
+            MediaToolsDiagnosticService.getInstance().shutdown();
+            YouTubeRequestCoordinator.getInstance().shutdown();
             if (error != null) {
                 DownloadLog.error(
                         "DownloadShutdownCoordinator",

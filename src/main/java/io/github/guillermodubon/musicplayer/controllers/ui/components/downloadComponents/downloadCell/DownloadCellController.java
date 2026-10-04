@@ -49,6 +49,7 @@ public class DownloadCellController {
     @FXML private Label bulkQueueLabel;
     @FXML private StackPane bulkStatusIconPane;
     @FXML private Button bulkCancelButton;
+    @FXML private Button bulkResumeButton;
     @FXML private Region bulkSectionSeparator;
     @FXML private Button cancelButton;
     @FXML private Button removeButton;
@@ -114,6 +115,7 @@ public class DownloadCellController {
                 bulkQueueLabel,
                 bulkStatusIconPane,
                 bulkCancelButton,
+                bulkResumeButton,
                 bulkSectionSeparator
         );
         responsiveLayout = new DownloadCellResponsiveLayout(

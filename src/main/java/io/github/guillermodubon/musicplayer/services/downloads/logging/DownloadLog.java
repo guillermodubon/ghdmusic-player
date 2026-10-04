@@ -3,10 +3,13 @@ package io.github.guillermodubon.musicplayer.services.downloads.logging;
 import io.github.guillermodubon.musicplayer.services.downloads.context.DownloadTaskContext;
 
 import java.io.File;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class DownloadLog {
@@ -19,6 +22,7 @@ public final class DownloadLog {
             System.getProperty("musicplayer.download.processOutput", "true")
     );
     private static final Map<String, Integer> LAST_PROGRESS = new ConcurrentHashMap<>();
+    private static final Pattern URL_QUERY = Pattern.compile("(?i)(https?://[^\\s?]+)\\?[^\\s]+");
 
     private DownloadLog() {
     }
@@ -84,10 +88,10 @@ public final class DownloadLog {
         synchronized (DownloadLog.class) {
             if ("ERROR".equals(level) || "WARN".equals(level)) {
                 System.err.println(output);
-                if (error != null) error.printStackTrace(System.err);
+                if (error != null) printSanitizedStackTrace(error, System.err);
             } else {
                 System.out.println(output);
-                if (error != null) error.printStackTrace(System.out);
+                if (error != null) printSanitizedStackTrace(error, System.out);
             }
         }
     }
@@ -102,7 +106,20 @@ public final class DownloadLog {
 
     private static String clean(String value) {
         if (value == null) return "<null>";
-        String normalized = value.replace('\r', ' ').replace('\n', ' ').trim();
+        String normalized = sanitize(value.replace('\r', ' ').replace('\n', ' ').trim());
         return normalized.length() > 600 ? normalized.substring(0, 600) + "..." : normalized;
+    }
+
+    private static String sanitize(String value) {
+        String normalized = value;
+        normalized = URL_QUERY.matcher(normalized).replaceAll("$1?<redacted>");
+        normalized = normalized.replaceAll("(?i)(authorization|cookie|po[-_ ]?token)\\s*[:=]\\s*[^ ,;]+", "$1=<redacted>");
+        return normalized;
+    }
+
+    private static void printSanitizedStackTrace(Throwable error, java.io.PrintStream output) {
+        StringWriter buffer = new StringWriter();
+        error.printStackTrace(new PrintWriter(buffer));
+        output.println(sanitize(buffer.toString()));
     }
 }

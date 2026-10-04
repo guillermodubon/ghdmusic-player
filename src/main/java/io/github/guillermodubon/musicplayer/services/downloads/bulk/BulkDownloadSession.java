@@ -28,6 +28,9 @@ public final class BulkDownloadSession {
 
     public enum Status {
         RUNNING,
+        RECOVERING_PROVIDER,
+        WAITING_FOR_PROVIDER,
+        PAUSED_PROVIDER,
         COMPLETED,
         ERROR,
         CANCELLED
@@ -47,12 +50,13 @@ public final class BulkDownloadSession {
     private final String title;
     private final List<Song> songs;
     private final File targetDirectory;
-    private final int parallelLimit;
+    private final int workerLimit;
     private final long sourceId;
     private final SourceType sourceType;
 
     private final AtomicInteger nextIndex = new AtomicInteger();
     private final AtomicInteger activeCount = new AtomicInteger();
+    private final AtomicInteger activeProviderPhaseCount = new AtomicInteger();
     private final AtomicInteger integratedCount = new AtomicInteger();
     private final AtomicInteger completedCount = new AtomicInteger();
     private final AtomicInteger errorCount = new AtomicInteger();
@@ -61,10 +65,16 @@ public final class BulkDownloadSession {
     private final AtomicBoolean cancellationRequested = new AtomicBoolean(false);
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean exclusiveDownloadPhaseReleased = new AtomicBoolean(false);
+    private final AtomicBoolean failureStopped = new AtomicBoolean(false);
 
     private final Set<Integer> completedIndexes = Collections.synchronizedSet(new LinkedHashSet<>());
     private final Set<Integer> failedIndexes = Collections.synchronizedSet(new LinkedHashSet<>());
     private final Set<Integer> terminalIndexes = Collections.synchronizedSet(new LinkedHashSet<>());
+    private final Object deferredLock = new Object();
+    private final DeferredSongIndexQueue deferredIndexes = new DeferredSongIndexQueue();
+    private volatile long providerResumeAtMillis;
+    private volatile long providerCooldownGeneration;
+    private volatile Status statusValue = Status.RUNNING;
 
     private final IntegerProperty queuedCount = new SimpleIntegerProperty();
     private final IntegerProperty integratedCountProperty = new SimpleIntegerProperty();
@@ -79,14 +89,14 @@ public final class BulkDownloadSession {
                         String title,
                         List<Song> songs,
                         File targetDirectory,
-                        int parallelLimit,
+                        int workerLimit,
                         long sourceId,
                         SourceType sourceType) {
         this.id = id;
         this.title = title == null || title.isBlank() ? "Downloads" : title.trim();
         this.songs = songs == null ? List.of() : List.copyOf(songs);
         this.targetDirectory = targetDirectory;
-        this.parallelLimit = Math.max(1, parallelLimit);
+        this.workerLimit = Math.max(1, workerLimit);
         this.sourceId = sourceId;
         this.sourceType = sourceType == null ? SourceType.UNKNOWN : sourceType;
         updateQueuedCount();
@@ -110,6 +120,14 @@ public final class BulkDownloadSession {
 
     public int getTotalSongs() {
         return songs.size();
+    }
+
+    public int getActiveCount() {
+        return activeCount.get();
+    }
+
+    public int getActiveProviderPhaseCount() {
+        return activeProviderPhaseCount.get();
     }
 
     public File getTargetDirectory() {
@@ -171,7 +189,7 @@ public final class BulkDownloadSession {
 
 
     public Status getStatus() {
-        return status.get();
+        return statusValue;
     }
 
     public ReadOnlyObjectProperty<Status> statusProperty() {
@@ -186,6 +204,10 @@ public final class BulkDownloadSession {
         return closed.get();
     }
 
+    boolean isFailureStopped() {
+        return failureStopped.get();
+    }
+
     public List<Song> getSongs() {
         return songs;
     }
@@ -194,12 +216,28 @@ public final class BulkDownloadSession {
         return isDoneScheduling() && activeCount.get() <= 0;
     }
 
+    public long getProviderResumeAtMillis() {
+        return providerResumeAtMillis;
+    }
+
+    long getProviderCooldownGeneration() {
+        return providerCooldownGeneration;
+    }
+
     boolean markExclusiveDownloadPhaseReleased() {
         return exclusiveDownloadPhaseReleased.compareAndSet(false, true);
     }
 
-    ScheduledSong pollNextScheduledSong() {
+    synchronized ScheduledSong pollNextScheduledSong() {
         if (isCancellationRequested()) return null;
+
+        synchronized (deferredLock) {
+            Integer deferredIndex = deferredIndexes.poll();
+            if (deferredIndex != null) {
+                updateQueuedCount();
+                return new ScheduledSong(deferredIndex, songs.get(deferredIndex));
+            }
+        }
 
         int index = nextIndex.getAndIncrement();
 
@@ -214,12 +252,77 @@ public final class BulkDownloadSession {
         return new ScheduledSong(index, songs.get(index));
     }
 
-    boolean hasCapacity() {
-        return activeCount.get() < parallelLimit;
+    synchronized int availableSchedulingSlots(int providerConcurrency) {
+        return BulkDownloadSchedulingWindow.availableSlots(
+                activeCount.get(),
+                activeProviderPhaseCount.get(),
+                workerLimit,
+                providerConcurrency
+        );
     }
 
-    void markTaskStarted() {
-        activeCount.incrementAndGet();
+    synchronized ScheduledSong reserveNextScheduledSong(int providerConcurrency) {
+        if (isCancellationRequested()
+                || (statusValue != Status.RUNNING && statusValue != Status.RECOVERING_PROVIDER)
+                || availableSchedulingSlots(providerConcurrency) == 0) {
+            return null;
+        }
+
+        ScheduledSong scheduled = pollNextScheduledSong();
+        if (scheduled != null) {
+            activeCount.incrementAndGet();
+            activeProviderPhaseCount.incrementAndGet();
+        }
+        return scheduled;
+    }
+
+    boolean deferSong(int songIndex) {
+        if (songIndex < 0 || songIndex >= songs.size()
+                || isCancellationRequested() || isFailureStopped()) return false;
+        synchronized (deferredLock) {
+            if (!deferredIndexes.offer(songIndex)) return false;
+        }
+        updateQueuedCount();
+        return true;
+    }
+
+    void setProviderWaiting(long resumeAtMillis, long generation) {
+        providerResumeAtMillis = Math.max(0L, resumeAtMillis);
+        providerCooldownGeneration = generation;
+        setStatus(Status.WAITING_FOR_PROVIDER);
+    }
+
+    void setProviderPaused() {
+        providerResumeAtMillis = 0L;
+        setStatus(Status.PAUSED_PROVIDER);
+    }
+
+    void setProviderRecovering() {
+        providerResumeAtMillis = 0L;
+        setStatus(Status.RECOVERING_PROVIDER);
+    }
+
+    void resumeProvider() {
+        providerResumeAtMillis = 0L;
+        if (!isCancellationRequested() && !isClosed()) setStatus(Status.RUNNING);
+    }
+
+    void stopForMediaToolFailure() {
+        failureStopped.set(true);
+        nextIndex.set(songs.size());
+        synchronized (deferredLock) {
+            deferredIndexes.clear();
+        }
+        updateQueuedCount();
+    }
+
+    private void setStatus(Status nextStatus) {
+        statusValue = nextStatus;
+        runFx(() -> status.set(nextStatus));
+    }
+
+    void markProviderPhaseFinished() {
+        activeProviderPhaseCount.updateAndGet(value -> Math.max(0, value - 1));
     }
 
     void markDownloadFinished() {
@@ -227,6 +330,10 @@ public final class BulkDownloadSession {
     }
 
     void markTaskIntegrated(DownloadTask task, int songIndex, Throwable integrationError) {
+        if (task != null && task.isDeferredByProvider()) {
+            deferSong(songIndex);
+            return;
+        }
         if (!registerTerminalIndex(songIndex)) {
             return;
         }
@@ -238,17 +345,24 @@ public final class BulkDownloadSession {
     }
 
     boolean isDoneScheduling() {
-        return nextIndex.get() >= songs.size();
+        if (isFailureStopped()) return true;
+        synchronized (deferredLock) {
+            return nextIndex.get() >= songs.size() && deferredIndexes.isEmpty();
+        }
     }
 
     boolean isComplete() {
-        return isDownloadPhaseComplete()
-                && integratedCount.get() >= scheduledCount();
+        return (isFailureStopped() && activeCount.get() <= 0)
+                || (isDownloadPhaseComplete()
+                && integratedCount.get() >= scheduledCount());
     }
 
     void requestCancel() {
         cancellationRequested.set(true);
         nextIndex.set(songs.size());
+        synchronized (deferredLock) {
+            deferredIndexes.clear();
+        }
         updateQueuedCount();
     }
 
@@ -265,6 +379,7 @@ public final class BulkDownloadSession {
 
         if (changed) {
             Status safeStatus = finalStatus == null ? Status.COMPLETED : finalStatus;
+            statusValue = safeStatus;
 
             runFx(() -> {
                 status.set(safeStatus);
@@ -366,7 +481,11 @@ public final class BulkDownloadSession {
     }
 
     private void updateQueuedCount() {
-        int remaining = Math.max(0, songs.size() - nextIndex.get());
+        int deferredCount;
+        synchronized (deferredLock) {
+            deferredCount = deferredIndexes.size();
+        }
+        int remaining = Math.max(0, songs.size() - nextIndex.get()) + deferredCount;
         runFx(() -> queuedCount.set(remaining));
     }
 

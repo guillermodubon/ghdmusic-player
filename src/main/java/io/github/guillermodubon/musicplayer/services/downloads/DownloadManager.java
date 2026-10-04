@@ -3,19 +3,28 @@ package io.github.guillermodubon.musicplayer.services.downloads;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Worker;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.downloadComponents.DownloadSidebarMenuController;
 import io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComponents.queuePane.QueueController;
+import io.github.guillermodubon.musicplayer.services.downloads.bulk.BulkDownloadHistoryRetention;
 import io.github.guillermodubon.musicplayer.services.downloads.logging.DownloadLog;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YouTubeExecutionPolicy;
+import io.github.guillermodubon.musicplayer.services.downloads.provider.YouTubeRequestCoordinator;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class DownloadManager {
 
@@ -24,16 +33,21 @@ public class DownloadManager {
     private DownloadSidebarMenuController sidebarController;
 
     private final ObservableList<DownloadTask> tasks = FXCollections.observableArrayList();
-    private final ExecutorService executor;
+    private final ThreadPoolExecutor executor;
     private final Queue<DownloadTask> deferredTasks = new ConcurrentLinkedQueue<>();
     private final int workerCount;
     private volatile String exclusiveSessionId;
     private volatile boolean acceptingDownloads = true;
 
     private DownloadManager() {
-        workerCount = Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors() / 2));
-        executor = Executors.newFixedThreadPool(
+        YouTubeExecutionPolicy policy = YouTubeRequestCoordinator.getInstance().policy();
+        workerCount = policy.downloadWorkerCount(Runtime.getRuntime().availableProcessors());
+        executor = new ThreadPoolExecutor(
                 workerCount,
+                workerCount,
+                0L,
+                TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(policy.maximumQueuedDownloadTasks()),
                 new DaemonThreadFactory()
         );
         DownloadLog.info("DownloadManager", "Initialized download executor with " + workerCount + " workers");
@@ -50,6 +64,43 @@ public class DownloadManager {
 
     public int getWorkerCount() {
         return workerCount;
+    }
+
+    public void trimCompletedBulkSuccessRows(String sessionId, int retainedLimit) {
+        if (sessionId == null || sessionId.isBlank()) return;
+        Runnable trim = () -> {
+            List<DownloadTask> snapshot = new ArrayList<>(tasks);
+            List<BulkDownloadHistoryRetention.RowState> rowStates = new ArrayList<>(snapshot.size());
+            for (DownloadTask task : snapshot) {
+                var context = task == null ? null : task.getContext();
+                DownloadTask.ResultStatus result = task == null ? null : task.getResultStatus();
+                boolean successful = result == DownloadTask.ResultStatus.COMPLETED
+                        || result == DownloadTask.ResultStatus.WARNING;
+                Worker.State state = task == null ? Worker.State.READY : task.getState();
+                boolean terminal = state == Worker.State.SUCCEEDED
+                        || state == Worker.State.FAILED
+                        || state == Worker.State.CANCELLED;
+                rowStates.add(new BulkDownloadHistoryRetention.RowState(
+                        context == null ? null : context.getBulkSessionId(),
+                        context != null && context.isBulkDownload(),
+                        terminal,
+                        successful,
+                        task != null && task.isDeferredByProvider()
+                ));
+            }
+
+            List<Integer> indexes = BulkDownloadHistoryRetention.oldestSuccessfulRowsToRemove(
+                    rowStates,
+                    sessionId,
+                    retainedLimit
+            );
+            for (int offset = indexes.size() - 1; offset >= 0; offset--) {
+                tasks.remove(snapshot.get(indexes.get(offset)));
+            }
+        };
+
+        if (Platform.isFxApplicationThread()) trim.run();
+        else Platform.runLater(trim);
     }
 
 
@@ -90,7 +141,10 @@ public class DownloadManager {
                     + DownloadLog.taskLabel(task.getContext()));
         } else {
             task.setDeferredByExclusiveSession(false);
-            executor.submit(task);
+            if (!submitToExecutor(task)) {
+                removeTaskFromUi(task);
+                return false;
+            }
         }
         return true;
     }
@@ -101,6 +155,24 @@ public class DownloadManager {
             add.run();
         } else {
             Platform.runLater(add);
+        }
+    }
+
+    private void removeTaskFromUi(DownloadTask task) {
+        Runnable remove = () -> tasks.remove(task);
+        if (Platform.isFxApplicationThread()) remove.run();
+        else Platform.runLater(remove);
+    }
+
+    private boolean submitToExecutor(DownloadTask task) {
+        try {
+            executor.execute(task);
+            return true;
+        } catch (RejectedExecutionException rejected) {
+            DownloadLog.warn("DownloadManager", "Download queue is full; task was not started: "
+                    + DownloadLog.taskLabel(task.getContext()));
+            task.cancelAndAwaitCleanup();
+            return false;
         }
     }
 
@@ -199,7 +271,7 @@ public class DownloadManager {
         DownloadLog.info("DownloadManager", "Submitting deferred task: "
                 + DownloadLog.taskLabel(task.getContext()));
         task.setDeferredByExclusiveSession(false);
-        executor.submit(task);
+        submitToExecutor(task);
     }
 
     public void showSidebar(Parent root) {
@@ -247,7 +319,24 @@ public class DownloadManager {
         DownloadLog.info("DownloadManager", "Submitting task without adding to list: "
                 + DownloadLog.taskLabel(task.getContext()));
         task.setDeferredByExclusiveSession(false);
-        executor.submit(task);
+        submitToExecutor(task);
+    }
+
+    public boolean replaceDeferredTask(DownloadTask previousTask, DownloadTask replacement) {
+        if (previousTask == null || replacement == null || !acceptingDownloads) return false;
+        Runnable replace = () -> {
+            int index = tasks.indexOf(previousTask);
+            if (index >= 0) {
+                tasks.set(index, replacement);
+            } else if (!tasks.contains(replacement)) {
+                insertTaskInUiOrder(replacement);
+            }
+        };
+        replacement.setDeferredByExclusiveSession(false);
+        if (!submitToExecutor(replacement)) return false;
+        if (Platform.isFxApplicationThread()) replace.run();
+        else Platform.runLater(replace);
+        return true;
     }
 
     /**
@@ -260,6 +349,12 @@ public class DownloadManager {
 
     public void retryTask(DownloadTask sourceTask) {
         if (sourceTask == null) return;
+
+        if (sourceTask.getFailureKind() != null
+                && sourceTask.getFailureKind().isProviderCooldown()
+                && YouTubeRequestCoordinator.getInstance().cooldownState().manualResumeRequired()) {
+            YouTubeRequestCoordinator.getInstance().resumeManually();
+        }
 
         DownloadTask retry = DownloadTask.copyOf(sourceTask);
         DownloadLog.info("DownloadManager", "Retry requested: " + DownloadLog.taskLabel(retry.getContext()));
