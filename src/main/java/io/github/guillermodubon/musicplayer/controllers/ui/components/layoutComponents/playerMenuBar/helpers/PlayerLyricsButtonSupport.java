@@ -33,6 +33,7 @@ public final class PlayerLyricsButtonSupport {
     private static final String ICON_NORMAL = "#AFAFAF";
     private static final String ICON_HOVER = "#FFFFFF";
     private static final String ICON_DISABLED = "#666666";
+    private static final String SHOW_LYRICS_TOOLTIP = "Show lyrics";
     private static final String NO_LYRICS_TOOLTIP =
             "There are no lyrics available for this song.";
 
@@ -142,12 +143,17 @@ public final class PlayerLyricsButtonSupport {
         Node owner = available || tooltipHost == null ? button : tooltipHost;
         if (owner == null || owner == tooltipOwner && lyricsTooltip != null) return;
 
+        // Fullscreen uses the button itself as the tooltip owner and only
+        // displays it when lyrics are available, so its action is always
+        // "Show lyrics".
+        boolean showLyricsTooltip = available || tooltipHost == null;
+
         if (lyricsTooltip != null && tooltipOwner != null) {
             Tooltip.uninstall(tooltipOwner, lyricsTooltip);
         }
         lyricsTooltip = SmallPopupTooltip.install(
                 owner,
-                available ? "Lyrics" : NO_LYRICS_TOOLTIP
+                showLyricsTooltip ? SHOW_LYRICS_TOOLTIP : NO_LYRICS_TOOLTIP
         );
         tooltipOwner = owner;
     }

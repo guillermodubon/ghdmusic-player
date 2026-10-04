@@ -5,6 +5,7 @@ import javafx.beans.value.ChangeListener;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.geometry.Bounds;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.control.*;
@@ -96,6 +97,9 @@ public class PlayerMenuController implements PlayerMenuActionHost {
     private MusicCardActionManager musicCardActionManager;
     private ArtistCardActionManager artistCardActionManager;
     private Image defaultCover;
+    private Image observedHeaderCoverImage;
+    private final ChangeListener<Number> headerCoverDimensionsListener =
+            (observable, oldValue, newValue) -> updateHeaderCoverViewport();
 
     private final PlayerMenuPlaybackHistoryService playbackHistoryService =
             new PlayerMenuPlaybackHistoryService();
@@ -236,6 +240,7 @@ public class PlayerMenuController implements PlayerMenuActionHost {
     public void initialize() {
         ensureDefaultCover();
         serviceCoordinator.setDefaultCover(defaultCover);
+        configureHeaderCover();
         uiCoordinator = new PlayerMenuUiCoordinator(
                 createUiBindings(),
                 context,
@@ -248,6 +253,53 @@ public class PlayerMenuController implements PlayerMenuActionHost {
         uiCoordinator.initialize(this::syncSongListUiState);
         serviceCoordinator.bindUi(uiCoordinator.bindings());
         serviceCoordinator.bindIfReady();
+    }
+
+    /**
+     * Keeps the header artwork square without stretching non-square source
+     * images. The viewport crops the smallest centered square from the source
+     * image, so the existing cover size and visual styling remain unchanged.
+     */
+    private void configureHeaderCover() {
+        if (headerCover == null) return;
+
+        headerCover.setPreserveRatio(true);
+        headerCover.setSmooth(true);
+        headerCover.imageProperty().addListener((observable, oldImage, newImage) -> {
+            if (observedHeaderCoverImage != null) {
+                observedHeaderCoverImage.widthProperty().removeListener(headerCoverDimensionsListener);
+                observedHeaderCoverImage.heightProperty().removeListener(headerCoverDimensionsListener);
+            }
+
+            observedHeaderCoverImage = newImage;
+            if (newImage != null) {
+                newImage.widthProperty().addListener(headerCoverDimensionsListener);
+                newImage.heightProperty().addListener(headerCoverDimensionsListener);
+            }
+            updateHeaderCoverViewport();
+        });
+
+        observedHeaderCoverImage = headerCover.getImage();
+        if (observedHeaderCoverImage != null) {
+            observedHeaderCoverImage.widthProperty().addListener(headerCoverDimensionsListener);
+            observedHeaderCoverImage.heightProperty().addListener(headerCoverDimensionsListener);
+        }
+        updateHeaderCoverViewport();
+    }
+
+    private void updateHeaderCoverViewport() {
+        if (headerCover == null) return;
+
+        Image image = headerCover.getImage();
+        if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) {
+            headerCover.setViewport(null);
+            return;
+        }
+
+        double side = Math.min(image.getWidth(), image.getHeight());
+        double x = (image.getWidth() - side) / 2.0;
+        double y = (image.getHeight() - side) / 2.0;
+        headerCover.setViewport(new Rectangle2D(x, y, side, side));
     }
 
     private PlayerMenuUiBindings createUiBindings() {
