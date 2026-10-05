@@ -11,6 +11,8 @@ import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -120,24 +122,23 @@ public class ManifestSyncService {
                 Map<String, ManifestEntry> manifest = manifestService.load();
                 if (manifest == null || manifest.isEmpty()) return;
 
-                long songId = song.getSongID();
-                String normalizedTitle = normalizeManifestKey(song.getTitle());
                 String normalizedFileName = "";
                 if (missingPath != null && !missingPath.isBlank()) {
                     normalizedFileName = normalizeManifestKey(new File(missingPath).getName());
                 }
-
-                final String fileName = normalizedFileName;
-                boolean changed = manifest.entrySet().removeIf(entry -> {
-                    if (entry == null || entry.getKey() == null) return false;
-
-                    ManifestEntry value = entry.getValue();
-                    if (songId > 0 && value != null && value.getDeezerId() == songId) return true;
-
+                if (normalizedFileName.isBlank()) return;
+                List<String> matchingKeys = new ArrayList<>();
+                for (Map.Entry<String, ManifestEntry> entry : manifest.entrySet()) {
+                    if (entry == null || entry.getKey() == null) continue;
                     String key = normalizeManifestKey(entry.getKey());
-                    return (!fileName.isBlank() && key.equals(fileName))
-                            || (!normalizedTitle.isBlank() && key.equals(normalizedTitle));
-                });
+                    String fileName = entry.getValue() == null || entry.getValue().getFileName() == null
+                            ? ""
+                            : normalizeManifestKey(entry.getValue().getFileName());
+                    if (normalizedFileName.equals(key) || normalizedFileName.equals(fileName)) {
+                        matchingKeys.add(entry.getKey());
+                    }
+                }
+                boolean changed = matchingKeys.size() == 1 && manifest.remove(matchingKeys.getFirst()) != null;
 
                 if (changed) manifestService.save(manifest);
             } catch (Throwable error) {
@@ -179,4 +180,3 @@ public class ManifestSyncService {
                 .toLowerCase(java.util.Locale.ROOT);
     }
 }
-

@@ -2,6 +2,10 @@ package io.github.guillermodubon.musicplayer.services.startup.persistence;
 
 import javafx.util.Pair;
 import io.github.guillermodubon.musicplayer.repository.DbConnectionManager;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalMediaService;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalizationResult;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
+import io.github.guillermodubon.musicplayer.repository.library.SavedMediaService;
 import io.github.guillermodubon.musicplayer.models.Album;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 import io.github.guillermodubon.musicplayer.models.Playlist;
@@ -14,9 +18,12 @@ import io.github.guillermodubon.musicplayer.utils.ArtistIdentity;
 import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.LinkedHashMap;
@@ -147,9 +154,6 @@ public final class DownloadedMediaPersistenceService {
                 ids = DbConnectionManager.getInstance().runInTransaction(conn -> {
                     try {
                         applyPragmas(conn);
-                        long genreId = ensureGenre(conn, metadata);
-                        long albumId = ensureAlbum(conn, metadata, genreId);
-
                         ArtistIdentityBatch albumArtistIdentity =
                                 resolveRealAlbumArtists(metadata);
 
@@ -180,6 +184,81 @@ public final class DownloadedMediaPersistenceService {
                         );
                         songArtists.putAll(contributorArtists);
 
+                        CanonicalMediaService canonicalMedia = new CanonicalMediaService();
+                        long albumId;
+                        long songId;
+                        if (metadata.getTrackId() > 0) {
+                            CanonicalMediaService.AlbumMetadata albumMetadata = metadata.getAlbumId() > 0
+                                    ? toCanonicalAlbumMetadata(metadata, albumArtistIdentity.names())
+                                    : null;
+                            CanonicalMediaService.SongMetadata songMetadata =
+                                    new CanonicalMediaService.SongMetadata(
+                                            nonBlank(metadata.getSongName(), file.getName()),
+                                            metadata.getTrackOrder(),
+                                            metadata.getDurationSeconds(),
+                                            allArtistNames(metadata).stream().toList(),
+                                            albumMetadata,
+                                            true,
+                                            file.getAbsolutePath()
+                                    );
+                            CanonicalizationResult<CanonicalMediaService.CanonicalSong> canonical =
+                                    canonicalMedia.ensureCanonicalSong(
+                                            conn,
+                                            ExternalMediaId.deezer(metadata.getTrackId()),
+                                            metadata.getAlbumId() > 0
+                                                    ? ExternalMediaId.deezer(metadata.getAlbumId())
+                                                    : null,
+                                            songMetadata
+                                    );
+                            if (!canonical.isSuccess()) {
+                                throw new SQLException("Downloaded song identity conflicts with library data: "
+                                        + canonical.conflict().reason());
+                            }
+                            albumId = canonical.value().albumId();
+                            songId = canonical.value().songId();
+                        } else if (metadata.getCanonicalSourceSongIdHint() > 0) {
+                            songId = metadata.getCanonicalSourceSongIdHint();
+                            albumId = findSongAlbum(conn, songId);
+                            if (albumId <= 0) throw new SQLException("Source song is not present in the canonical library.");
+                            try (PreparedStatement update = conn.prepareStatement("""
+                                    UPDATE Song
+                                       SET IsLocal = 1,
+                                           FilePath = ?,
+                                           DurationSeconds = CASE WHEN ? > 0 THEN ? ELSE DurationSeconds END
+                                     WHERE SongID = ?
+                                    """)) {
+                                update.setString(1, file.getAbsolutePath());
+                                update.setInt(2, metadata.getDurationSeconds());
+                                update.setInt(3, metadata.getDurationSeconds());
+                                update.setLong(4, songId);
+                                if (update.executeUpdate() != 1) {
+                                    throw new SQLException("Source song disappeared before download promotion.");
+                                }
+                            }
+                            new SavedMediaService().saveDownloadedSongAndRelease(conn, songId, albumId);
+                        } else {
+                            long existingSongId = findExistingSong(conn, metadata, 0, file);
+                            if (existingSongId > 0) {
+                                albumId = findSongAlbum(conn, existingSongId);
+                            } else if (metadata.getAlbumId() > 0) {
+                                CanonicalizationResult<Long> canonicalAlbum = canonicalMedia.ensureCanonicalAlbum(
+                                        conn,
+                                        ExternalMediaId.deezer(metadata.getAlbumId()),
+                                        toCanonicalAlbumMetadata(metadata, albumArtistIdentity.names())
+                                );
+                                if (!canonicalAlbum.isSuccess()) {
+                                    throw new SQLException("Downloaded release identity conflicts with library data: "
+                                            + canonicalAlbum.conflict().reason());
+                                }
+                                albumId = canonicalAlbum.value();
+                            } else {
+                                long genreId = ensureGenre(conn, metadata);
+                                albumId = insertLocalRelease(conn, metadata, genreId);
+                            }
+                            songId = ensureSong(conn, metadata, albumId, file);
+                            new SavedMediaService().saveDownloadedSongAndRelease(conn, songId, albumId);
+                        }
+
                         if (!albumArtists.isEmpty()) {
                             /*
                              * If this album was previously associated with the "Unknown"
@@ -201,7 +280,6 @@ public final class DownloadedMediaPersistenceService {
                         }
                         insertAlbumCovers(conn, albumId, metadata.getAlbumCoverBytesList());
 
-                        long songId = ensureSong(conn, metadata, albumId, file);
                         linkArtists(conn, "SongArtist", "SongID", songId, songArtists.values());
                         if (hydrateAlbum) {
                             modelHydrationService.loadModelsForAlbum(conn, albumId);
@@ -285,70 +363,50 @@ public final class DownloadedMediaPersistenceService {
         return requireIdByName(conn, "Genre", "GenreID", genre);
     }
 
-    private long ensureAlbum(Connection conn, DeezerApiMetaData metadata, long genreId) throws Exception {
-        String albumName = nonBlank(metadata.getAlbumName(), metadata.getSongName());
-        long preferredId = Math.max(0, metadata.getAlbumId());
-        Long existingByName = selectIdByName(conn, "Album", "AlbumID", albumName);
-        long albumId = existingByName == null ? 0 : existingByName;
-
-        if (albumId <= 0 && preferredId > 0) {
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT OR IGNORE INTO Album(AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks) VALUES(?, ?, ?, ?, ?, ?)")) {
-                setAlbumValues(ps, 1, preferredId, genreId, albumName, metadata);
-                ps.executeUpdate();
-            }
-            Long insertedByName = selectIdByName(conn, "Album", "AlbumID", albumName);
-            albumId = insertedByName == null ? 0 : insertedByName;
-        }
-        if (albumId <= 0) {
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT OR IGNORE INTO Album(GenreID, Name, RecordType, ReleaseDate, NumberOfTracks) VALUES(?, ?, ?, ?, ?)")) {
-                ps.setLong(1, genreId);
-                ps.setString(2, albumName);
-                ps.setString(3, normalizedRecordType(metadata));
-                setNullableText(ps, 4, metadata.getAlbumReleaseDate());
-                ps.setInt(5, Math.max(1, metadata.getNumberOfTracks()));
-                ps.executeUpdate();
-            }
-        }
-        albumId = requireIdByName(conn, "Album", "AlbumID", albumName);
-
-        try (PreparedStatement ps = conn.prepareStatement("""
-                UPDATE Album
-                   SET GenreID = ?,
-                       RecordType = ?,
-                       ReleaseDate = CASE WHEN ? IS NOT NULL AND ? <> '' THEN ? ELSE ReleaseDate END,
-                       NumberOfTracks = CASE WHEN NumberOfTracks < ? THEN ? ELSE NumberOfTracks END
-                 WHERE AlbumID = ?
-                """)) {
-            ps.setLong(1, genreId);
-            ps.setString(2, normalizedRecordType(metadata));
-            setNullableText(ps, 3, metadata.getAlbumReleaseDate());
-            ps.setString(4, metadata.getAlbumReleaseDate() == null ? "" : metadata.getAlbumReleaseDate());
-            setNullableText(ps, 5, metadata.getAlbumReleaseDate());
-            int count = Math.max(1, metadata.getNumberOfTracks());
-            ps.setInt(6, count);
-            ps.setInt(7, count);
-            ps.setLong(8, albumId);
-            ps.executeUpdate();
-        }
-        return albumId;
+    private CanonicalMediaService.AlbumMetadata toCanonicalAlbumMetadata(
+            DeezerApiMetaData metadata,
+            List<String> albumArtistNames
+    ) {
+        return new CanonicalMediaService.AlbumMetadata(
+                nonBlank(metadata.getAlbumName(), metadata.getSongName()),
+                nonBlank(metadata.getGenre(), UNKNOWN),
+                normalizedRecordType(metadata),
+                metadata.getAlbumReleaseDate(),
+                Math.max(0, metadata.getNumberOfTracks()),
+                albumArtistNames == null ? List.of() : albumArtistNames
+        );
     }
 
-    private void setAlbumValues(
-            PreparedStatement ps,
-            int offset,
-            long albumId,
-            long genreId,
-            String albumName,
-            DeezerApiMetaData metadata
-    ) throws Exception {
-        ps.setLong(offset, albumId);
-        ps.setLong(offset + 1, genreId);
-        ps.setString(offset + 2, albumName);
-        ps.setString(offset + 3, normalizedRecordType(metadata));
-        setNullableText(ps, offset + 4, metadata.getAlbumReleaseDate());
-        ps.setInt(offset + 5, Math.max(1, metadata.getNumberOfTracks()));
+    private long insertLocalRelease(Connection connection,
+                                    DeezerApiMetaData metadata,
+                                    long genreId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                INSERT INTO Album(GenreID, Name, RecordType, ReleaseDate, NumberOfTracks)
+                VALUES(?, ?, ?, ?, ?)
+                """, Statement.RETURN_GENERATED_KEYS)) {
+            statement.setLong(1, genreId);
+            statement.setString(2, nonBlank(metadata.getAlbumName(), metadata.getSongName()));
+            statement.setString(3, normalizedRecordType(metadata));
+            String releaseDate = metadata.getAlbumReleaseDate();
+            if (releaseDate == null || releaseDate.isBlank()) statement.setNull(4, Types.VARCHAR);
+            else statement.setString(4, releaseDate);
+            statement.setInt(5, Math.max(0, metadata.getNumberOfTracks()));
+            statement.executeUpdate();
+            try (ResultSet keys = statement.getGeneratedKeys()) {
+                if (keys.next() && keys.getLong(1) > 0) return keys.getLong(1);
+            }
+        }
+        throw new SQLException("Could not create a local release row.");
+    }
+
+    private long findSongAlbum(Connection connection, long songId) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement("SELECT Album FROM Song WHERE SongID = ?")) {
+            statement.setLong(1, songId);
+            try (ResultSet result = statement.executeQuery()) {
+                if (!result.next()) throw new SQLException("Persisted song row is missing.");
+                return result.getLong(1);
+            }
+        }
     }
 
     private Map<String, Long> ensureArtists(Connection conn, List<String> names, List<Long> ids) throws Exception {
@@ -405,18 +463,7 @@ public final class DownloadedMediaPersistenceService {
         }
 
         if (metadata.getTrackId() > 0) {
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal, FilePath, DurationSeconds) VALUES(?, ?, ?, ?, 1, ?, ?)")) {
-                ps.setLong(1, metadata.getTrackId());
-                ps.setString(2, metadata.getSongName());
-                ps.setLong(3, albumId);
-                ps.setInt(4, Math.max(1, metadata.getTrackOrder()));
-                ps.setString(5, file.getAbsolutePath());
-                ps.setInt(6, metadata.getDurationSeconds());
-                ps.executeUpdate();
-            }
-            migrateLegacyPlaceholderSong(conn, metadata, albumId, metadata.getTrackId());
-            return metadata.getTrackId();
+            throw new SQLException("Provider-backed downloads must use canonical song persistence.");
         }
 
         try (PreparedStatement ps = conn.prepareStatement(
@@ -554,31 +601,26 @@ public final class DownloadedMediaPersistenceService {
     }
 
     private long findExistingSong(Connection conn, DeezerApiMetaData metadata, long albumId, File file) throws Exception {
-        if (metadata.getTrackId() > 0) {
-            try (PreparedStatement ps = conn.prepareStatement("SELECT SongID FROM Song WHERE SongID = ? LIMIT 1")) {
-                ps.setLong(1, metadata.getTrackId());
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) return rs.getLong(1);
+        if (file == null || !file.isFile()) return 0;
+        List<Long> sameFileIds = new java.util.ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT SongID, FilePath FROM Song WHERE IsLocal = 1 AND FilePath = ?")) {
+            ps.setString(1, file.getAbsolutePath());
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String persistedPath = rs.getString("FilePath");
+                    try {
+                        if (persistedPath != null
+                                && Files.isRegularFile(Path.of(persistedPath))
+                                && Files.isSameFile(Path.of(persistedPath), file.toPath())) {
+                            sameFileIds.add(rs.getLong("SongID"));
+                        }
+                    } catch (Exception ignored) {
+                    }
                 }
             }
         }
-
-        try (PreparedStatement ps = conn.prepareStatement("SELECT SongID FROM Song WHERE FilePath = ? LIMIT 1")) {
-            ps.setString(1, file.getAbsolutePath());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getLong(1);
-            }
-        }
-
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT SongID FROM Song WHERE IsLocal = 1 AND Album = ? AND lower(Title) = lower(?) LIMIT 1")) {
-            ps.setLong(1, albumId);
-            ps.setString(2, metadata.getSongName());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getLong(1);
-            }
-        }
-        return 0;
+        return sameFileIds.size() == 1 ? sameFileIds.getFirst() : 0;
     }
 
     private void linkArtists(Connection conn, String table, String ownerColumn, long ownerId, Iterable<Long> artistIds) throws Exception {
