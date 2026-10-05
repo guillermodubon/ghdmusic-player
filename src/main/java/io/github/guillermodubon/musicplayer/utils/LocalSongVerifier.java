@@ -59,19 +59,18 @@ public final class LocalSongVerifier {
         }
 
         LocalManifestLookup lookup = LocalManifestLookup.of(manifest);
-        return LibraryModelDeduplicator.songs(songs)
-                .stream()
-                .filter(lookup::matches)
-                .filter(song -> {
-                    try {
-                        return service.resolvePathForSong(song)
-                                .map(LocalSongVerifier::isReadableAudioFile)
-                                .orElse(false);
-                    } catch (Exception ignored) {
-                        return false;
-                    }
-                })
-                .collect(Collectors.toList());
+        List<Song> verified = new java.util.ArrayList<>();
+        for (Song song : LibraryModelDeduplicator.songs(songs)) {
+            if (song == null || !song.isLocal()) continue;
+            try {
+                service.resolvePathForSong(song)
+                        .filter(LocalSongVerifier::isReadableAudioFile)
+                        .filter(path -> lookup.matches(song, path))
+                        .ifPresent(ignored -> verified.add(song));
+            } catch (Exception ignored) {
+            }
+        }
+        return verified;
     }
 
     private static boolean isReadableAudioFile(String value) {

@@ -1,168 +1,101 @@
 package io.github.guillermodubon.musicplayer.models;
 
-import java.io.File;
-import java.util.ArrayList;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.Collections;
-import java.util.LinkedHashSet;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
-/** Indexed manifest lookup used to verify local songs efficiently. */
+/** Verifies locality from file evidence, never from a provider ID or title match. */
 public final class LocalManifestLookup {
-    private final Map<String, ManifestEntry> manifest;
-    private final Set<Long> deezerIds;
-    private final Set<String> normalizedKeys;
 
-    private LocalManifestLookup(
-            Map<String, ManifestEntry> manifest,
-            Set<Long> deezerIds,
-            Set<String> normalizedKeys
-    ) {
-        this.manifest = manifest == null ? Collections.emptyMap() : manifest;
-        this.deezerIds = deezerIds;
-        this.normalizedKeys = normalizedKeys;
+    private final Map<String, ManifestEntry> manifest;
+
+    private LocalManifestLookup(Map<String, ManifestEntry> manifest) {
+        if (manifest == null || manifest.isEmpty()) {
+            this.manifest = Collections.emptyMap();
+            return;
+        }
+        Map<String, ManifestEntry> snapshot = new HashMap<>();
+        manifest.forEach((key, value) -> {
+            if (key != null && value != null) snapshot.put(key, value);
+        });
+        this.manifest = Map.copyOf(snapshot);
     }
 
     public static LocalManifestLookup of(Map<String, ManifestEntry> manifest) {
-        if (manifest == null || manifest.isEmpty()) {
-            return new LocalManifestLookup(Collections.emptyMap(), Set.of(), Set.of());
-        }
-
-        Set<Long> ids = new LinkedHashSet<>();
-        Set<String> keys = new LinkedHashSet<>();
-        for (Map.Entry<String, ManifestEntry> entry : manifest.entrySet()) {
-            if (entry == null || entry.getValue() == null) continue;
-            long id = entry.getValue().getDeezerId();
-            if (id > 0) ids.add(id);
-
-            String key = normalizeKey(entry.getKey());
-            if (!key.isBlank()) keys.add(key);
-        }
-        return new LocalManifestLookup(
-                manifest,
-                Collections.unmodifiableSet(ids),
-                Collections.unmodifiableSet(keys)
-        );
+        return new LocalManifestLookup(manifest);
     }
 
     public boolean matches(Song song) {
-        if (song == null || !song.isLocal() || manifest.isEmpty()) return false;
-        if (song.getSongID() > 0 && deezerIds.contains(song.getSongID())) return true;
+        return song != null && song.isLocal() && matches(song, song.getFilePath());
+    }
 
-        Set<String> candidates = buildManifestCandidates(song);
-        for (String candidate : candidates) {
-            if (normalizedKeys.contains(normalizeKey(candidate))) return true;
-        }
-
-        // Keep the tolerant legacy comparison for descriptive manifest keys.
-        for (Map.Entry<String, ManifestEntry> entry : manifest.entrySet()) {
-            if (entry == null || entry.getValue() == null) continue;
-            if (song.getSongID() > 0 && entry.getValue().getDeezerId() == song.getSongID()) {
+    public boolean matches(Song song, String candidatePath) {
+        if (song == null || !song.isLocal() || manifest.isEmpty()
+                || candidatePath == null || candidatePath.isBlank()) return false;
+        try {
+            Path path = Path.of(candidatePath);
+            if (!Files.isRegularFile(path) || !Files.isReadable(path)) return false;
+            String currentName = nameKey(path.getFileName() == null ? "" : path.getFileName().toString());
+            long currentSize = Files.size(path);
+            long currentModified = Files.getLastModifiedTime(path).toMillis();
+            for (Map.Entry<String, ManifestEntry> entry : manifest.entrySet()) {
+                if (entry == null || entry.getValue() == null) continue;
+                ManifestEntry value = entry.getValue();
+                String expectedName = nameKey(value.getFileName());
+                if (expectedName.isBlank()) expectedName = nameKey(displayKey(entry.getKey()));
+                if (expectedName.isBlank() || !expectedName.equals(currentName)) continue;
+                if (value.getFileSize() > 0 && value.getFileSize() != currentSize) continue;
+                if (value.getLastModified() > 0 && value.getLastModified() != currentModified) continue;
                 return true;
             }
-
-            String manifestKey = normalizeKey(entry.getKey());
-            if (manifestKey.isBlank()) continue;
-            for (String candidate : candidates) {
-                String normalizedCandidate = normalizeKey(candidate);
-                if (normalizedCandidate.isBlank()) continue;
-                if (manifestKey.equals(normalizedCandidate)
-                        || manifestKey.contains(normalizedCandidate)
-                        || normalizedCandidate.contains(manifestKey)) {
-                    return true;
-                }
-            }
+        } catch (Exception ignored) {
         }
         return false;
     }
 
-    private static Set<String> buildManifestCandidates(Song song) {
-        Set<String> candidates = new LinkedHashSet<>();
-        if (song == null) return candidates;
-
-        addCandidate(candidates, song.getTitle());
-
-        List<String> artistNames = artistNames(song);
-        String title = trim(song.getTitle());
-        if (!title.isBlank()) {
-            for (String artist : artistNames) {
-                String name = trim(artist);
-                if (name.isBlank()) continue;
-                addCandidate(candidates, name + " " + title);
-                addCandidate(candidates, name + " - " + title);
-            }
-        }
-
-        String path = song.getFilePath();
-        if (path != null && !path.isBlank()) {
-            try {
-                File file = new File(path);
-                addCandidate(candidates, file.getAbsolutePath());
-                addCandidate(candidates, file.getName());
-                addCandidate(candidates, stripExtension(file.getName()));
-            } catch (Exception ignored) {
-            }
-        }
-        return candidates;
-    }
-
-    private static List<String> artistNames(Song song) {
-        List<String> names = new ArrayList<>();
-        if (song == null) return names;
-
-        if (song.getArtist() != null) {
-            for (Artist artist : song.getArtist()) {
-                if (artist == null) continue;
-                String name = trim(artist.getName());
-                if (!name.isBlank()) names.add(name);
-            }
-        }
-
-        if (names.isEmpty() && song.getAlbum() != null && song.getAlbum().getArtist() != null) {
-            for (Artist artist : song.getAlbum().getArtist()) {
-                if (artist == null) continue;
-                String name = trim(artist.getName());
-                if (!name.isBlank()) names.add(name);
-            }
-        }
-        return names;
-    }
-
-    private static void addCandidate(Set<String> output, String value) {
-        String normalized = trim(value);
-        if (!normalized.isBlank()) output.add(normalized);
-    }
-
-    private static String normalizeKey(String value) {
+    private static String displayKey(String value) {
         if (value == null) return "";
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        normalized = stripExtension(normalized);
-        normalized = normalized.replace('\\', '/');
-        normalized = normalized.replaceAll("[_\\-]+", " ");
-        normalized = normalized.replaceAll("\\s+", " ");
-        return normalized.trim();
-    }
-
-    private static String stripExtension(String value) {
-        if (value == null) return "";
-        int dot = value.lastIndexOf('.');
-        if (dot <= 0) return value;
-        String extension = value.substring(dot + 1).toLowerCase(Locale.ROOT);
-        if (Objects.equals(extension, "mp3")
-                || Objects.equals(extension, "m4a")
-                || Objects.equals(extension, "wav")
-                || Objects.equals(extension, "flac")
-                || Objects.equals(extension, "aac")
-                || Objects.equals(extension, "opus")) {
-            return value.substring(0, dot);
+        int marker = value.indexOf(" | id:");
+        String name = marker >= 0 ? value.substring(0, marker) : value;
+        int pathMarker = name.indexOf(":path:");
+        if (pathMarker >= 0) name = name.substring(0, pathMarker);
+        try {
+            Path path = Path.of(name);
+            if (path.getFileName() != null) return path.getFileName().toString();
+        } catch (Exception ignored) {
         }
-        return value;
+        return name;
     }
 
-    private static String trim(String value) {
-        return value == null ? "" : value.trim();
+    private static String nameKey(String value) {
+        if (value == null || value.isBlank()) return "";
+        String name = value;
+        try {
+            Path path = Path.of(value);
+            if (path.getFileName() != null) name = path.getFileName().toString();
+        } catch (Exception ignored) {
+        }
+        int extension = name.lastIndexOf('.');
+        if (extension > 0) {
+            String suffix = name.substring(extension + 1).toLowerCase(Locale.ROOT);
+            if (SetOfAudioExtensions.contains(suffix)) name = name.substring(0, extension);
+        }
+        return Normalizer.normalize(name.trim(), Normalizer.Form.NFKC)
+                .replaceAll("\\s+", " ")
+                .toLowerCase(Locale.ROOT);
+    }
+
+    private static final class SetOfAudioExtensions {
+        private static boolean contains(String extension) {
+            return switch (extension) {
+                case "mp3", "m4a", "wav", "flac", "aac", "opus", "ogg", "wma" -> true;
+                default -> false;
+            };
+        }
     }
 }

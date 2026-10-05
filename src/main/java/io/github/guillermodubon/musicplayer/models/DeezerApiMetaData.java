@@ -22,6 +22,7 @@ public class DeezerApiMetaData {
     private List<Long> songContributorIds;
     private long albumId;
     private long trackId;
+    private transient long canonicalSourceSongIdHint;
     private String albumCoverUrl;
     private int albumGenreId;
     private int durationSeconds;
@@ -220,6 +221,14 @@ public class DeezerApiMetaData {
 
     public void setTrackId(long trackId) {
         this.trackId = trackId;
+    }
+
+    public long getCanonicalSourceSongIdHint() {
+        return canonicalSourceSongIdHint;
+    }
+
+    public void setCanonicalSourceSongIdHint(long songId) {
+        canonicalSourceSongIdHint = Math.max(0, songId);
     }
 
     public String getAlbumCoverUrl() {

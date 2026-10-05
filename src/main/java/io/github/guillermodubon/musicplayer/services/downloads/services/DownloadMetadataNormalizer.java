@@ -94,10 +94,7 @@ public final class DownloadMetadataNormalizer {
         }
 
         if (metadata.getTrackId() <= 0 && sourceSong.getSongID() > 0) {
-            metadata.setTrackId(sourceSong.getSongID());
-        }
-        if (metadata.getAlbumId() <= 0 && sourceAlbum != null && sourceAlbum.getAlbumID() > 0) {
-            metadata.setAlbumId(sourceAlbum.getAlbumID());
+            metadata.setCanonicalSourceSongIdHint(sourceSong.getSongID());
         }
         if (!hasUsableGenre(metadata.getGenre()) && sourceAlbum != null) {
             Genre sourceGenre = sourceAlbum.getGenre();

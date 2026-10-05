@@ -222,13 +222,22 @@ public class DownloadLifecycleService {
         if (meta == null || finalFile == null) return;
 
         long trackId = meta.getTrackId();
+        long canonicalTrackId = meta.getCanonicalSourceSongIdHint();
+        if (trackId > 0) {
+            try {
+                canonicalTrackId = owner.resolveCanonicalSongIdsForDeezer(Set.of(trackId))
+                        .stream().findFirst().orElse(0L);
+            } catch (SQLException ignored) {
+                canonicalTrackId = 0L;
+            }
+        }
         String absolutePath = finalFile.getAbsolutePath();
         Song downloadedSong = null;
 
         synchronized (owner.getSongs()) {
             for (Song song : owner.getSongs()) {
                 if (song == null) continue;
-                boolean matchesExactTrack = trackId > 0 && song.getSongID() == trackId;
+                boolean matchesExactTrack = canonicalTrackId > 0 && song.getSongID() == canonicalTrackId;
                 boolean matches = matchesExactTrack;
                 if (!matches) {
                     matches = SongAudioIdentity.matches(song, meta);
@@ -244,7 +253,7 @@ public class DownloadLifecycleService {
         }
 
         if (downloadedSong != null) {
-            trackArtistService.refreshDownloadedTrackArtistsAsync(trackId, downloadedSong);
+            if (trackId > 0) trackArtistService.refreshDownloadedTrackArtistsAsync(trackId, downloadedSong);
         }
     }
 

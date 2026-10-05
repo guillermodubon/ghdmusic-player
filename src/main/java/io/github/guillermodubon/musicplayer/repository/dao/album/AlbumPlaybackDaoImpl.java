@@ -1,13 +1,20 @@
 package io.github.guillermodubon.musicplayer.repository.dao.album;
 
+import io.github.guillermodubon.musicplayer.models.Album;
+import io.github.guillermodubon.musicplayer.models.Artist;
+import io.github.guillermodubon.musicplayer.models.Genre;
 import io.github.guillermodubon.musicplayer.models.Song;
 import io.github.guillermodubon.musicplayer.repository.dao.support.JdbcDaoSupport;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalMediaService;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalizationResult;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -28,35 +35,43 @@ public final class AlbumPlaybackDaoImpl extends JdbcDaoSupport implements AlbumP
 
         Map<Long, Song> uniqueSongs = new LinkedHashMap<>();
         for (Song song : songs) {
-            if (song != null && song.getSongID() > 0) {
-                uniqueSongs.putIfAbsent(song.getSongID(), song);
-            }
+            if (song != null && song.getSongID() > 0) uniqueSongs.putIfAbsent(song.getSongID(), song);
         }
         if (uniqueSongs.isEmpty()) return;
 
         try {
             connectionManager().runInTransaction(connection -> {
-                try (PreparedStatement statement = connection.prepareStatement(
-                        "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal) "
-                                + "VALUES(?, ?, ?, ?, 0)")) {
+                try {
+                    CanonicalMediaService media = new CanonicalMediaService();
                     for (Song song : uniqueSongs.values()) {
-                        statement.setLong(1, song.getSongID());
-                        statement.setString(2, Objects.requireNonNullElse(song.getTitle(), ""));
-                        statement.setLong(3, albumId);
-                        statement.setInt(4, 0);
-                        try {
-                            statement.executeUpdate();
-                        } catch (SQLException ignored) {
-                            // Preserve the coordinator's best-effort hydration behavior.
+                        CanonicalMediaService.AlbumMetadata album = toAlbumMetadata(song.getAlbum());
+                        CanonicalMediaService.SongMetadata track = new CanonicalMediaService.SongMetadata(
+                                Objects.requireNonNullElse(song.getTitle(), "Unknown track"),
+                                song.getTrackOrder(),
+                                song.getDurationSeconds(),
+                                artistNames(song.getArtist()),
+                                album,
+                                false,
+                                null
+                        );
+                        CanonicalizationResult<CanonicalMediaService.CanonicalSong> result =
+                                media.ensureCanonicalSong(
+                                        connection,
+                                        ExternalMediaId.deezer(song.getSongID()),
+                                        ExternalMediaId.deezer(albumId),
+                                        track
+                                );
+                        if (!result.isSuccess()) {
+                            throw new SQLException("Remote track identity conflict: " + result.conflict().reason());
                         }
                     }
-                } catch (SQLException ignored) {
-                    // A playback view must remain usable if persistence is unavailable.
+                    return null;
+                } catch (SQLException error) {
+                    throw new RuntimeException(error);
                 }
-                return null;
             });
         } catch (Exception ignored) {
-            // Persistence is an enhancement to the already loaded remote view.
+            // Remote view hydration remains available if optional persistence fails.
         }
     }
 
@@ -66,36 +81,51 @@ public final class AlbumPlaybackDaoImpl extends JdbcDaoSupport implements AlbumP
 
         try {
             connectionManager().runInTransaction(connection -> {
-                try (PreparedStatement update = connection.prepareStatement(
-                        "UPDATE Album SET ReleaseDate = ? WHERE AlbumID = ?")) {
-                    update.setString(1, releaseDate);
-                    update.setLong(2, albumId);
-                    int updated = update.executeUpdate();
-
-                    if (updated <= 0) {
-                        try (PreparedStatement insert = connection.prepareStatement(
-                                "INSERT OR IGNORE INTO Album(AlbumID, Name, ReleaseDate, NumberOfTracks) "
-                                        + "VALUES(?, ?, ?, ?)")) {
-                            insert.setLong(1, albumId);
-                            insert.setString(2, Objects.requireNonNullElse(albumName, ""));
-                            insert.setString(3, releaseDate);
-                            insert.setInt(4, numberOfTracks);
-                            try {
-                                insert.executeUpdate();
-                            } catch (SQLException ignored) {
-                                // Keep the remote playback flow independent from persistence.
-                            }
-                        } catch (SQLException ignored) {
-                            // Keep the original best-effort behavior.
-                        }
+                try {
+                    CanonicalMediaService media = new CanonicalMediaService();
+                    CanonicalizationResult<Long> result = media.ensureCanonicalAlbum(
+                            connection,
+                            ExternalMediaId.deezer(albumId),
+                            new CanonicalMediaService.AlbumMetadata(
+                                    Objects.requireNonNullElse(albumName, "Unknown release"),
+                                    "Unknown", "album", releaseDate, Math.max(0, numberOfTracks), List.of()
+                            )
+                    );
+                    if (!result.isSuccess()) {
+                        throw new SQLException("Remote release identity conflict: " + result.conflict().reason());
                     }
-                } catch (SQLException ignored) {
-                    // Keep the original best-effort behavior.
+                    try (PreparedStatement update = connection.prepareStatement(
+                            "UPDATE Album SET ReleaseDate = COALESCE(NULLIF(ReleaseDate, ''), ?) WHERE AlbumID = ?")) {
+                        update.setString(1, releaseDate);
+                        update.setLong(2, result.value());
+                        update.executeUpdate();
+                    }
+                    return null;
+                } catch (SQLException error) {
+                    throw new RuntimeException(error);
                 }
-                return null;
             });
         } catch (Exception ignored) {
             // The remote response is already available to the user.
         }
+    }
+
+    private static CanonicalMediaService.AlbumMetadata toAlbumMetadata(Album album) {
+        if (album == null || album.getName() == null || album.getName().isBlank()) return null;
+        Genre genre = album.getGenre();
+        return new CanonicalMediaService.AlbumMetadata(
+                album.getName(),
+                genre == null ? "Unknown" : Objects.requireNonNullElse(genre.getName(), "Unknown"),
+                Objects.requireNonNullElse(album.getRecordType(), "album"),
+                album.getReleaseDate(),
+                Math.max(0, album.getNumberOfTracks()),
+                artistNames(album.getArtist())
+        );
+    }
+
+    private static List<String> artistNames(Collection<Artist> artists) {
+        if (artists == null || artists.isEmpty()) return List.of();
+        return artists.stream().filter(Objects::nonNull).map(Artist::getName)
+                .filter(name -> name != null && !name.isBlank()).map(String::trim).distinct().toList();
     }
 }

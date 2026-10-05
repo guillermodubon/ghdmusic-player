@@ -66,15 +66,15 @@ public final class LibraryStartupCoordinator {
     Map<String, ManifestEntry> oldManifest = owner.getManifestService().load();
     owner.reportStartupProgress(0.36);
 
-    boolean dbHasNoLocalSongs;
+    boolean libraryIsEmpty;
 
     try (Connection quickConn = DbConnectionManager.getInstance().openConnection()) {
-        dbHasNoLocalSongs = countLocalSongs(quickConn) == 0;
+        libraryIsEmpty = LibraryInitializationPolicy.isGenuinelyEmpty(quickConn);
     }
 
     boolean manifestEmpty = oldManifest == null || oldManifest.isEmpty();
 
-    if (dbHasNoLocalSongs) {
+    if (libraryIsEmpty) {
         System.out.println("runStartup: First time run detected -> delegating to createAndFetchInitialData");
         owner.reportStartupStatus("Matching your songs with albums and artists...");
         owner.reportStartupProgress(0.42);
@@ -232,71 +232,5 @@ public final class LibraryStartupCoordinator {
         }
     }
 }
-
-private int countLocalSongs(Connection conn) throws SQLException {
-    if (conn == null) {
-        return 0;
-    }
-
-    String songTableName = resolveExistingTableName(conn, "Song", "Songs", "SONG");
-
-    if (songTableName == null || songTableName.isBlank()) {
-        return 0;
-    }
-
-    String sql = "SELECT COUNT(*) FROM " + quoteSqliteIdentifier(songTableName) + " WHERE IsLocal = 1";
-
-    try (var ps = conn.prepareStatement(sql);
-         var rs = ps.executeQuery()) {
-        return rs.next() ? rs.getInt(1) : 0;
-    }
-}
-
-private String resolveExistingTableName(Connection conn, String... candidates) throws SQLException {
-    if (conn == null || candidates == null || candidates.length == 0) {
-        return null;
-    }
-
-    List<String> existingTables = new ArrayList<>();
-
-    var metaData = conn.getMetaData();
-
-    try (var rs = metaData.getTables(null, null, "%", new String[]{"TABLE"})) {
-        while (rs.next()) {
-            String tableName = rs.getString("TABLE_NAME");
-
-            if (tableName != null && !tableName.isBlank()) {
-                existingTables.add(tableName);
-            }
-        }
-    }
-
-    for (String candidate : candidates) {
-        for (String existing : existingTables) {
-            if (existing.equals(candidate)) {
-                return existing;
-            }
-        }
-    }
-
-    for (String candidate : candidates) {
-        for (String existing : existingTables) {
-            if (existing.equalsIgnoreCase(candidate)) {
-                return existing;
-            }
-        }
-    }
-
-    return null;
-}
-
-private String quoteSqliteIdentifier(String identifier) {
-    if (identifier == null || identifier.isBlank()) {
-        throw new IllegalArgumentException("SQLite identifier cannot be null or blank.");
-    }
-
-    return "\"" + identifier.replace("\"", "\"\"") + "\"";
-}
-
 
 }

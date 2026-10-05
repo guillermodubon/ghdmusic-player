@@ -2,6 +2,8 @@
 package io.github.guillermodubon.musicplayer.services.startup.locality;
 
 import io.github.guillermodubon.musicplayer.repository.DbConnectionManager;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalIdentityDao;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
 import io.github.guillermodubon.musicplayer.services.manifest.ManifestSyncService;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 import io.github.guillermodubon.musicplayer.models.Song;
@@ -77,7 +79,7 @@ public class SongLocalityService {
                     owner.putSongToPath(so.get(), absolutePath);
                     DeezerApiMetaData pseudo = new DeezerApiMetaData();
                     pseudo.setSongName(so.get().getTitle());
-                    pseudo.setTrackId(so.get().getSongID());
+                    pseudo.setTrackId(resolveDeezerTrackId(so.get().getSongID()));
                     manifestSyncService.updateManifestEntryAsync(pseudo, new File(absolutePath), System.currentTimeMillis());
                 }
             } catch (Exception ignored) {
@@ -108,7 +110,7 @@ public class SongLocalityService {
                 }
 
                 DeezerApiMetaData manifestMetadata = new DeezerApiMetaData();
-                manifestMetadata.setTrackId(song.getSongID());
+                manifestMetadata.setTrackId(resolveDeezerTrackId(song.getSongID()));
                 manifestMetadata.setSongName(song.getTitle());
                 manifestSyncService.updateManifestEntryAsync(
                         manifestMetadata,
@@ -172,5 +174,16 @@ public class SongLocalityService {
         if (missingPath != null && !missingPath.isBlank()) return "path:" + missingPath.trim().toLowerCase();
         String title = song.getTitle();
         return "title:" + (title == null ? "" : title.trim().toLowerCase());
+    }
+
+    private long resolveDeezerTrackId(long internalSongId) {
+        try (var connection = DbConnectionManager.getInstance().openConnection()) {
+            return new ExternalIdentityDao(connection)
+                    .resolveExternalIdentity(ExternalIdentityDao.EntityType.SONG, "DEEZER", internalSongId)
+                    .map(ExternalMediaId::numericCandidateId)
+                    .orElse(0L);
+        } catch (SQLException ignored) {
+            return 0L;
+        }
     }
 }

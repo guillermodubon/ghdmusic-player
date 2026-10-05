@@ -3,6 +3,9 @@ package io.github.guillermodubon.musicplayer.repository.dao.song;
 import io.github.guillermodubon.musicplayer.repository.dao.album.AlbumDao;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDao;
 import io.github.guillermodubon.musicplayer.repository.dao.support.JdbcDaoSupport;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalMediaService;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalizationResult;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
 import io.github.guillermodubon.musicplayer.models.Album;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
 import io.github.guillermodubon.musicplayer.models.Song;
@@ -359,10 +362,6 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
     @Override
     public void insertSongsAndArtists(List<DeezerApiMetaData> metas, AlbumDao albumDao, ArtistDao artistDao) throws SQLException {
         if (metas == null || metas.isEmpty()) return;
-        String insertSongSql = "INSERT OR IGNORE INTO Song(SongID, Title, Album, TrackOrder, IsLocal, DurationSeconds) VALUES (?, ?, ?, ?, ?, ?)";
-        String updateSongSql = "UPDATE Song SET Title = ?, Album = ?, TrackOrder = ?, IsLocal = 1, "
-                + "DurationSeconds = CASE WHEN ? > 0 THEN ? ELSE DurationSeconds END WHERE SongID = ?";
-        String linkSql = "INSERT OR IGNORE INTO SongArtist(SongID, ArtistID) VALUES(?, ?)";
         synchronized (DB_WRITE_LOCK) {
             Connection conn = null;
             boolean close = false;
@@ -373,70 +372,60 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                 manageTx = (sharedConnection() == null);
                 if (manageTx) conn.setAutoCommit(false);
 
-                try (PreparedStatement psSong = prepareStatementWithRetry(conn, insertSongSql, MAX_RETRY_ATTEMPTS);
-                     PreparedStatement psUpdateSong = prepareStatementWithRetry(conn, updateSongSql, MAX_RETRY_ATTEMPTS);
-                     PreparedStatement psLink = prepareStatementWithRetry(conn, linkSql, MAX_RETRY_ATTEMPTS)) {
+                try {
+                    CanonicalMediaService canonicalMedia = new CanonicalMediaService();
 
-                    Map<String, Long> albumIdsByName = new HashMap<>();
-                    Map<String, Long> artistIdsByName = new HashMap<>();
-
-                    for (var meta : metas) {
+                    for (DeezerApiMetaData meta : metas) {
+                        if (meta == null) continue;
                         long deezerId = meta.getTrackId();
                         String title = meta.getSongName();
-                        Long albumId = resolveAlbumId(albumDao, albumIdsByName, meta.getAlbumName());
-                        int trackOrder = meta.getTrackOrder();
-                        List<String> contributors = meta.getSongContributorNames();
 
-                        if (title == null || title.isBlank() || albumId == null) continue;
+                        if (deezerId <= 0 || title == null || title.isBlank()) continue;
 
-                        List<String> allArtists = new ArrayList<>(meta.getAlbumArtistNames() != null ? meta.getAlbumArtistNames() : Collections.emptyList());
-                        if (contributors != null) allArtists.addAll(contributors);
-                        Optional<Long> existingLocal = findLocalSongByTitleAndArtists(title, allArtists);
-
-                        if (existingLocal.isPresent()) {
-                            long existingId = existingLocal.get();
-                            updateAlbumAndOrderIfNeeded(existingId, albumId, trackOrder);
-                            if (contributors != null) {
-                                for (var artName : contributors) {
-                                    Long artId = resolveArtistId(artistDao, artistIdsByName, artName);
-                                    if (artId != null) {
-                                        psLink.setLong(1, existingId);
-                                        psLink.setLong(2, artId.longValue());
-                                        psLink.executeUpdate();
-                                    }
-                                }
-                            }
-                            continue;
+                        CanonicalMediaService.AlbumMetadata canonicalAlbum = null;
+                        ExternalMediaId externalAlbumId = null;
+                        if (meta.getAlbumId() > 0
+                                && meta.getAlbumName() != null
+                                && !meta.getAlbumName().isBlank()) {
+                            externalAlbumId = ExternalMediaId.deezer(meta.getAlbumId());
+                            canonicalAlbum = new CanonicalMediaService.AlbumMetadata(
+                                    meta.getAlbumName(),
+                                    meta.getGenre(),
+                                    meta.getRecordType(),
+                                    meta.getAlbumReleaseDate(),
+                                    meta.getNumberOfTracks(),
+                                    meta.getAlbumArtistNames()
+                            );
                         }
-
-                        psSong.setLong(1, deezerId);
-                        psSong.setString(2, title);
-                        psSong.setLong(3, albumId);
-                        psSong.setInt(4, trackOrder);
-                        psSong.setInt(5, 1); // treat inserted as local
-                        psSong.setInt(6, meta.getDurationSeconds());
-                        psSong.executeUpdate();
-
-                        psUpdateSong.setString(1, title);
-                        psUpdateSong.setLong(2, albumId);
-                        psUpdateSong.setInt(3, trackOrder);
-                        psUpdateSong.setInt(4, meta.getDurationSeconds());
-                        psUpdateSong.setInt(5, meta.getDurationSeconds());
-                        psUpdateSong.setLong(6, deezerId);
-                        psUpdateSong.executeUpdate();
-
-                        if (contributors != null) {
-                            for (var artName : contributors) {
-                                Long artId = resolveArtistId(artistDao, artistIdsByName, artName);
-                                if (artId != null) {
-                                    psLink.setLong(1, deezerId);
-                                    psLink.setLong(2, artId);
-                                    psLink.executeUpdate();
-                                }
-                            }
+                        TreeSet<String> canonicalArtists = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+                        if (meta.getAlbumArtistNames() != null) {
+                            meta.getAlbumArtistNames().stream().filter(Objects::nonNull)
+                                    .filter(name -> !name.isBlank()).forEach(canonicalArtists::add);
+                        }
+                        if (meta.getSongContributorNames() != null) {
+                            meta.getSongContributorNames().stream().filter(Objects::nonNull)
+                                    .filter(name -> !name.isBlank()).forEach(canonicalArtists::add);
+                        }
+                        CanonicalMediaService.SongMetadata songMetadata = new CanonicalMediaService.SongMetadata(
+                                title,
+                                meta.getTrackOrder(),
+                                meta.getDurationSeconds(),
+                                new ArrayList<>(canonicalArtists),
+                                canonicalAlbum,
+                                false,
+                                null
+                        );
+                        CanonicalizationResult<CanonicalMediaService.CanonicalSong> result =
+                                canonicalMedia.ensureCanonicalSong(
+                                        conn,
+                                        ExternalMediaId.deezer(deezerId),
+                                        externalAlbumId,
+                                        songMetadata
+                                );
+                        if (!result.isSuccess()) {
+                            throw new SQLException("Song identity conflict: " + result.conflict().reason());
                         }
                     }
-
                     if (manageTx) conn.commit();
                 } catch (SQLException ex) {
                     if (manageTx) conn.rollback();
@@ -448,32 +437,6 @@ public class SongDaoImpl extends JdbcDaoSupport implements SongDao {
                 if (close) try { conn.close(); } catch (SQLException ignore) {}
             }
         }
-    }
-
-    private static Long resolveAlbumId(
-            AlbumDao albumDao,
-            Map<String, Long> albumIdsByName,
-            String albumName
-    ) throws SQLException {
-        if (albumDao == null || albumName == null || albumName.isBlank()) return null;
-        if (albumIdsByName.containsKey(albumName)) return albumIdsByName.get(albumName);
-
-        Long albumId = albumDao.findIdByName(albumName);
-        albumIdsByName.put(albumName, albumId);
-        return albumId;
-    }
-
-    private static Long resolveArtistId(
-            ArtistDao artistDao,
-            Map<String, Long> artistIdsByName,
-            String artistName
-    ) throws SQLException {
-        if (artistDao == null || artistName == null || artistName.isBlank()) return null;
-        if (artistIdsByName.containsKey(artistName)) return artistIdsByName.get(artistName);
-
-        Long artistId = artistDao.findIdByName(artistName);
-        artistIdsByName.put(artistName, artistId);
-        return artistId;
     }
 
     @Override

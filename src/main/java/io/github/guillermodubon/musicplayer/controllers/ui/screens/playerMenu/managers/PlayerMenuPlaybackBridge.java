@@ -10,6 +10,7 @@ import io.github.guillermodubon.musicplayer.controllers.ui.components.layoutComp
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.playerMenu.context.PlayerMenuContext;
 import io.github.guillermodubon.musicplayer.models.Song;
 import io.github.guillermodubon.musicplayer.services.playback.PlaybackManager;
+import io.github.guillermodubon.musicplayer.services.playback.LocalPlaybackEligibility;
 import io.github.guillermodubon.musicplayer.controllers.ui.screens.playerMenu.context.PlayerMenuContext.ContentType;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 
@@ -31,6 +32,7 @@ public class PlayerMenuPlaybackBridge {
     private final StartUpService svc;
     private final Supplier<PlayerMenuController> menuControllerSupplier;
     private final Consumer<Song> playbackOriginPersister;
+    private final LocalPlaybackEligibility playbackEligibility = new LocalPlaybackEligibility();
 
     public PlayerMenuPlaybackBridge(PlayerMenuContext context,
                                     StartUpService svc,
@@ -56,7 +58,7 @@ public class PlayerMenuPlaybackBridge {
         */
         Song currentViewSong = findExactSongInCurrentView(song);
         if (currentViewSong == null || currentViewSong != song
-                || !currentViewSong.isLocal()) {
+                || !playbackEligibility.isLocalSong(currentViewSong)) {
             return;
         }
 
@@ -205,36 +207,19 @@ public class PlayerMenuPlaybackBridge {
     }
 
     private List<Song> rebuildPlayableListFromCurrentView(Song selectedSong) {
-        List<Song> rebuilt = new ArrayList<>();
-
         List<Song> master = context.getMasterSongList();
 
         if (master == null || master.isEmpty()) {
             context.setCurrentSongList(List.of());
-            return rebuilt;
+            return List.of();
         }
 
-        for (Song candidate : master) {
-            // Keep the selected item in the playback flow even when its file
-            // disappeared. PlaybackMediaService must receive it so it can
-            // show the missing-file dialog and trigger the visual refresh.
-            if (candidate == selectedSong) {
-                rebuilt.add(candidate);
-                continue;
-            }
-
-            // Only retain candidates whose own persisted path is playable.
-            // Resolving every candidate here can match a different local file
-            // when metadata is incomplete, which corrupts the playback flow.
-            if (!isPlayableLocalSong(candidate, false)) {
-                continue;
-            }
-
-            if (!containsSong(rebuilt, candidate)) {
-                rebuilt.add(candidate);
-            }
-        }
-
+        List<Song> rebuilt = new ArrayList<>(playbackEligibility.buildLocalSource(
+                master,
+                selectedSong,
+                candidate -> isPlayableLocalSong(candidate, false),
+                this::sameSong
+        ));
         context.setCurrentSongList(rebuilt);
         return rebuilt;
     }

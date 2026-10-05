@@ -1,6 +1,9 @@
 package io.github.guillermodubon.musicplayer.services.startup.library;
 
 import io.github.guillermodubon.musicplayer.models.ManifestEntry;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalIdentityDao;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
+import io.github.guillermodubon.musicplayer.repository.library.SavedMediaService;
 
 import javafx.util.Pair;
 import io.github.guillermodubon.musicplayer.models.DeezerApiMetaData;
@@ -38,11 +41,16 @@ static void markSongsRemote(Connection conn, Collection<Long> songIds) throws SQ
     }
     if (uniqueIds.isEmpty()) return;
 
-    try {
-        updateSongLocalityBatch(conn, uniqueIds, true);
-    } catch (SQLException missingFilePath) {
-        updateSongLocalityBatch(conn, uniqueIds, false);
+    ExternalIdentityDao identities = new ExternalIdentityDao(conn);
+    LinkedHashSet<Long> internalIds = new LinkedHashSet<>();
+    for (Long externalId : uniqueIds) {
+        var internalId = identities.resolve(
+                ExternalIdentityDao.EntityType.SONG,
+                ExternalMediaId.deezer(externalId)
+        );
+        if (internalId.isPresent()) internalIds.add(internalId.getAsLong());
     }
+    updateSongLocalityBatch(conn, internalIds, true);
 }
 
 static void markSongRemote(Connection conn, Long songId) throws SQLException {
@@ -87,15 +95,26 @@ private static void updateSongLocalityBatch(Connection conn,
 }
 
 static void markSongLocal(Connection conn, long songId, String path) throws SQLException {
-    if (conn == null || songId <= 0) return;
+    if (conn == null || songId <= 0 || path == null || path.isBlank()) return;
+    java.nio.file.Path localPath;
+    try {
+        localPath = Paths.get(path);
+        if (!java.nio.file.Files.isRegularFile(localPath)
+                || !java.nio.file.Files.isReadable(localPath)
+                || java.nio.file.Files.size(localPath) <= 0L) return;
+    } catch (Exception invalidPath) {
+        return;
+    }
+    var internalId = new ExternalIdentityDao(conn).resolve(
+            ExternalIdentityDao.EntityType.SONG,
+            ExternalMediaId.deezer(songId)
+    );
+    if (internalId.isEmpty()) return;
     try (PreparedStatement ps = conn.prepareStatement("UPDATE Song SET IsLocal = 1, FilePath = ? WHERE SongID = ?")) {
-        ps.setString(1, path);
-        ps.setLong(2, songId);
-        ps.executeUpdate();
-    } catch (SQLException missingFilePath) {
-        try (PreparedStatement ps = conn.prepareStatement("UPDATE Song SET IsLocal = 1 WHERE SongID = ?")) {
-            ps.setLong(1, songId);
-            ps.executeUpdate();
+        ps.setString(1, localPath.toAbsolutePath().toString());
+        ps.setLong(2, internalId.getAsLong());
+        if (ps.executeUpdate() == 1) {
+            new SavedMediaService().saveLocalSongsAndReleases(conn, List.of(internalId.getAsLong()));
         }
     }
 }
@@ -142,41 +161,47 @@ static String resolveManifestKeyAgainstScan(Connection conn,
 
     long deezerId = entry == null ? 0L : entry.getDeezerId();
     if (conn != null && deezerId > 0) {
-        String title = null;
-        List<String> albumArtists = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement("SELECT Title FROM Song WHERE SongID = ? LIMIT 1")) {
-            ps.setLong(1, deezerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) title = rs.getString("Title");
-            }
-        } catch (SQLException ignored) {
-        }
+        try {
+            var internalSongId = new ExternalIdentityDao(conn).resolve(
+                    ExternalIdentityDao.EntityType.SONG,
+                    ExternalMediaId.deezer(deezerId)
+            );
+            String title = null;
+            List<String> albumArtists = new ArrayList<>();
+            if (internalSongId.isPresent()) {
+                try (PreparedStatement ps = conn.prepareStatement("SELECT Title FROM Song WHERE SongID = ? LIMIT 1")) {
+                    ps.setLong(1, internalSongId.getAsLong());
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) title = rs.getString("Title");
+                    }
+                }
 
-        try (PreparedStatement ps = conn.prepareStatement("""
-                SELECT ar.Name
-                  FROM Song s
-                  JOIN AlbumArtist aa ON aa.AlbumID = s.Album
-                  JOIN Artist ar ON ar.ArtistID = aa.ArtistID
-                 WHERE s.SongID = ?
-                 ORDER BY ar.Name
-                """)) {
-            ps.setLong(1, deezerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String name = rs.getString(1);
-                    if (name != null && !name.isBlank()) albumArtists.add(name);
+                try (PreparedStatement ps = conn.prepareStatement("""
+                        SELECT ar.Name
+                          FROM Song s
+                          JOIN AlbumArtist aa ON aa.AlbumID = s.Album
+                          JOIN Artist ar ON ar.ArtistID = aa.ArtistID
+                         WHERE s.SongID = ?
+                         ORDER BY ar.Name
+                        """)) {
+                    ps.setLong(1, internalSongId.getAsLong());
+                    try (ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            String name = rs.getString(1);
+                            if (name != null && !name.isBlank()) albumArtists.add(name);
+                        }
+                    }
+                }
+            }
+            if (title != null && !title.isBlank()) {
+                for (String artist : albumArtists) {
+                    aliases.add(comparisonKey(artist + " " + title));
+                }
+                if (!albumArtists.isEmpty()) {
+                    aliases.add(comparisonKey(String.join(" ", albumArtists) + " " + title));
                 }
             }
         } catch (SQLException ignored) {
-        }
-
-        if (title != null && !title.isBlank()) {
-            for (String artist : albumArtists) {
-                aliases.add(comparisonKey(artist + " " + title));
-            }
-            if (!albumArtists.isEmpty()) {
-                aliases.add(comparisonKey(String.join(" ", albumArtists) + " " + title));
-            }
         }
     }
 

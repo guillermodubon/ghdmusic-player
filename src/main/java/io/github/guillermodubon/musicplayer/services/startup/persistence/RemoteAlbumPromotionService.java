@@ -5,6 +5,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import javafx.application.Platform;
 import io.github.guillermodubon.musicplayer.repository.DbConnectionManager;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalMediaService;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalizationResult;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
 import io.github.guillermodubon.musicplayer.repository.dao.album.AlbumDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.genre.GenreDao;
@@ -23,6 +26,9 @@ import io.github.guillermodubon.musicplayer.services.startup.locality.SongLocali
 import io.github.guillermodubon.musicplayer.utils.AlbumArtistResolver;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.SQLException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -280,6 +286,21 @@ public class RemoteAlbumPromotionService {
                     .filter(path -> path != null && !path.isBlank());
         };
 
+        if (meta.getAlbumId() > 0) {
+            return promoteCanonicalAlbum(
+                    meta,
+                    file,
+                    albumTracks,
+                    albumCoverBytes,
+                    artistImageBytes,
+                    albumArtistNames,
+                    contributorArtistIds,
+                    artistNamesById,
+                    contributorsByTrackId,
+                    findLocalPathFor
+            );
+        }
+
         List<Long> localTrackIdsToMark = new ArrayList<>();
 
         synchronized (owner.getDbLock()) {
@@ -381,7 +402,9 @@ public class RemoteAlbumPromotionService {
                             List<Long> localTracksInTx = new ArrayList<>();
 
                             try (PreparedStatement upd = conn.prepareStatement("UPDATE Song SET IsLocal = ?, TrackOrder = ?, Album = ? WHERE SongID = ?");
-                                 PreparedStatement insById = conn.prepareStatement("INSERT OR REPLACE INTO Song(SongID, Title, Album, TrackOrder, IsLocal) VALUES(?, ?, ?, ?, ?)");
+                                 PreparedStatement insById = conn.prepareStatement("INSERT INTO Song(SongID, Title, Album, TrackOrder, IsLocal) VALUES(?, ?, ?, ?, ?) "
+                                         + "ON CONFLICT(SongID) DO UPDATE SET Title=excluded.Title, Album=excluded.Album, "
+                                         + "TrackOrder=excluded.TrackOrder, IsLocal=MAX(Song.IsLocal, excluded.IsLocal)");
                                  PreparedStatement insByVisual = conn.prepareStatement("INSERT OR IGNORE INTO Song(Title, Album, TrackOrder, IsLocal) VALUES(?, ?, ?, ?)");
                                  PreparedStatement linkStmt = conn.prepareStatement("INSERT OR IGNORE INTO SongArtist(SongID, ArtistID) VALUES(?, ?)")) {
 
@@ -470,7 +493,9 @@ public class RemoteAlbumPromotionService {
                                         upd.executeUpdate();
                                     }
                                 } else {
-                                    try (PreparedStatement ins = conn.prepareStatement("INSERT OR REPLACE INTO Song(SongID, Title, Album, TrackOrder, IsLocal) VALUES(?, ?, ?, ?, 1)")) {
+                                    try (PreparedStatement ins = conn.prepareStatement("INSERT INTO Song(SongID, Title, Album, TrackOrder, IsLocal) VALUES(?, ?, ?, ?, 1) "
+                                            + "ON CONFLICT(SongID) DO UPDATE SET Title=excluded.Title, Album=excluded.Album, "
+                                            + "TrackOrder=excluded.TrackOrder, IsLocal=1")) {
                                         ins.setLong(1, tid);
                                         ins.setString(2, title);
                                         ins.setLong(3, albumId);
@@ -565,6 +590,215 @@ public class RemoteAlbumPromotionService {
         }
 
         return true;
+    }
+
+    private boolean promoteCanonicalAlbum(
+            DeezerApiMetaData metadata,
+            File downloadedFile,
+            List<DeezerTrackInfo> albumTracks,
+            Map<String, byte[]> albumCoverBytes,
+            Map<Long, List<byte[]>> artistImageBytes,
+            List<String> albumArtistNames,
+            List<Long> contributorArtistIds,
+            Map<Long, String> artistNamesById,
+            Map<Long, List<String>> contributorsByTrackId,
+            java.util.function.Function<DeezerTrackInfo, Optional<String>> findLocalPathFor
+    ) {
+        CanonicalMediaService.AlbumMetadata release = new CanonicalMediaService.AlbumMetadata(
+                Optional.ofNullable(metadata.getAlbumName()).filter(name -> !name.isBlank())
+                        .orElseGet(() -> Optional.ofNullable(metadata.getSongName()).filter(name -> !name.isBlank())
+                                .orElse("Unknown release")),
+                Optional.ofNullable(metadata.getGenre()).filter(name -> !name.isBlank()).orElse("Unknown"),
+                Optional.ofNullable(metadata.getRecordType()).filter(name -> !name.isBlank()).orElse("album"),
+                metadata.getAlbumReleaseDate(),
+                Math.max(0, metadata.getNumberOfTracks()),
+                albumArtistNames == null ? List.of() : albumArtistNames.stream()
+                        .filter(name -> name != null && !name.isBlank()).map(String::trim).distinct().toList()
+        );
+        Map<Long, String> canonicalLocalPaths = new LinkedHashMap<>();
+
+        try {
+            long canonicalAlbumId;
+            synchronized (owner.getDbLock()) {
+                canonicalAlbumId = DbConnectionManager.getInstance().runInTransaction(connection -> {
+                    try {
+                        ArtistDaoImpl artistDao = new ArtistDaoImpl(connection);
+                        for (Long artistId : contributorArtistIds) {
+                            if (artistId == null || artistId <= 0) continue;
+                            try {
+                                ensureById(connection, artistDao, artistId,
+                                        artistNamesById.get(artistId), artistImageBytes.get(artistId));
+                            } catch (Exception artistError) {
+                                throw new RuntimeException(artistError);
+                            }
+                        }
+                        for (String artistName : albumArtistNames) {
+                            if (artistName == null || artistName.isBlank()) continue;
+                            try {
+                                ensureByName(connection, artistDao, artistName, artistNamesById, artistImageBytes);
+                            } catch (Exception artistError) {
+                                throw new RuntimeException(artistError);
+                            }
+                        }
+
+                        CanonicalMediaService media = new CanonicalMediaService();
+                        CanonicalizationResult<Long> releaseResult = media.ensureCanonicalAlbum(
+                                connection,
+                                ExternalMediaId.deezer(metadata.getAlbumId()),
+                                release
+                        );
+                        if (!releaseResult.isSuccess()) {
+                            throw new SQLException("Deezer release identity conflict: "
+                                    + releaseResult.conflict().reason());
+                        }
+                        long albumId = releaseResult.value();
+                        persistAlbumImages(connection, albumId, albumCoverBytes);
+
+                        Set<Long> processedTrackIds = new HashSet<>();
+                        if (albumTracks != null) {
+                            for (DeezerTrackInfo track : albumTracks) {
+                                if (track == null || track.getId() <= 0 || track.getTitle() == null
+                                        || track.getTitle().isBlank()) continue;
+                                long externalTrackId = track.getId();
+                                Set<String> trackArtists = new LinkedHashSet<>();
+                                if (albumArtistNames != null) {
+                                    albumArtistNames.stream().filter(name -> name != null && !name.isBlank())
+                                            .map(String::trim).forEach(trackArtists::add);
+                                }
+                                contributorsByTrackId.getOrDefault(externalTrackId, List.of()).stream()
+                                        .filter(name -> name != null && !name.isBlank())
+                                        .map(String::trim).forEach(trackArtists::add);
+                                if (externalTrackId == metadata.getTrackId()
+                                        && metadata.getSongContributorNames() != null) {
+                                    metadata.getSongContributorNames().stream()
+                                            .filter(name -> name != null && !name.isBlank())
+                                            .map(String::trim).forEach(trackArtists::add);
+                                }
+                                String path = findLocalPathFor.apply(track)
+                                        .filter(RemoteAlbumPromotionService::isReadableFile)
+                                        .orElse(null);
+                                CanonicalMediaService.SongMetadata song = new CanonicalMediaService.SongMetadata(
+                                        track.getTitle(),
+                                        track.getTrackOrder(),
+                                        externalTrackId == metadata.getTrackId() ? metadata.getDurationSeconds() : 0,
+                                        List.copyOf(trackArtists),
+                                        release,
+                                        path != null,
+                                        path
+                                );
+                                CanonicalizationResult<CanonicalMediaService.CanonicalSong> songResult =
+                                        media.ensureCanonicalSong(connection,
+                                                ExternalMediaId.deezer(externalTrackId),
+                                                ExternalMediaId.deezer(metadata.getAlbumId()),
+                                                song);
+                                if (!songResult.isSuccess()) {
+                                    throw new SQLException("Deezer track identity conflict for track "
+                                            + externalTrackId + ": " + songResult.conflict().reason());
+                                }
+                                if (path != null) canonicalLocalPaths.put(songResult.value().songId(), path);
+                                processedTrackIds.add(externalTrackId);
+                            }
+                        }
+
+                        long targetTrackId = metadata.getTrackId();
+                        if (targetTrackId > 0 && !processedTrackIds.contains(targetTrackId)) {
+                            Set<String> targetArtists = new LinkedHashSet<>(albumArtistNames);
+                            if (metadata.getSongContributorNames() != null) {
+                                metadata.getSongContributorNames().stream()
+                                        .filter(name -> name != null && !name.isBlank())
+                                        .map(String::trim).forEach(targetArtists::add);
+                            }
+                            String title = Optional.ofNullable(metadata.getSongName()).filter(name -> !name.isBlank())
+                                    .orElse("Unknown track " + targetTrackId);
+                            CanonicalMediaService.SongMetadata target = new CanonicalMediaService.SongMetadata(
+                                    title,
+                                    Math.max(0, metadata.getTrackOrder()),
+                                    metadata.getDurationSeconds(),
+                                    targetArtists.stream().filter(name -> name != null && !name.isBlank())
+                                            .map(String::trim).distinct().toList(),
+                                    release,
+                                    isReadableFile(downloadedFile),
+                                    isReadableFile(downloadedFile) ? downloadedFile.getAbsolutePath() : null
+                            );
+                            CanonicalizationResult<CanonicalMediaService.CanonicalSong> result =
+                                    media.ensureCanonicalSong(connection,
+                                            ExternalMediaId.deezer(targetTrackId),
+                                            ExternalMediaId.deezer(metadata.getAlbumId()),
+                                            target);
+                            if (!result.isSuccess()) {
+                                throw new SQLException("Downloaded track identity conflict: "
+                                        + result.conflict().reason());
+                            }
+                            if (isReadableFile(downloadedFile)) {
+                                canonicalLocalPaths.put(result.value().songId(), downloadedFile.getAbsolutePath());
+                            }
+                        }
+
+                        modelHydrationService.loadModelsForAlbum(connection, albumId);
+                        return albumId;
+                    } catch (SQLException error) {
+                        throw new RuntimeException(error);
+                    }
+                });
+            }
+
+            for (Map.Entry<Long, String> entry : canonicalLocalPaths.entrySet()) {
+                songLocalityService.markSongAsLocal(entry.getKey(), entry.getValue());
+            }
+            try {
+                Platform.runLater(() -> {
+                    try {
+                        HomePageController controller = owner.getMainMenuController();
+                        if (controller != null) controller.refreshSections("");
+                    } catch (Exception ignored) {
+                    }
+                });
+            } catch (Exception ignored) {
+            }
+            return canonicalAlbumId > 0;
+        } catch (Exception error) {
+            System.out.println("promoteCanonicalAlbum: identity-safe promotion failed -> "
+                    + Optional.ofNullable(error.getMessage()).orElse("unknown error"));
+            return false;
+        }
+    }
+
+    private void persistAlbumImages(Connection connection,
+                                    long albumId,
+                                    Map<String, byte[]> images) throws SQLException {
+        if (images == null || images.isEmpty()) return;
+        try (PreparedStatement exists = connection.prepareStatement(
+                "SELECT 1 FROM AlbumImage WHERE AlbumID = ? AND ImageType = ? LIMIT 1");
+             PreparedStatement insert = connection.prepareStatement(
+                     "INSERT INTO AlbumImage(AlbumID, ImageType, ImageData) VALUES(?, ?, ?)")) {
+            for (Map.Entry<String, byte[]> image : images.entrySet()) {
+                byte[] data = image.getValue();
+                if (data == null || data.length == 0) continue;
+                exists.setLong(1, albumId);
+                exists.setString(2, image.getKey());
+                try (ResultSet row = exists.executeQuery()) {
+                    if (row.next()) continue;
+                }
+                insert.setLong(1, albumId);
+                insert.setString(2, image.getKey());
+                insert.setBytes(3, data);
+                insert.executeUpdate();
+            }
+        }
+    }
+
+    private static boolean isReadableFile(String path) {
+        if (path == null || path.isBlank()) return false;
+        try {
+            Path candidate = Path.of(path);
+            return Files.isRegularFile(candidate) && Files.isReadable(candidate) && Files.size(candidate) > 0;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isReadableFile(File file) {
+        return file != null && isReadableFile(file.getAbsolutePath());
     }
 
     private void mergeAlbumOwnersIntoMetadata(

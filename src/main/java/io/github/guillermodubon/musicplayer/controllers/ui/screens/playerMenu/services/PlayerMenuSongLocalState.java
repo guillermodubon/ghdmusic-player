@@ -220,9 +220,7 @@ final class PlayerMenuSongLocalState {
         }
 
         long songId = song.getSongID();
-        if (songId > 0 && cachedManifestSongIds.contains(songId)) {
-            return true;
-        }
+        if (songId > 0) return cachedManifestSongIds.contains(songId);
         Set<String> candidates = buildManifestCandidates(song);
         for (String manifestKey : cachedManifestKeys) {
             if (manifestKey.isBlank()) {
@@ -255,16 +253,18 @@ final class PlayerMenuSongLocalState {
             try {
                 Map<String, ManifestEntry> loaded = manifestSyncService.load();
                 cachedManifest = loaded == null ? Collections.emptyMap() : loaded;
-                Set<Long> songIds = new LinkedHashSet<>();
+                Set<Long> externalSongIds = new LinkedHashSet<>();
                 Set<String> manifestKeys = new LinkedHashSet<>();
                 for (Map.Entry<String, ManifestEntry> entry : cachedManifest.entrySet()) {
                     if (entry == null) continue;
                     ManifestEntry value = entry.getValue();
-                    if (value != null && value.deezerId > 0) songIds.add(value.deezerId);
+                    if (value != null && value.deezerId > 0) externalSongIds.add(value.deezerId);
                     String key = normalizeKey(entry.getKey());
                     if (!key.isBlank()) manifestKeys.add(key);
                 }
-                cachedManifestSongIds = Set.copyOf(songIds);
+                cachedManifestSongIds = startUpService == null
+                        ? Set.of()
+                        : startUpService.resolveCanonicalSongIdsForDeezer(externalSongIds);
                 cachedManifestKeys = Set.copyOf(manifestKeys);
             } catch (Exception ignored) {
                 cachedManifest = Collections.emptyMap();
