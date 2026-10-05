@@ -1,6 +1,7 @@
 package io.github.guillermodubon.musicplayer.repository;
 
 import io.github.guillermodubon.musicplayer.repository.schema.DatabaseSchemaManager;
+import io.github.guillermodubon.musicplayer.repository.schema.DatabaseInitializationException;
 import io.github.guillermodubon.musicplayer.repository.userData.UserDataPaths;
 
 import java.sql.Connection;
@@ -17,7 +18,7 @@ public final class DataBaseConfig {
     private DataBaseConfig() {
     }
 
-    public static void initializeDatabase() {
+    public static void initializeDatabase() throws DatabaseInitializationException {
         DatabaseSchemaManager.initialize(DB_FILE);
     }
 
