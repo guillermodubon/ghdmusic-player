@@ -28,6 +28,7 @@ import io.github.guillermodubon.musicplayer.controllers.ui.screens.playerMenu.vi
 import io.github.guillermodubon.musicplayer.managers.componentsManagers.cardsActionsManagers.ArtistCardActionManager;
 import io.github.guillermodubon.musicplayer.managers.componentsManagers.cardsActionsManagers.MusicCardActionManager;
 import io.github.guillermodubon.musicplayer.services.playback.PlaybackManager;
+import io.github.guillermodubon.musicplayer.services.playback.LocalPlaybackEligibility;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.services.images.MediaImageResolver;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
@@ -93,6 +94,7 @@ public class PlayerMenuController implements PlayerMenuActionHost {
     private BorderPane parentRoot;
     private final PlaybackManager pm = PlaybackManager.getInstance();
     private final PlayerMenuContext context = new PlayerMenuContext();
+    private final LocalPlaybackEligibility playbackEligibility = new LocalPlaybackEligibility();
 
     private MusicCardActionManager musicCardActionManager;
     private ArtistCardActionManager artistCardActionManager;
@@ -550,10 +552,7 @@ public class PlayerMenuController implements PlayerMenuActionHost {
         if (source == null || source.isEmpty()) {
             source = masterSongList == null ? List.of() : masterSongList;
         }
-        return source.stream()
-                .filter(Objects::nonNull)
-                .filter(Song::isLocal)
-                .toList();
+        return playbackEligibility.playableSongs(source, this::isSongImmediatelyPlayable);
     }
 
     @Override
@@ -978,7 +977,7 @@ public class PlayerMenuController implements PlayerMenuActionHost {
     }
 
     private boolean isSongImmediatelyPlayable(Song song) {
-        if (song == null || !song.isLocal()) {
+        if (!playbackEligibility.isLocalSong(song)) {
             return false;
         }
 
