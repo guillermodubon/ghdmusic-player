@@ -5,6 +5,8 @@ import javafx.collections.ObservableList;
 import io.github.guillermodubon.musicplayer.utils.FileNameUtils;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.repository.dao.lyrics.LyricsDaoImpl;
+import io.github.guillermodubon.musicplayer.repository.library.SavedLibrarySnapshot;
+import io.github.guillermodubon.musicplayer.repository.library.SavedMediaService;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 
 import java.io.IOException;
@@ -22,6 +24,8 @@ public class ModelHydrationService {
 
     private final StartUpService owner;
     private final AlbumModelHydrationService albumModelHydrationService;
+    private final SavedMediaService savedMediaService = new SavedMediaService();
+    private volatile SavedLibrarySnapshot savedLibrarySnapshot = SavedLibrarySnapshot.empty();
 
     public ModelHydrationService(StartUpService owner) {
         this.owner = Objects.requireNonNull(owner, "owner");
@@ -294,7 +298,12 @@ SELECT AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks FROM Albu
             ));
         }
         System.out.println("loadModels: finished loading playlists count=" + playlists.size());
+        savedLibrarySnapshot = savedMediaService.loadSnapshot(conn, songById.keySet(), albumById.keySet());
         owner.notifyGenreChangeListeners();
+    }
+
+    public SavedLibrarySnapshot getSavedLibrarySnapshot() {
+        return savedLibrarySnapshot;
     }
 
     private void registerResolvedLocalAudioPaths(List<Song> songs) {

@@ -8,6 +8,10 @@ import io.github.guillermodubon.musicplayer.repository.dao.album.AlbumDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDao;
 import io.github.guillermodubon.musicplayer.repository.dao.genre.GenreDao;
 import io.github.guillermodubon.musicplayer.repository.dao.song.SongDao;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalMediaService;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalTracklistService;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalIdentityDao;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.services.api.DeezerApiService;
 import io.github.guillermodubon.musicplayer.services.manifest.ManifestService;
@@ -396,7 +400,7 @@ public class IncrementalLibrarySyncService {
             deferredBiographyCandidates = Set.copyOf(newArtistBiographyCandidates);
         }
 
-        // For new metas referencing albums, fetch tracklists only for those albums and insert missing tracks
+        // Fetch tracklists by Deezer identity, then persist all rows through canonical identity.
         Set<Long> albumIdsToFetch = newMetas.stream()
                 .filter(Objects::nonNull)
                 .map(DeezerApiMetaData::getAlbumId)
@@ -427,31 +431,41 @@ public class IncrementalLibrarySyncService {
                 } catch (Exception ignored) {}
             }
 
-            Set<Long> localTrackIds = songDao.findAllLocalIds();
-            List<Song> pendingAlbumTracks = new ArrayList<>();
-
+            Map<Long, CanonicalMediaService.AlbumMetadata> albumMetadataByExternalId = new HashMap<>();
+            for (DeezerApiMetaData meta : newMetas) {
+                if (meta == null || meta.getAlbumId() <= 0
+                        || meta.getAlbumName() == null || meta.getAlbumName().isBlank()) continue;
+                albumMetadataByExternalId.putIfAbsent(meta.getAlbumId(), new CanonicalMediaService.AlbumMetadata(
+                        meta.getAlbumName(),
+                        meta.getGenre(),
+                        meta.getRecordType(),
+                        meta.getAlbumReleaseDate(),
+                        meta.getNumberOfTracks(),
+                        meta.getAlbumArtistNames()
+                ));
+            }
+            ExternalIdentityDao identities = new ExternalIdentityDao(conn);
+            CanonicalTracklistService tracklistService = new CanonicalTracklistService();
             for (Long albId : albumIdsToFetch) {
-                Album alb = albumDao.findById(albId).orElse(null);
-                if (alb == null) continue;
+                if (identities.resolve(
+                        ExternalIdentityDao.EntityType.ALBUM,
+                        ExternalMediaId.deezer(albId)
+                ).isEmpty()) {
+                    throw new SQLException("Tracklist album has no canonical identity.");
+                }
+                CanonicalMediaService.AlbumMetadata albumMetadata = albumMetadataByExternalId.get(albId);
+                if (albumMetadata == null) continue;
                 List<DeezerTrackInfo> tracks = albumTracksMap.getOrDefault(albId, List.of());
                 if (tracks.isEmpty()) continue;
-
-                Set<Integer> existingTrackOrders = songDao.findByAlbum(alb.getAlbumID()).stream()
-                        .map(Song::getTrackOrder)
-                        .collect(Collectors.toSet());
-                for (DeezerTrackInfo info : tracks) {
-                    int pos = info.getTrackOrder();
-                    if (existingTrackOrders.contains(pos)) continue;
-
-                    String title = info.getTitle();
-                    long deezerTrackId = info.getId();
-                    boolean isLocal = deezerTrackId > 0 && localTrackIds.contains(deezerTrackId);
-                    String path = null;
-                    long songId = deezerTrackId > 0 ? deezerTrackId : 0L;
-                    pendingAlbumTracks.add(new Song(songId, title, alb.getArtist(), alb, path, pos, isLocal));
-                }
+                tracklistService.persist(
+                        conn,
+                        ExternalMediaId.deezer(albId),
+                        albumMetadata,
+                        tracks.stream().map(info -> new CanonicalTracklistService.TrackMetadata(
+                                info.getId(), info.getTitle(), info.getTrackOrder(), 0
+                        )).toList()
+                );
             }
-            songDao.insertOrUpdateAllWithIds(pendingAlbumTracks);
         }
 
         // -------------------------

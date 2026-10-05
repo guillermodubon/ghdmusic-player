@@ -6,6 +6,11 @@ import io.github.guillermodubon.musicplayer.repository.dao.album.AlbumDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDao;
 import io.github.guillermodubon.musicplayer.repository.dao.genre.GenreDao;
 import io.github.guillermodubon.musicplayer.repository.dao.song.SongDao;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalMediaService;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalTracklistService;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalIdentityDao;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
+import io.github.guillermodubon.musicplayer.repository.library.SavedMediaService;
 import io.github.guillermodubon.musicplayer.utils.SongDataHelper;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.services.api.DeezerApiService;
@@ -71,10 +76,6 @@ public class InitialLibraryImportService {
             addSuccessfulTitleKeys(successfulLocalTitleKeys, m.getSongName());
         }
         // Build helper maps for local-detection
-        Set<Long> localTrackIds = metas.stream()
-                .map(DeezerApiMetaData::getTrackId)
-                .filter(id -> id > 0)
-                .collect(Collectors.toSet());
         Map<String, String> normalizedTitleToPath = new HashMap<>();
         for (var e : titleToPath.entrySet()) {
             if (e.getKey() == null || e.getValue() == null) continue;
@@ -89,24 +90,34 @@ public class InitialLibraryImportService {
         markSongsLocal(conn, localTrackPaths);
         // Fetch only albums introduced by this import. Existing remote album rows
         // are unrelated to the local scan and used to trigger unnecessary requests.
-        Set<Long> importedAlbumIds = new HashSet<>();
-        Set<String> importedAlbumNames = new LinkedHashSet<>();
+        Map<Long, CanonicalMediaService.AlbumMetadata> importedAlbums = new LinkedHashMap<>();
         for (DeezerApiMetaData meta : metas) {
-            if (meta != null && meta.getAlbumName() != null && !meta.getAlbumName().isBlank()) {
-                importedAlbumNames.add(meta.getAlbumName());
-            }
+            if (meta == null || meta.getAlbumId() <= 0
+                    || meta.getAlbumName() == null || meta.getAlbumName().isBlank()) continue;
+            importedAlbums.putIfAbsent(meta.getAlbumId(), new CanonicalMediaService.AlbumMetadata(
+                    meta.getAlbumName(),
+                    meta.getGenre(),
+                    meta.getRecordType(),
+                    meta.getAlbumReleaseDate(),
+                    meta.getNumberOfTracks(),
+                    meta.getAlbumArtistNames()
+            ));
         }
-        for (String albumName : importedAlbumNames) {
-            Long persistedAlbumId = albumDao.findIdByName(albumName);
-            if (persistedAlbumId != null && persistedAlbumId > 0) {
-                importedAlbumIds.add(persistedAlbumId);
-            }
+        ExternalIdentityDao identities = new ExternalIdentityDao(conn);
+        Map<Long, Long> internalAlbumIds = new LinkedHashMap<>();
+        for (Long externalAlbumId : importedAlbums.keySet()) {
+            var internalId = identities.resolve(
+                    ExternalIdentityDao.EntityType.ALBUM,
+                    ExternalMediaId.deezer(externalAlbumId)
+            );
+            if (internalId.isPresent()) internalAlbumIds.put(externalAlbumId, internalId.getAsLong());
         }
-        List<Album> importedAlbums = albumDao.findAll().stream()
-                .filter(album -> album != null && importedAlbumIds.contains(album.getAlbumID()))
-                .toList();
-        List<Long> albumIds = importedAlbums.stream().map(Album::getAlbumID).toList();
-        // Parallel fetch album tracklists (bounded)
+        if (internalAlbumIds.size() != importedAlbums.size()) {
+            throw new SQLException("Initial import could not resolve a canonical album identity.");
+        }
+        List<Long> externalAlbumIds = new ArrayList<>(importedAlbums.keySet());
+
+        // Fetch only releases introduced by this import, using provider IDs only at the API boundary.
         int parallelism = Math.min(12, Math.max(4, Runtime.getRuntime().availableProcessors()));
         ExecutorService fetchExec = Executors.newFixedThreadPool(parallelism, r -> {
             Thread t = new Thread(r);
@@ -114,65 +125,61 @@ public class InitialLibraryImportService {
             return t;
         });
         List<Future<AbstractMap.SimpleEntry<Long, List<DeezerTrackInfo>>>> futures = new ArrayList<>();
-        for (Long aid : albumIds) {
+        for (Long externalAlbumId : externalAlbumIds) {
             futures.add(fetchExec.submit(() -> {
                 try {
-                    List<DeezerTrackInfo> tracks = DeezerApiService.fetchAlbumTracks(aid);
-                    return new AbstractMap.SimpleEntry<>(aid, tracks);
+                    List<DeezerTrackInfo> tracks = DeezerApiService.fetchAlbumTracks(externalAlbumId);
+                    return new AbstractMap.SimpleEntry<>(externalAlbumId, tracks);
                 } catch (Exception ex) {
-                    return new AbstractMap.SimpleEntry<>(aid, List.<DeezerTrackInfo>of());
+                    return new AbstractMap.SimpleEntry<>(externalAlbumId, List.<DeezerTrackInfo>of());
                 }
             }));
         }
         fetchExec.shutdown();
-        // Gather results
         Map<Long, List<DeezerTrackInfo>> albumTracksMap = new HashMap<>();
-        for (Future<AbstractMap.SimpleEntry<Long, List<DeezerTrackInfo>>> f : futures) {
+        for (Future<AbstractMap.SimpleEntry<Long, List<DeezerTrackInfo>>> future : futures) {
             try {
-                AbstractMap.SimpleEntry<Long, List<DeezerTrackInfo>> p = f.get();
-                if (p != null && p.getKey() != null && p.getValue() != null) albumTracksMap.put(p.getKey(), p.getValue());
-            } catch (Exception ignored) { }
-        }
-        // Resolve existing positions once per album and persist all missing tracks
-        // in batches. This avoids one SELECT and two writes for every track.
-        List<Song> pendingAlbumTracks = new ArrayList<>();
-        for (Album alb : importedAlbums) {
-            List<DeezerTrackInfo> tracks = albumTracksMap.getOrDefault(alb.getAlbumID(), List.of());
-            if (tracks.isEmpty()) continue;
-            Set<Integer> existingTrackOrders = songDao.findByAlbum(alb.getAlbumID()).stream()
-                    .map(Song::getTrackOrder)
-                    .collect(Collectors.toSet());
-            for (DeezerTrackInfo info : tracks) {
-                int pos = info.getTrackOrder();
-                if (existingTrackOrders.contains(pos)) continue;
-
-                    String title = info.getTitle();
-                    long deezerTrackId = info.getId();
-                    boolean isLocal = deezerTrackId > 0 && localTrackIds.contains(deezerTrackId);
-                    String path = isLocal ? localTrackPaths.get(deezerTrackId) : null;
-                    long songId = deezerTrackId > 0 ? deezerTrackId : 0L;
-                    pendingAlbumTracks.add(new Song(songId, title, alb.getArtist(), alb, path, pos, isLocal));
+                AbstractMap.SimpleEntry<Long, List<DeezerTrackInfo>> result = future.get();
+                if (result != null && result.getKey() != null && result.getValue() != null) {
+                    albumTracksMap.put(result.getKey(), result.getValue());
+                }
+            } catch (Exception ignored) {
             }
         }
-        songDao.insertOrUpdateAllWithIds(pendingAlbumTracks);
+        CanonicalTracklistService tracklistService = new CanonicalTracklistService();
+        for (Map.Entry<Long, CanonicalMediaService.AlbumMetadata> album : importedAlbums.entrySet()) {
+            List<CanonicalTracklistService.TrackMetadata> tracks = albumTracksMap
+                    .getOrDefault(album.getKey(), List.of())
+                    .stream()
+                    .map(info -> new CanonicalTracklistService.TrackMetadata(
+                            info.getId(), info.getTitle(), info.getTrackOrder(), 0
+                    ))
+                    .toList();
+            tracklistService.persist(
+                    conn,
+                    ExternalMediaId.deezer(album.getKey()),
+                    album.getValue(),
+                    tracks
+            );
+        }
         // Biographies are enriched after the library transaction commits.
         // They never alter the song/album import, so keeping the remote lookup
         // out of this critical path releases the application much sooner.
-        // Deduplicate visual songs
-        songDao.deleteVisualDuplicates();
         // Build the manifest after inserts (from DB local songs + no-metadata)
         Map<String, ManifestEntry> newManifest = new HashMap<>();
+        Map<Long, String> localPathBySongId = resolveLocalPathsByInternalId(conn, localTrackPaths);
+        Map<Long, Long> externalTrackIdBySongId = resolveExternalTrackIdsByInternalId(conn, localTrackPaths.keySet());
         for (Song localSong : songDao.findAll().stream().filter(Song::isLocal).toList()) {
             String title = localSong.getTitle();
             if (title == null) continue;
-            String path = localTrackPaths.get(localSong.getSongID());
+            String path = localPathBySongId.get(localSong.getSongID());
             if (path == null) continue;
             File f = new File(path);
             String fileName = f.getName();
             String cleanedFileName = SongDataHelper.removeFileExtension(fileName).replaceAll("[\\\\/:*?\"<>|]", "").replaceAll("\\s+", " ").trim();
             if (cleanedFileName.length() > 200) cleanedFileName = cleanedFileName.substring(0, 200).trim();
             long ts = f.exists() ? f.lastModified() : System.currentTimeMillis();
-            long id = localSong.getSongID() > 0 ? localSong.getSongID() : 0;
+            long id = externalTrackIdBySongId.getOrDefault(localSong.getSongID(), 0L);
             newManifest.put(cleanedFileName, new ManifestEntry(
                     id,
                     ts,
@@ -236,51 +243,75 @@ public class InitialLibraryImportService {
         );
     }
 
-    private static void markSongLocal(Connection conn, long songId, String path) throws SQLException {
-        if (conn == null || songId <= 0) return;
-        try (var ps = conn.prepareStatement("UPDATE Song SET IsLocal = 1, FilePath = ? WHERE SongID = ?")) {
-            ps.setString(1, path);
-            ps.setLong(2, songId);
-            ps.executeUpdate();
-        } catch (SQLException missingFilePath) {
-            try (var ps = conn.prepareStatement("UPDATE Song SET IsLocal = 1 WHERE SongID = ?")) {
-                ps.setLong(1, songId);
-                ps.executeUpdate();
-            }
-        }
-    }
-
     private static void markSongsLocal(Connection conn, Map<Long, String> localTrackPaths) throws SQLException {
         if (conn == null || localTrackPaths == null || localTrackPaths.isEmpty()) return;
-
-        try {
-            updateLocalSongPaths(conn, localTrackPaths, true);
-        } catch (SQLException missingFilePath) {
-            updateLocalSongPaths(conn, localTrackPaths, false);
+        ExternalIdentityDao identities = new ExternalIdentityDao(conn);
+        Map<Long, String> pathsByInternalId = new LinkedHashMap<>();
+        for (Map.Entry<Long, String> entry : localTrackPaths.entrySet()) {
+            if (entry.getKey() == null || entry.getKey() <= 0 || entry.getValue() == null) continue;
+            var internalId = identities.resolve(
+                    ExternalIdentityDao.EntityType.SONG,
+                    ExternalMediaId.deezer(entry.getKey())
+            );
+            if (internalId.isPresent()) pathsByInternalId.put(internalId.getAsLong(), entry.getValue());
         }
+        updateLocalSongPaths(conn, pathsByInternalId);
     }
 
-    private static void updateLocalSongPaths(
-            Connection conn,
-            Map<Long, String> localTrackPaths,
-            boolean includeFilePath
-    ) throws SQLException {
-        String sql = includeFilePath
-                ? "UPDATE Song SET IsLocal = 1, FilePath = ? WHERE SongID = ?"
-                : "UPDATE Song SET IsLocal = 1 WHERE SongID = ?";
+    private static void updateLocalSongPaths(Connection conn, Map<Long, String> pathsByInternalId) throws SQLException {
+        String sql = "UPDATE Song SET IsLocal = 1, FilePath = ? WHERE SongID = ?";
+        List<Long> savedSongIds = new ArrayList<>();
         try (var statement = conn.prepareStatement(sql)) {
             int pending = 0;
-            for (Map.Entry<Long, String> entry : localTrackPaths.entrySet()) {
+            for (Map.Entry<Long, String> entry : pathsByInternalId.entrySet()) {
                 Long songId = entry.getKey();
-                if (songId == null || songId <= 0) continue;
-                if (includeFilePath) statement.setString(1, entry.getValue());
-                statement.setLong(includeFilePath ? 2 : 1, songId);
+                if (songId == null || songId <= 0 || !isReadableLocalFile(entry.getValue())) continue;
+                statement.setString(1, entry.getValue());
+                statement.setLong(2, songId);
                 statement.addBatch();
+                savedSongIds.add(songId);
                 pending++;
                 if (pending % 250 == 0) statement.executeBatch();
             }
             if (pending % 250 != 0) statement.executeBatch();
         }
+        new SavedMediaService().saveLocalSongsAndReleases(conn, savedSongIds);
+    }
+
+    private static boolean isReadableLocalFile(String path) {
+        if (path == null || path.isBlank()) return false;
+        File file = new File(path);
+        return file.isFile() && file.canRead() && file.length() > 0L;
+    }
+
+    private static Map<Long, String> resolveLocalPathsByInternalId(Connection conn,
+                                                                    Map<Long, String> pathsByExternalId) throws SQLException {
+        Map<Long, String> resolved = new LinkedHashMap<>();
+        ExternalIdentityDao identities = new ExternalIdentityDao(conn);
+        for (Map.Entry<Long, String> entry : pathsByExternalId.entrySet()) {
+            if (entry.getKey() == null || entry.getKey() <= 0) continue;
+            var internalId = identities.resolve(
+                    ExternalIdentityDao.EntityType.SONG,
+                    ExternalMediaId.deezer(entry.getKey())
+            );
+            if (internalId.isPresent()) resolved.put(internalId.getAsLong(), entry.getValue());
+        }
+        return resolved;
+    }
+
+    private static Map<Long, Long> resolveExternalTrackIdsByInternalId(Connection conn,
+                                                                        Collection<Long> externalIds) throws SQLException {
+        Map<Long, Long> resolved = new LinkedHashMap<>();
+        ExternalIdentityDao identities = new ExternalIdentityDao(conn);
+        for (Long externalId : externalIds) {
+            if (externalId == null || externalId <= 0) continue;
+            var internalId = identities.resolve(
+                    ExternalIdentityDao.EntityType.SONG,
+                    ExternalMediaId.deezer(externalId)
+            );
+            if (internalId.isPresent()) resolved.put(internalId.getAsLong(), externalId);
+        }
+        return resolved;
     }
 
 }

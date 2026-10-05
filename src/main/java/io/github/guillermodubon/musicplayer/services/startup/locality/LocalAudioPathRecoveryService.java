@@ -2,6 +2,9 @@ package io.github.guillermodubon.musicplayer.services.startup.locality;
 
 import io.github.guillermodubon.musicplayer.models.ManifestEntry;
 import io.github.guillermodubon.musicplayer.models.Song;
+import io.github.guillermodubon.musicplayer.repository.DbConnectionManager;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalIdentityDao;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
 import io.github.guillermodubon.musicplayer.services.scanning.ScannedAudioFile;
 import io.github.guillermodubon.musicplayer.services.startup.StartUpService;
 import io.github.guillermodubon.musicplayer.utils.SongAudioIdentity;
@@ -54,16 +57,16 @@ public final class LocalAudioPathRecoveryService {
      */
     public int reconcilePersistedLocalPaths(Connection connection,
                                              Map<String, ManifestEntry> manifest) throws SQLException {
-        if (connection == null || index.isEmpty()) return 0;
+        if (connection == null) return 0;
 
-        Map<Long, ManifestEvidence> evidenceBySongId = evidenceBySongId(manifest);
+        Map<Long, ManifestEvidence> evidenceBySongId = evidenceBySongId(connection, manifest);
         Map<Long, String> repaired = new HashMap<>();
+        List<Long> unavailable = new ArrayList<>();
 
         try (PreparedStatement rows = connection.prepareStatement("""
-                SELECT SongID, FilePath
+                 SELECT SongID, FilePath
                   FROM Song
                  WHERE IsLocal = 1
-                   AND trim(COALESCE(FilePath, '')) <> ''
                 """);
              ResultSet result = rows.executeQuery()) {
             while (result.next()) {
@@ -71,22 +74,34 @@ public final class LocalAudioPathRecoveryService {
                 String oldPath = result.getString("FilePath");
                 if (isReadable(oldPath)) continue;
 
-                findMovedFile(songId, oldPath, evidenceBySongId)
+                Optional<ScannedAudioFile> movedFile = findMovedFile(songId, oldPath, evidenceBySongId);
+                movedFile
                         .map(file -> file.path().toString())
                         .ifPresent(path -> repaired.put(songId, path));
+                if (movedFile.isEmpty()) unavailable.add(songId);
             }
         }
 
-        if (repaired.isEmpty()) return 0;
-
-        try (PreparedStatement update = connection.prepareStatement(
-                "UPDATE Song SET IsLocal = 1, FilePath = ? WHERE SongID = ?")) {
-            for (Map.Entry<Long, String> repair : repaired.entrySet()) {
-                update.setString(1, repair.getValue());
-                update.setLong(2, repair.getKey());
-                update.addBatch();
+        if (!repaired.isEmpty()) {
+            try (PreparedStatement update = connection.prepareStatement(
+                    "UPDATE Song SET IsLocal = 1, FilePath = ? WHERE SongID = ?")) {
+                for (Map.Entry<Long, String> repair : repaired.entrySet()) {
+                    update.setString(1, repair.getValue());
+                    update.setLong(2, repair.getKey());
+                    update.addBatch();
+                }
+                update.executeBatch();
             }
-            update.executeBatch();
+        }
+        if (!unavailable.isEmpty()) {
+            try (PreparedStatement update = connection.prepareStatement(
+                    "UPDATE Song SET IsLocal = 0, FilePath = NULL WHERE SongID = ?")) {
+                for (Long songId : unavailable) {
+                    update.setLong(1, songId);
+                    update.addBatch();
+                }
+                update.executeBatch();
+            }
         }
         return repaired.size();
     }
@@ -99,7 +114,12 @@ public final class LocalAudioPathRecoveryService {
     public Optional<String> recoverMovedPath(Song requestedSong) {
         if (requestedSong == null) return Optional.empty();
 
-        Map<Long, ManifestEvidence> evidenceBySongId = evidenceBySongId(owner.getManifestService().load());
+        Map<Long, ManifestEvidence> evidenceBySongId;
+        try (Connection connection = DbConnectionManager.getInstance().openConnection()) {
+            evidenceBySongId = evidenceBySongId(connection, owner.getManifestService().load());
+        } catch (SQLException ignored) {
+            evidenceBySongId = Map.of();
+        }
         Optional<RecoveredPath> current = recoverFromCurrentIndex(requestedSong, evidenceBySongId);
         if (current.isPresent()) {
             return publishRecovery(current.get()).map(path -> path.toString());
@@ -224,15 +244,22 @@ public final class LocalAudioPathRecoveryService {
         return Optional.empty();
     }
 
-    private Map<Long, ManifestEvidence> evidenceBySongId(Map<String, ManifestEntry> manifest) {
+    private Map<Long, ManifestEvidence> evidenceBySongId(Connection connection,
+                                                         Map<String, ManifestEntry> manifest) throws SQLException {
         if (manifest == null || manifest.isEmpty()) return Map.of();
         Map<Long, ManifestEvidence> evidence = new HashMap<>();
+        ExternalIdentityDao identities = new ExternalIdentityDao(connection);
         for (Map.Entry<String, ManifestEntry> entry : manifest.entrySet()) {
             ManifestEntry value = entry.getValue();
             if (value == null || value.getDeezerId() <= 0) continue;
+            var canonicalSongId = identities.resolve(
+                    ExternalIdentityDao.EntityType.SONG,
+                    ExternalMediaId.deezer(value.getDeezerId())
+            );
+            if (canonicalSongId.isEmpty()) continue;
             String fileName = value.getFileName();
             if (fileName == null || fileName.isBlank()) fileName = entry.getKey();
-            evidence.putIfAbsent(value.getDeezerId(), new ManifestEvidence(
+            evidence.putIfAbsent(canonicalSongId.getAsLong(), new ManifestEvidence(
                     baseName(fileName), value.getLastModified(), value.getFileSize()
             ));
         }

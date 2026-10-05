@@ -6,6 +6,8 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import io.github.guillermodubon.musicplayer.repository.DataBaseConfig;
 import io.github.guillermodubon.musicplayer.repository.DbConnectionManager;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalIdentityDao;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
 import io.github.guillermodubon.musicplayer.repository.dao.album.AlbumDao;
 import io.github.guillermodubon.musicplayer.repository.dao.album.AlbumDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDao;
@@ -159,6 +161,22 @@ public class StartUpService {
 
     public ManifestSyncService getManifestService() {
         return manifestService;
+    }
+
+    public Set<Long> resolveCanonicalSongIdsForDeezer(Collection<Long> externalTrackIds) throws SQLException {
+        if (externalTrackIds == null || externalTrackIds.isEmpty()) return Set.of();
+        List<ExternalMediaId> identities = externalTrackIds.stream()
+                .filter(Objects::nonNull)
+                .filter(id -> id > 0)
+                .distinct()
+                .map(ExternalMediaId::deezer)
+                .toList();
+        if (identities.isEmpty()) return Set.of();
+        try (Connection connection = DbConnectionManager.getInstance().openConnection()) {
+            return Set.copyOf(new ExternalIdentityDao(connection)
+                    .resolveAll(ExternalIdentityDao.EntityType.SONG, identities)
+                    .values());
+        }
     }
 
     public ModelHydrationService getModelHydrationService() {
