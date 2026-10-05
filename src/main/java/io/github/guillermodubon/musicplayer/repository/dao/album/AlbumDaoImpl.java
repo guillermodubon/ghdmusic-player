@@ -4,8 +4,12 @@ import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDao;
 import io.github.guillermodubon.musicplayer.repository.dao.artist.ArtistDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.support.JdbcDaoOperations;
 import io.github.guillermodubon.musicplayer.repository.dao.genre.GenreDao;
+import io.github.guillermodubon.musicplayer.repository.dao.genre.GenreDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.lyrics.LyricsDaoImpl;
 import io.github.guillermodubon.musicplayer.repository.dao.support.JdbcDaoSupport;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalMediaService;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalizationResult;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
 import io.github.guillermodubon.musicplayer.models.*;
 import io.github.guillermodubon.musicplayer.utils.ArtistIdentity;
 
@@ -657,83 +661,52 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
                           GenreDao genreDao,
                           ArtistDao artistDao) throws SQLException {
         if (conn == null) throw new SQLException("conn requerido en upsertAll(conn, ...)");
+        CanonicalMediaService canonicalMedia = new CanonicalMediaService();
         for (DeezerApiMetaData meta : uniqueAlbumMetadata(metas)) {
             long deezerAlbumId = meta.getAlbumId();
             String albName     = meta.getAlbumName();
-            String genName     = meta.getGenre();
-            if (albName == null || albName.isBlank() || genName == null || genName.isBlank()) continue;
+            if (deezerAlbumId <= 0 || albName == null || albName.isBlank()) continue;
 
-            Integer genreId = genreDao.findIdByName(genName);
-            if (genreId == null) continue;
+            CanonicalMediaService.AlbumMetadata albumMetadata = new CanonicalMediaService.AlbumMetadata(
+                    albName,
+                    meta.getGenre(),
+                    meta.getRecordType(),
+                    meta.getAlbumReleaseDate(),
+                    meta.getNumberOfTracks(),
+                    meta.getAlbumArtistNames()
+            );
+            CanonicalizationResult<Long> result = canonicalMedia.ensureCanonicalAlbum(
+                    conn,
+                    ExternalMediaId.deezer(deezerAlbumId),
+                    albumMetadata
+            );
+            if (!result.isSuccess()) {
+                throw new SQLException("Album identity conflict: " + result.conflict().reason());
+            }
+            insertImagesIfMissing(conn, result.value(), meta.getAlbumCoverBytesList());
+        }
+    }
 
-            Long existingId = null;
-            try (PreparedStatement psFind = conn.prepareStatement("SELECT AlbumID FROM Album WHERE Name = ? LIMIT 1")) {
-                psFind.setString(1, albName);
-                try (ResultSet rs = psFind.executeQuery()) {
-                    if (rs.next()) existingId = rs.getLong("AlbumID");
+    private void insertImagesIfMissing(Connection connection, long albumId, List<byte[]> covers) throws SQLException {
+        if (covers == null || covers.isEmpty()) return;
+        String[] types = {"small", "medium", "xl"};
+        for (int index = 0; index < types.length && index < covers.size(); index++) {
+            byte[] image = covers.get(index);
+            if (image == null || image.length == 0) continue;
+            try (PreparedStatement existing = connection.prepareStatement(
+                    "SELECT 1 FROM AlbumImage WHERE AlbumID = ? AND ImageType = ? LIMIT 1")) {
+                existing.setLong(1, albumId);
+                existing.setString(2, types[index]);
+                try (ResultSet result = existing.executeQuery()) {
+                    if (result.next()) continue;
                 }
             }
-
-            long persistedAlbumId;
-            if (existingId != null) {
-                String sqlUpdate = """
-                        UPDATE Album
-                           SET GenreID = ?,
-                               Name = ?,
-                               RecordType = ?,
-                               ReleaseDate = ?,
-                               NumberOfTracks = ?
-                         WHERE AlbumID = ?
-                        """;
-                try (PreparedStatement ps = conn.prepareStatement(sqlUpdate)) {
-                    ps.setInt(1, genreId);
-                    ps.setString(2, albName);
-                    ps.setString(3, meta.getRecordType());
-                    if (meta.getAlbumReleaseDate() != null && !meta.getAlbumReleaseDate().isBlank()) ps.setString(4, meta.getAlbumReleaseDate());
-                    else ps.setNull(4, Types.VARCHAR);
-                    ps.setInt(5, meta.getNumberOfTracks());
-                    ps.setLong(6, existingId);
-                    ps.executeUpdate();
-                }
-                persistedAlbumId = existingId;
-            } else {
-                String sqlInsert = """
-                        INSERT OR REPLACE INTO Album(
-                            AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks
-                        ) VALUES(?, ?, ?, ?, ?, ?)
-                        """;
-                try (PreparedStatement ps = conn.prepareStatement(sqlInsert)) {
-                    ps.setLong(1, deezerAlbumId);
-                    ps.setInt(2, genreId);
-                    ps.setString(3, albName);
-                    ps.setString(4, meta.getRecordType());
-                    if (meta.getAlbumReleaseDate() != null && !meta.getAlbumReleaseDate().isBlank()) ps.setString(5, meta.getAlbumReleaseDate());
-                    else ps.setNull(5, Types.VARCHAR);
-                    ps.setInt(6, meta.getNumberOfTracks());
-                    ps.executeUpdate();
-                }
-                persistedAlbumId = deezerAlbumId;
-            }
-
-            List<byte[]> covers = meta.getAlbumCoverBytesList();
-            if (covers != null && !covers.isEmpty()) {
-                insertImages(persistedAlbumId, covers);
-            }
-
-            List<String> albumArtistNames = meta.getAlbumArtistNames();
-            if (albumArtistNames != null && !albumArtistNames.isEmpty()) {
-                for (String an : albumArtistNames) {
-                    if (an == null || an.isBlank()) continue;
-                    if (ArtistIdentity.isVariousArtists(an)) continue;
-                    Long artId = artistDao.findIdByName(an);
-                    if (artId != null) {
-                        try (PreparedStatement link = conn.prepareStatement("INSERT OR IGNORE INTO AlbumArtist(AlbumID, ArtistID) VALUES(?, ?)")) {
-                            link.setLong(1, persistedAlbumId);
-                            link.setLong(2, artId.longValue());
-                            link.executeUpdate();
-                        }
-                    }
-                }
+            try (PreparedStatement insert = connection.prepareStatement(
+                    "INSERT INTO AlbumImage(AlbumID, ImageType, ImageData) VALUES(?, ?, ?)")) {
+                insert.setLong(1, albumId);
+                insert.setString(2, types[index]);
+                insert.setBytes(3, image);
+                insert.executeUpdate();
             }
         }
     }
@@ -770,224 +743,43 @@ public class AlbumDaoImpl extends JdbcDaoSupport implements AlbumDao {
         long deezerAlbumId = meta.getAlbumId();
         if (deezerAlbumId <= 0) return;
 
-        try {
-            // 1) get genreId (if applicable)
-            int genreId = 0;
-            String genreName = meta.getGenre();
-            if (genreName != null && !genreName.isBlank()) {
-                try (PreparedStatement psGenre = prepareStatementWithRetry(conn, "SELECT GenreID FROM Genre WHERE Name = ? LIMIT 1", 6)) {
-                    psGenre.setString(1, genreName);
-                    try (ResultSet rs = psGenre.executeQuery()) {
-                        if (rs.next()) genreId = rs.getInt("GenreID");
-                    }
-                }
-                // create if it doesn't exist
-                if (genreId == 0) {
-                    try (PreparedStatement psIns = prepareStatementWithRetry(conn, "INSERT INTO Genre(Name) VALUES(?)", 6)) {
-                        psIns.setString(1, genreName);
-                        psIns.executeUpdate();
-                    } catch (SQLException e) {
-                        String msg = Optional.ofNullable(e.getMessage()).orElse("").toLowerCase();
-                        if (!msg.contains("unique") && !msg.contains("constraint")) throw e;
-                    }
-                    try (PreparedStatement psGenre2 = prepareStatementWithRetry(conn, "SELECT GenreID FROM Genre WHERE Name = ? LIMIT 1", 6)) {
-                        psGenre2.setString(1, genreName);
-                        try (ResultSet rs = psGenre2.executeQuery()) {
-                            if (rs.next()) genreId = rs.getInt("GenreID");
-                        }
-                    }
-                }
-            }
-
-            // 2) check for existence by AlbumID (preferable)
-            boolean existsById = false;
-            try (PreparedStatement psChk = prepareStatementWithRetry(conn, "SELECT 1 FROM Album WHERE AlbumID = ? LIMIT 1", 6)) {
-                psChk.setLong(1, deezerAlbumId);
-                try (ResultSet rs = psChk.executeQuery()) { existsById = rs.next(); }
-            }
-
-            // 3) if it exists, update; otherwise, insert (using AlbumID from the API)
-            String albName = meta.getAlbumName() == null ? "" : meta.getAlbumName();
-            String recordType = meta.getRecordType();
-            String releaseDate = meta.getAlbumReleaseDate();
-            int numberOfTracks = meta.getNumberOfTracks();
-
-            if (existsById) {
-                try (PreparedStatement ps = prepareStatementWithRetry(conn,
-                        "UPDATE Album SET GenreID=?, Name=?, RecordType=?, ReleaseDate=?, NumberOfTracks=? WHERE AlbumID=?", 6)) {
-                    ps.setInt(1, genreId);
-                    ps.setString(2, albName);
-                    ps.setString(3, recordType);
-                    if (releaseDate != null && !releaseDate.isBlank()) ps.setString(4, releaseDate);
-                    else ps.setNull(4, Types.VARCHAR);
-                    ps.setInt(5, numberOfTracks);
-                    ps.setLong(6, deezerAlbumId);
-                    ps.executeUpdate();
-                }
-            } else {
-                try (PreparedStatement ps = prepareStatementWithRetry(conn,
-                        "INSERT OR REPLACE INTO Album(AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks) VALUES(?, ?, ?, ?, ?, ?)", 6)) {
-                    ps.setLong(1, deezerAlbumId);
-                    ps.setInt(2, genreId);
-                    ps.setString(3, albName);
-                    ps.setString(4, recordType);
-                    if (releaseDate != null && !releaseDate.isBlank()) ps.setString(5, releaseDate);
-                    else ps.setNull(5, Types.VARCHAR);
-                    ps.setInt(6, numberOfTracks);
-                    ps.executeUpdate();
-                }
-            }
-
-            // 4) Insert/update cover images using the same connection (avoid opening another connection)
-            List<byte[]> covers = meta.getAlbumCoverBytesList();
-            if (covers != null && !covers.isEmpty()) {
-                String[] types = {"small", "medium", "xl"};
-                for (int i = 0; i < types.length && i < covers.size(); i++) {
-                    byte[] data = covers.get(i);
-                    if (data == null || data.length == 0) continue;
-                    String type = types[i];
-                    boolean exists = false;
-                    try (PreparedStatement psChk = prepareStatementWithRetry(conn, "SELECT 1 FROM AlbumImage WHERE AlbumID = ? AND ImageType = ? LIMIT 1", 6)) {
-                        psChk.setLong(1, deezerAlbumId);
-                        psChk.setString(2, type);
-                        try (ResultSet rs = psChk.executeQuery()) { exists = rs.next(); }
-                    }
-                    if (!exists) {
-                        try (PreparedStatement psIns = prepareStatementWithRetry(conn, "INSERT INTO AlbumImage(AlbumID, ImageType, ImageData) VALUES(?, ?, ?)", 6)) {
-                            psIns.setLong(1, deezerAlbumId);
-                            psIns.setString(2, type);
-                            psIns.setBytes(3, data);
-                            psIns.executeUpdate();
-                        } catch (SQLException e) {
-                            String msg = Optional.ofNullable(e.getMessage()).orElse("").toLowerCase();
-                            if (msg.contains("unique") || msg.contains("constraint")) {
-                                // ignore duplicates
-                                System.out.println("AlbumDaoImpl.upsertFromMeta: duplicate album image ignored for albumId=" + deezerAlbumId + " type=" + type);
-                            } else {
-                                throw e;
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 5) link artists -> use ArtistDaoImpl(conn) to look up IDs and create AlbumArtist (within the same transaction)
-            ArtistDao artistDao = new ArtistDaoImpl(conn);
-            List<String> albumArtistNames = meta.getAlbumArtistNames();
-            if (albumArtistNames != null && !albumArtistNames.isEmpty()) {
-                for (String an : albumArtistNames) {
-                    if (an == null || an.isBlank()) continue;
-                    if (ArtistIdentity.isVariousArtists(an)) continue;
-                    Long artId = artistDao.findIdByName(an);
-                    if (artId != null && artId > 0) {
-                        try (PreparedStatement link = prepareStatementWithRetry(conn, "INSERT OR IGNORE INTO AlbumArtist(AlbumID, ArtistID) VALUES(?, ?)", 6)) {
-                            link.setLong(1, deezerAlbumId);
-                            link.setLong(2, artId);
-                            link.executeUpdate();
-                        }
-                    } else {
-
-                        try (PreparedStatement insA = prepareStatementWithRetry(conn, "INSERT OR IGNORE INTO Artist(Name, Biography) VALUES(?, NULL)", 6)) {
-
-                            insA.setString(1, an);
-                            try {
-                                insA.executeUpdate();
-                            } catch (SQLException ignored) {
-
-                            }
-                        }
-                        // search for newly created ID
-                        long newId = 0L;
-                        try (PreparedStatement psFind = prepareStatementWithRetry(conn, "SELECT ArtistID FROM Artist WHERE Name = ? LIMIT 1", 6)) {
-                            psFind.setString(1, an);
-                            try (ResultSet rsf = psFind.executeQuery()) {
-                                if (rsf.next()) newId = rsf.getLong("ArtistID");
-                            }
-                        }
-                        if (newId > 0) {
-                            try (PreparedStatement link2 = prepareStatementWithRetry(conn, "INSERT OR IGNORE INTO AlbumArtist(AlbumID, ArtistID) VALUES(?, ?)", 6)) {
-                                link2.setLong(1, deezerAlbumId);
-                                link2.setLong(2, newId);
-                                link2.executeUpdate();
-                            }
-                        }
-                    }
-                }
-            }
-
-            // finished successfully (no commit here; caller controls tx)
-            return;
-        } catch (SQLException ex) {
-            // rethrow to let caller handle rollback
-            throw ex;
-        } catch (Throwable t) {
-            throw new SQLException("Unexpected error in upsertFromMeta", t);
+        CanonicalMediaService.AlbumMetadata metadata = new CanonicalMediaService.AlbumMetadata(
+                Optional.ofNullable(meta.getAlbumName()).filter(name -> !name.isBlank())
+                        .orElse("Unknown release"),
+                Optional.ofNullable(meta.getGenre()).filter(name -> !name.isBlank()).orElse("Unknown"),
+                Optional.ofNullable(meta.getRecordType()).filter(name -> !name.isBlank()).orElse("album"),
+                meta.getAlbumReleaseDate(),
+                Math.max(0, meta.getNumberOfTracks()),
+                meta.getAlbumArtistNames() == null ? List.of() : meta.getAlbumArtistNames().stream()
+                        .filter(name -> name != null && !name.isBlank()).map(String::trim).distinct().toList()
+        );
+        CanonicalizationResult<Long> canonical = new CanonicalMediaService().ensureCanonicalAlbum(
+                conn, ExternalMediaId.deezer(deezerAlbumId), metadata
+        );
+        if (!canonical.isSuccess()) {
+            throw new SQLException("Remote release identity conflicts with existing library data: "
+                    + canonical.conflict().reason());
         }
+        insertImagesIfMissing(conn, canonical.value(), meta.getAlbumCoverBytesList());
     }
 
     @Override
     public void upsertAll(List<DeezerApiMetaData> metas,
                           GenreDao genreDao,
                           ArtistDao artistDao) throws SQLException {
-        for (DeezerApiMetaData meta : uniqueAlbumMetadata(metas)) {
-            long deezerAlbumId = meta.getAlbumId();
-            String albName     = meta.getAlbumName();
-            String genName     = meta.getGenre();
-            if (albName == null || albName.isBlank() || genName == null || genName.isBlank()) continue;
-
-            Integer genreId = genreDao.findIdByName(genName);
-            if (genreId == null) continue;
-
-            Long existingId = findIdByName(albName);
-            long persistedAlbumId;
-            if (existingId != null) {
-                update(new Album(
-                        existingId,
-                        albName,
-                        Collections.emptyList(),
-                        new Genre(genreId,null),
-                        meta.getRecordType(),
-                        meta.getAlbumReleaseDate(),
-                        Collections.emptyList(),
-                        Collections.emptyList(),
-                        meta.getNumberOfTracks()
-                ));
-                persistedAlbumId = existingId;
-            } else {
-                String sql =
-                        """
-                INSERT INTO Album(
-                    AlbumID, GenreID, Name, RecordType, ReleaseDate, NumberOfTracks
-                ) VALUES(?, ?, ?, ?, ?, ?)
-                """;
-                synchronized (DB_WRITE_LOCK) {
-                    try (Connection conn = openConnection();
-                         PreparedStatement ps = prepareStatementWithRetry(conn, sql, 6)) {
-                        ps.setLong(1, deezerAlbumId);
-                        ps.setInt(2, genreId);
-                        ps.setString(3, albName);
-                        ps.setString(4, meta.getRecordType());
-                        if (meta.getAlbumReleaseDate() != null && !meta.getAlbumReleaseDate().isBlank()) {
-                            ps.setString(5, meta.getAlbumReleaseDate());
-                        } else {
-                            ps.setNull(5, Types.VARCHAR);
-                        }
-                        ps.setInt(6, meta.getNumberOfTracks());
-                        ps.executeUpdate();
-                    }
+        if (metas == null || metas.isEmpty()) return;
+        try {
+            connectionManager().runInTransaction(connection -> {
+                try {
+                    upsertAll(connection, metas, new GenreDaoImpl(connection), new ArtistDaoImpl(connection));
+                    return null;
+                } catch (SQLException error) {
+                    throw new RuntimeException(error);
                 }
-                persistedAlbumId = deezerAlbumId;
-    }
-
-            List<byte[]> covers = meta.getAlbumCoverBytesList();
-            if (covers != null && !covers.isEmpty()) {
-                insertImages(persistedAlbumId, covers);
-            }
-
-            for (String artName : meta.getAlbumArtistNames()) {
-                Long artId = artistDao.findIdByName(artName);
-                if (artId != null) linkArtist(persistedAlbumId, artId);
-            }
+            });
+        } catch (RuntimeException error) {
+            if (error.getCause() instanceof SQLException sqlException) throw sqlException;
+            throw error;
         }
     }
 

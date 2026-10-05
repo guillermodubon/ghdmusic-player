@@ -3,6 +3,9 @@ package io.github.guillermodubon.musicplayer.repository.dao.playlist;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import io.github.guillermodubon.musicplayer.repository.dao.support.JdbcDaoSupport;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalMediaService;
+import io.github.guillermodubon.musicplayer.repository.identity.CanonicalizationResult;
+import io.github.guillermodubon.musicplayer.repository.identity.ExternalMediaId;
 import io.github.guillermodubon.musicplayer.models.Album;
 import io.github.guillermodubon.musicplayer.models.Playlist;
 import io.github.guillermodubon.musicplayer.models.Song;
@@ -125,7 +128,7 @@ public class PlaylistDaoImpl extends JdbcDaoSupport implements PlaylistDao {
     @Override
     public void insert(Playlist entity) throws SQLException {
         System.out.println("PlaylistDaoImpl.insert: title=" + entity.getTitle());
-        String sql = "INSERT INTO Playlist(Title, Author, Description, CoverImage) VALUES(?, ?, ?, ?)";
+        String sql = "INSERT INTO Playlist(Title, Author, Description, CoverImage, Origin) VALUES(?, ?, ?, ?, 'USER')";
 
         synchronized (DB_WRITE_LOCK) {
             if (hasSharedConnection()) {
@@ -373,7 +376,7 @@ public class PlaylistDaoImpl extends JdbcDaoSupport implements PlaylistDao {
     @Override
     public void createPlaylist(Playlist entity, byte[] coverBytes) throws SQLException {
         System.out.println("PlaylistDaoImpl.createPlaylist: title=" + entity.getTitle());
-        String sql = "INSERT INTO Playlist(Title, Author, Description, CoverImage) VALUES(?, ?, ?, ?)";
+        String sql = "INSERT INTO Playlist(Title, Author, Description, CoverImage, Origin) VALUES(?, ?, ?, ?, 'USER')";
         synchronized (DB_WRITE_LOCK) {
             if (hasSharedConnection()) {
                 configureConnection(sharedConnection());
@@ -420,60 +423,53 @@ public class PlaylistDaoImpl extends JdbcDaoSupport implements PlaylistDao {
                                                   byte[] coverBytes,
                                                   long remoteId) throws SQLException {
         if (playlist == null || remoteId <= 0) {
-            throw new IllegalArgumentException("Playlist y remoteId son obligatorios.");
+            throw new IllegalArgumentException("A playlist and positive Deezer ID are required.");
         }
 
         try {
             connectionManager().runInTransaction(connection -> {
                 try {
+                    CanonicalizationResult<Long> canonical = new CanonicalMediaService()
+                            .ensureCanonicalPlaylist(
+                                    connection,
+                                    ExternalMediaId.deezer(remoteId),
+                                    new CanonicalMediaService.PlaylistMetadata(
+                                            playlist.getTitle(), playlist.getAuthorName(), playlist.getDescription()
+                                    )
+                            );
+                    if (!canonical.isSuccess()) {
+                        throw new SQLException("Remote playlist identity conflicts with existing library data: "
+                                + canonical.conflict().reason());
+                    }
+
                     String updateSql = """
                             UPDATE Playlist
-                               SET Title = ?,
-                                   Author = ?,
-                                   Description = ?,
-                                   CoverImage = COALESCE(?, CoverImage)
+                               SET Author = ?,
+                                   Description = COALESCE(?, Description),
+                                   CoverImage = CASE WHEN CoverImage IS NULL OR length(CoverImage) = 0
+                                                     THEN COALESCE(?, CoverImage) ELSE CoverImage END
                              WHERE PlaylistID = ?
                             """;
-
-                    int updatedRows;
                     try (PreparedStatement statement = connection.prepareStatement(updateSql)) {
-                        statement.setString(1, playlist.getTitle());
-                        statement.setString(2, playlist.getAuthorName());
-                        setNullableText(statement, 3, playlist.getDescription());
-                        setNullableBlob(statement, 4, coverBytes);
-                        statement.setLong(5, remoteId);
-                        updatedRows = statement.executeUpdate();
-                    }
-
-                    if (updatedRows == 0) {
-                        String insertSql = """
-                                INSERT INTO Playlist
-                                    (PlaylistID, Title, Author, Description, CoverImage, CreationDate)
-                                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                                """;
-
-                        try (PreparedStatement statement = connection.prepareStatement(insertSql)) {
-                            statement.setLong(1, remoteId);
-                            statement.setString(2, playlist.getTitle());
-                            statement.setString(3, playlist.getAuthorName());
-                            setNullableText(statement, 4, playlist.getDescription());
-                            setNullableBlob(statement, 5, coverBytes);
-                            statement.executeUpdate();
+                        statement.setString(1, playlist.getAuthorName());
+                        setNullableText(statement, 2, playlist.getDescription());
+                        setNullableBlob(statement, 3, coverBytes);
+                        statement.setLong(4, canonical.value());
+                        if (statement.executeUpdate() != 1) {
+                            throw new SQLException("Canonical playlist row is missing.");
                         }
                     }
-
                     return null;
                 } catch (SQLException exception) {
                     throw new RuntimeException(exception);
                 }
             });
         } catch (RuntimeException exception) {
-            if (exception.getCause() instanceof SQLException sqlException) {
-                throw sqlException;
-            }
+            if (exception.getCause() instanceof SQLException sqlException) throw sqlException;
             throw exception;
         }
 
+        // Keep the remote view model's legacy provider-ID interpretation intact.
         playlist.setId(remoteId);
     }
 
